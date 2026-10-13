@@ -12,7 +12,7 @@ type Kind = 'expense' | 'income';
 type Mode = 'single' | 'fixed' | 'installment';
 type Target = { type: 'account' | 'card'; id: number } | null;
 
-const PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24, 36, 48, 60];
+const PARCELA_ATALHOS = [2, 3, 6, 12, 24, 36, 48, 60];
 
 export function LancarPage() {
   const navigate = useNavigate();
@@ -28,7 +28,7 @@ export function LancarPage() {
     const cardId = (location.state as any)?.cardId;
     return cardId ? { type: 'card', id: Number(cardId) } : null;
   });
-  const [installments, setInstallments] = useState(2);
+  const [installments, setInstallments] = useState<number | null>(2);
   const [amountBasis, setAmountBasis] = useState<'total' | 'installment'>('total');
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState('');
@@ -52,13 +52,14 @@ export function LancarPage() {
   const chosen = target && !(kind === 'income' && target.type === 'card') ? target : defaultTarget;
   const chosenCard = chosen?.type === 'card' ? cards.data?.find((c) => c.id === chosen.id) : card;
   const paid = paidOverride ?? date <= today;
+  const countOk = installments != null && installments >= 2 && installments <= 480;
   const perInstallment = effectiveMode === 'installment' && amountBasis === 'installment';
-  const totalCents = amount == null ? null : perInstallment ? amount * installments : amount;
+  const totalCents = amount == null ? null : perInstallment ? (countOk ? amount * installments : null) : amount;
 
   const hint = useMemo(() => {
     if (!totalCents) return null;
     if (effectiveMode === 'installment') {
-      if (totalCents < installments) return null;
+      if (!countOk || installments == null || totalCents < installments) return null;
       const parts = splitInstallments(totalCents, installments);
       const first = chosenCard ? `a partir da fatura de ${monthName(invoiceForPurchase(chosenCard, date).reference_month)}` : `todo dia ${dayOf(date)}`;
       const each = parts[0] === parts[parts.length - 1] ? brl(parts[0]) : `${brl(parts[parts.length - 1])} a ${brl(parts[0])}`;
@@ -67,7 +68,7 @@ export function LancarPage() {
     if (effectiveMode === 'fixed') return `Todo dia ${dayOf(date)}, a partir de ${monthName(monthOf(date))}`;
     if (chosenCard) return `Entra na fatura que vence em ${monthName(invoiceForPurchase(chosenCard, date).reference_month)}`;
     return null;
-  }, [totalCents, effectiveMode, installments, chosenCard, date]);
+  }, [totalCents, effectiveMode, installments, countOk, chosenCard, date]);
 
   const createCategory = useAction(
     (body: { name: string; parent_id: number | null }) => api<Category>('/categories', { body: { ...body, kind } }),
@@ -77,10 +78,10 @@ export function LancarPage() {
   const submit = useAction(
     async () => {
       if (!totalCents || !chosen) throw new Error('Informe o valor e onde pagar');
-      if (effectiveMode === 'installment' && totalCents < installments) throw new Error('O total precisa cobrir todas as parcelas');
+      if (effectiveMode === 'installment' && (!countOk || installments == null || totalCents < installments)) throw new Error('O total precisa cobrir todas as parcelas');
       const where = chosen.type === 'card' ? { card_id: chosen.id } : { account_id: chosen.id };
       const base = { description: description.trim(), category_id: categoryId, for_user_id: forUser, ...where };
-      if (effectiveMode === 'installment') {
+      if (effectiveMode === 'installment' && installments != null) {
         return (await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } })).xp;
       }
       if (effectiveMode === 'fixed') {
@@ -127,7 +128,7 @@ export function LancarPage() {
             ['income', 'Receita'],
           ]}
         />
-        <MoneyInput big value={amount} onChange={setAmount} label={effectiveMode === 'installment' ? (perInstallment ? 'Valor parcelado' : 'Valor total') : 'Valor'} />
+        <MoneyInput big value={amount} onChange={setAmount} label={effectiveMode === 'installment' ? (perInstallment ? 'Cada parcela' : 'Valor total') : 'Valor'} />
 
         <div className="chips" role="radiogroup" aria-label="Tipo">
           {(
@@ -144,18 +145,48 @@ export function LancarPage() {
         </div>
 
         {effectiveMode === 'installment' && (
-          <div className="chips" role="radiogroup" aria-label="Como informar o valor">
-            {(
-              [
-                ['total', 'Valor total'],
-                ['installment', 'Valor parcelado'],
-              ] as const
-            ).map(([id, label]) => (
-              <button key={id} type="button" role="radio" aria-checked={amountBasis === id} className={`chip sm${amountBasis === id ? ' on' : ''}`} onClick={() => setAmountBasis(id)}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <section className="card parcel-box">
+            <div className="chips" role="radiogroup" aria-label="Como informar o valor">
+              {(
+                [
+                  ['total', 'Valor total'],
+                  ['installment', 'Cada parcela'],
+                ] as const
+              ).map(([id, label]) => (
+                <button key={id} type="button" role="radio" aria-checked={amountBasis === id} className={`chip sm${amountBasis === id ? ' on' : ''}`} onClick={() => setAmountBasis(id)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="parcel-count">
+              <span>Parcelas</span>
+              <div className="stepper">
+                <button type="button" aria-label="Menos uma parcela" onClick={() => setInstallments((n) => Math.max(2, (n ?? 3) - 1))}>
+                  −
+                </button>
+                <input
+                  inputMode="numeric"
+                  aria-label="Quantidade de parcelas"
+                  value={installments ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setInstallments(raw ? Math.min(480, Number(raw)) : null);
+                  }}
+                />
+                <button type="button" aria-label="Mais uma parcela" onClick={() => setInstallments((n) => Math.min(480, (n ?? 1) + 1))}>
+                  +
+                </button>
+              </div>
+            </div>
+            <div className="chips" aria-label="Quantidades comuns">
+              {PARCELA_ATALHOS.map((n) => (
+                <button key={n} type="button" className={`chip sm${installments === n ? ' on' : ''}`} onClick={() => setInstallments(n)}>
+                  {n}x
+                </button>
+              ))}
+            </div>
+            {hint && <p className="parcel-hint">{hint}</p>}
+          </section>
         )}
 
         <CategoryPicker
@@ -187,24 +218,10 @@ export function LancarPage() {
         </div>
         {noTargets && <p className="err">Cadastre uma conta em Mais → Contas antes de lançar.</p>}
 
-        <div className="row" style={{ alignItems: 'flex-end' }}>
-          {effectiveMode === 'installment' && (
-            <label className="f">
-              <span>Parcelas</span>
-              <select value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
-                {PARCELAS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}x
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="f">
-            <span>{effectiveMode === 'fixed' ? 'Primeira data' : effectiveMode === 'installment' ? 'Data da compra' : 'Data'}</span>
-            <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} required />
-          </label>
-        </div>
+        <label className="f" style={{ flex: 'none' }}>
+          <span>{effectiveMode === 'fixed' ? 'Primeira data' : effectiveMode === 'installment' ? 'Data da compra' : 'Data'}</span>
+          <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} required />
+        </label>
         <label className="f" style={{ flex: 'none' }}>
           <span>Descrição</span>
           <input placeholder="Opcional" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} />
@@ -217,13 +234,13 @@ export function LancarPage() {
             <input type="checkbox" checked={paid} onChange={(e) => setPaidOverride(e.target.checked)} />
           </label>
         )}
-        {hint && (
+        {hint && effectiveMode !== 'installment' && (
           <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>
             {hint}
           </div>
         )}
         <ErrorText error={submit.error ?? createCategory.error} />
-        <button className="btn big" style={{ marginTop: 'auto' }} disabled={!totalCents || !chosen || (effectiveMode === 'installment' && totalCents < installments) || submit.isPending}>
+        <button className="btn big" style={{ marginTop: 'auto' }} disabled={!totalCents || !chosen || (effectiveMode === 'installment' && (!countOk || installments == null || totalCents < installments)) || submit.isPending}>
           Lançar
         </button>
       </form>

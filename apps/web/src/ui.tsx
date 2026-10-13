@@ -42,9 +42,13 @@ export const Icon = {
   moon: () => svg(path('M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z')),
 };
 
-export function StatusIcon({ status }: { status: Tx['display_status'] }) {
+export function StatusIcon({ status, label }: { status: Tx['display_status']; label?: string }) {
   const icon = status === 'paid' ? Icon.check() : status === 'overdue' ? Icon.alert() : status === 'card' ? Icon.card() : Icon.clock();
-  return <div className={`o ${status}`}>{icon}</div>;
+  return (
+    <div className={`o ${status}`} role="img" aria-label={label}>
+      {icon}
+    </div>
+  );
 }
 
 export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {

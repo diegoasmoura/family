@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Icon, Sheet } from './ui';
 
 const p = (d: string) => <path d={d} />;
 
@@ -128,91 +129,104 @@ export function CategoryPicker({
   const parent = categories.find((c) => c.id === parentId);
   const parents = categories.filter((c) => c.parent_id == null);
   const children = categories.filter((c) => parentId != null && c.parent_id === parentId);
-  const [newName, setNewName] = useState<{ name: string; sub: boolean } | null>(null);
+  const sub = selected && selected.parent_id != null ? selected : null;
+  const [open, setOpen] = useState<'group' | 'sub' | null>(null);
+  const [newName, setNewName] = useState('');
+  const creatingSub = open === 'sub';
   const create = () => {
-    if (!onCreate || !newName?.name.trim()) return;
-    onCreate(newName.name.trim(), newName.sub ? parentId : null);
-    setNewName(null);
+    if (!onCreate || !newName.trim()) return;
+    onCreate(newName.trim(), creatingSub ? parentId : null);
+    setNewName('');
+    setOpen(null);
+  };
+  const chooseGroup = (id: number) => {
+    onChange(id);
+    const kids = categories.filter((c) => c.parent_id === id);
+    if (kids.length || onCreate) setOpen('sub');
+    else setOpen(null);
   };
 
-  const add = (sub: boolean) =>
-    onCreate &&
-    (newName?.sub === sub ? (
-      <span className="row" style={{ gap: 6 }}>
-        <input
-          className="inp"
-          autoFocus
-          aria-label={sub ? 'Nome da subcategoria' : 'Nome da categoria'}
-          placeholder={sub ? `Nova em ${parent?.name}` : 'Nova categoria'}
-          value={newName.name}
-          onChange={(e) => setNewName({ name: e.target.value, sub })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              create();
-            }
-            if (e.key === 'Escape') setNewName(null);
-          }}
-          style={{ width: 170 }}
-        />
-        <button
-          type="button"
-          className="btn sm"
-          disabled={!newName.name.trim() || creating}
-          onClick={create}
-        >
-          Criar
-        </button>
+  const row = (label: string, name: string, cat: CatLike | null, onClick: () => void, disabled = false) => (
+    <button type="button" className="pick-row" onClick={onClick} disabled={disabled}>
+      {cat ? <CategoryIcon cat={cat} all={categories} size={36} /> : <span className="cat-ic" style={{ width: 36, height: 36, background: 'var(--line)' }} />}
+      <span className="grow">
+        <small>{label}</small>
+        <b>{name}</b>
       </span>
-    ) : (
-      <button type="button" className="chip cat add" onClick={() => setNewName({ name: '', sub })}>
-        + {sub ? 'Subcategoria' : 'Nova'}
-      </button>
-    ));
+      <Icon.right />
+    </button>
+  );
 
   return (
     <>
-      <small>Categoria</small>
-      <div className="chips" role="radiogroup" aria-label="Categoria">
-        {parents.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            role="radio"
-            aria-checked={parentId === c.id}
-            className={`chip cat${parentId === c.id ? ' on' : ''}`}
-            onClick={() => onChange(parentId === c.id ? null : c.id)}
-          >
-            <CategoryIcon cat={c} all={categories} size={24} />
-            {c.name}
-          </button>
-        ))}
-        {add(false)}
+      <div className="pick-rows">
+        {row('Grupo', parent?.name ?? 'Escolher', parent ?? null, () => {
+          setNewName('');
+          setOpen('group');
+        })}
+        {row(
+          'Subgrupo',
+          parent ? (sub?.name ?? 'Geral') : 'Escolha o grupo',
+          parent ? (sub ?? { name: 'Geral', icon: 'shapes', color: categoryColor(parent, categories) }) : null,
+          () => {
+            setNewName('');
+            setOpen('sub');
+          },
+          !parent,
+        )}
       </div>
-      {parent && (children.length > 0 || onCreate) && (
-        <>
-          <small>Subcategoria de {parent.name}</small>
-          <div className="chips" role="radiogroup" aria-label="Subcategoria">
-            <button type="button" role="radio" aria-checked={value === parent.id} className={`chip cat sm${value === parent.id ? ' on' : ''}`} onClick={() => onChange(parent.id)}>
-              <CategoryIcon cat={{ name: 'Outros', icon: 'shapes', color: categoryColor(parent, categories) }} size={20} />
-              Geral
+      {open && (
+        <Sheet title={open === 'group' ? 'Grupo' : `Subgrupo de ${parent?.name ?? ''}`} onClose={() => setOpen(null)}>
+          {open === 'sub' && (
+            <button type="button" className="btn ghost sm" onClick={() => setOpen('group')}>
+              Voltar aos grupos
             </button>
-            {children.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                role="radio"
-                aria-checked={value === c.id}
-                className={`chip cat sm${value === c.id ? ' on' : ''}`}
-                onClick={() => onChange(value === c.id ? parent.id : c.id)}
-              >
-                <CategoryIcon cat={c} all={categories} size={20} />
-                {c.name}
-              </button>
-            ))}
-            {add(true)}
+          )}
+          <div className="pick-list" role="listbox" aria-label={open === 'group' ? 'Grupo' : 'Subgrupo'}>
+            {open === 'group'
+              ? parents.map((c) => (
+                  <button key={c.id} type="button" role="option" aria-selected={parentId === c.id} className={`pick-opt${parentId === c.id ? ' on' : ''}`} onClick={() => chooseGroup(c.id)}>
+                    <CategoryIcon cat={c} all={categories} size={36} />
+                    {c.name}
+                  </button>
+                ))
+              : parent && (
+                  <>
+                    <button type="button" role="option" aria-selected={value === parent.id} className={`pick-opt${value === parent.id ? ' on' : ''}`} onClick={() => { onChange(parent.id); setOpen(null); }}>
+                      <CategoryIcon cat={{ name: 'Geral', icon: 'shapes', color: categoryColor(parent, categories) }} size={36} />
+                      Geral
+                    </button>
+                    {children.map((c) => (
+                      <button key={c.id} type="button" role="option" aria-selected={value === c.id} className={`pick-opt${value === c.id ? ' on' : ''}`} onClick={() => { onChange(c.id); setOpen(null); }}>
+                        <CategoryIcon cat={c} all={categories} size={36} />
+                        {c.name}
+                      </button>
+                    ))}
+                  </>
+                )}
           </div>
-        </>
+          {onCreate && (
+            <div className="row" style={{ alignItems: 'flex-end' }}>
+              <label className="f">
+                <span>{creatingSub ? `Novo subgrupo em ${parent?.name}` : 'Novo grupo'}</span>
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  maxLength={40}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      create();
+                    }
+                  }}
+                />
+              </label>
+              <button type="button" className="btn sm" disabled={!newName.trim() || creating} onClick={create}>
+                Criar
+              </button>
+            </div>
+          )}
+        </Sheet>
       )}
     </>
   );

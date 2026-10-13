@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { monthLabel } from '@fin/domain';
 import { useApi, type Tx } from '../api';
@@ -78,6 +78,80 @@ function categoryCols(parent: string | null, name: string | null) {
   return { group: name, sub: null as string | null };
 }
 
+function byDue(a: Tx, b: Tx) {
+  const left = a.due_on ?? a.occurred_on;
+  const right = b.due_on ?? b.occurred_on;
+  return left.localeCompare(right) || a.id - b.id;
+}
+
+const CHIP_FALLBACK = '#8E9AAF';
+
+function CategoryChips({ tx }: { tx: Pick<Tx, 'parent_category_name' | 'category_name' | 'parent_category_color' | 'category_color'> }) {
+  const cols = categoryCols(tx.parent_category_name, tx.category_name);
+  if (!cols.group) return null;
+  const groupColor = tx.parent_category_color || tx.category_color || CHIP_FALLBACK;
+  const subColor = tx.category_color || groupColor;
+  return (
+    <span className="tx-chips">
+      <span className="tx-chip" style={{ '--chip': groupColor } as CSSProperties}>
+        {cols.group}
+      </span>
+      {cols.sub && (
+        <span className="tx-chip sub" style={{ '--chip': subColor } as CSSProperties}>
+          {cols.sub}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function TxLine({
+  status,
+  statusLabel,
+  kicker,
+  title,
+  parcel,
+  chips,
+  date,
+  amount,
+  dim,
+  onOpen,
+  menu,
+}: {
+  status: Tx['display_status'];
+  statusLabel: string;
+  kicker: string;
+  title: string;
+  parcel?: string | null;
+  chips?: ReactNode;
+  date: string;
+  amount: number;
+  dim?: boolean;
+  onOpen: () => void;
+  menu?: ReactNode;
+}) {
+  return (
+    <div className={`ledger-row${dim ? ' dim' : ''}`}>
+      <button type="button" className="ledger-hit" onClick={onOpen}>
+        <StatusIcon status={status} label={statusLabel} />
+        <span className="tx-body">
+          <span className="tx-kicker">{kicker}</span>
+          <span className="tx-title">
+            <span className="name">{title}</span>
+            {parcel && <span className="tx-parcel">{parcel}</span>}
+          </span>
+          {chips}
+        </span>
+        <span className="tx-side">
+          <span className="tx-date">{date}</span>
+          <b className="num">{brl(amount)}</b>
+        </span>
+      </button>
+      {menu}
+    </div>
+  );
+}
+
 function invoiceHref(inv: InvoiceRow) {
   return `/cartoes?card=${inv.card_id}&mes=${inv.reference_month}`;
 }
@@ -106,7 +180,7 @@ function PlaceRow({ name, detail, amount, href }: { name: string; detail: string
   );
 }
 
-function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number) => void }) {
+function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, mode?: TxSheetMode) => void }) {
   const lines = inv.lines ?? [];
   const detailed = lines.some((l) => l.kind !== 'other');
   const lineStatus = inv.state === 'paid' ? 'paid' : inv.state === 'overdue' ? 'overdue' : 'planned';
@@ -120,34 +194,55 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number) =
     />
   );
   if (!detailed) return head;
+  const sorted = [...lines].sort((a, b) => {
+    if (a.kind === 'other') return 1;
+    if (b.kind === 'other') return -1;
+    const left = a.tx.due_on ?? a.tx.occurred_on;
+    const right = b.tx.due_on ?? b.tx.occurred_on;
+    return left.localeCompare(right) || a.tx.id - b.tx.id;
+  });
   return (
     <section className="grp">
       {head}
-      {lines.map((l) =>
+      {sorted.map((l) =>
         l.kind === 'other' ? (
-          <Link key="other" to={invoiceHref(inv)} className="ledger-row">
-            <StatusIcon status={lineStatus} />
-            <div className="m">
-              <span className="t">{l.description}</span>
-              {l.count > 1 && <small>{l.count} compras</small>}
-            </div>
-            <span className="col">Outros</span>
-            <span className="col sub">Outros</span>
-            <div className="v num">{brl(l.amount_cents)}</div>
-            <span />
-          </Link>
+          <div key="other" className="ledger-row">
+            <Link to={invoiceHref(inv)} className="ledger-hit">
+              <StatusIcon status={lineStatus} label={inv.state_label} />
+              <span className="tx-body">
+                <span className="tx-kicker">{inv.card_name}</span>
+                <span className="tx-title">
+                  <span className="name">{l.description}</span>
+                </span>
+                {l.count > 1 && (
+                  <span className="tx-chips">
+                    <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
+                      {l.count} compras
+                    </span>
+                  </span>
+                )}
+              </span>
+              <span className="tx-side">
+                <span className="tx-date">{dayLabel(inv.due_date)}</span>
+                <b className="num">{brl(l.amount_cents)}</b>
+              </span>
+            </Link>
+          </div>
         ) : (
-          <button key={l.tx.id} type="button" className={`ledger-row${l.tx.include_in_reports ? '' : ' dim'}`} onClick={() => onOpen(l.tx.id)}>
-            <StatusIcon status={lineStatus} />
-            <div className="m">
-              <span className="t">{l.description}</span>
-              {l.label && <small>{l.label}</small>}
-            </div>
-            <span className="col">{categoryCols(l.tx.parent_category_name, l.tx.category_name).group}</span>
-            <span className="col sub">{categoryCols(l.tx.parent_category_name, l.tx.category_name).sub}</span>
-            <div className="v num">{brl(l.amount_cents)}</div>
-            <span />
-          </button>
+          <TxLine
+            key={l.tx.id}
+            status={l.tx.display_status}
+            statusLabel={l.tx.status_label}
+            kicker={l.tx.account_name || inv.card_name}
+            title={l.description}
+            parcel={l.label}
+            chips={<CategoryChips tx={l.tx} />}
+            date={dayLabel(l.tx.due_on ?? l.tx.occurred_on)}
+            amount={l.amount_cents}
+            dim={!l.tx.include_in_reports}
+            onOpen={() => onOpen(l.tx.id)}
+            menu={<TxMenu tx={l.tx} onOpen={(mode) => onOpen(l.tx.id, mode)} />}
+          />
         ),
       )}
     </section>
@@ -181,6 +276,7 @@ export function LancamentosPage() {
       }
       map.get(name)!.push(t);
     }
+    for (const list of map.values()) list.sort(byDue);
     return order.map((name) => ({ name, items: map.get(name)! }));
   }, [items]);
   const invoices: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
@@ -236,18 +332,8 @@ export function LancamentosPage() {
           </div>
 
           <div className="ledger">
-            {(invoices.length > 0 || groups.length > 0) && (
-              <div className="ledger-row head">
-                <span />
-                <span />
-                <span>Grupo</span>
-                <span>Subgrupo</span>
-                <span>Valor</span>
-                <span />
-              </div>
-            )}
             {invoices.map((inv) => (
-              <InvoiceBlock key={inv.id} inv={inv} onOpen={(id) => setSelected({ id, mode: 'view' })} />
+              <InvoiceBlock key={inv.id} inv={inv} onOpen={(id, mode = 'view') => setSelected({ id, mode })} />
             ))}
             {groups.map((g) => (
               <section key={g.name} className="grp">
@@ -260,27 +346,22 @@ export function LancamentosPage() {
                   })()}
                   amount={g.items.filter((t) => t.include_in_reports).reduce((a, t) => a + t.amount_cents, 0)}
                 />
-                {g.items.map((t) => {
-                  const cols = categoryCols(t.parent_category_name, t.category_name);
-                  return (
-                    <div key={t.id} className={`ledger-row${t.include_in_reports ? '' : ' dim'}`}>
-                      <button type="button" className="ledger-hit" onClick={() => setSelected({ id: t.id, mode: 'view' })}>
-                        <StatusIcon status={t.display_status} />
-                        <div className="m">
-                          <span className="t">{t.description || t.category_name || (income ? 'Receita' : 'Despesa')}</span>
-                          <small>
-                            {t.installment_label ? `${t.installment_label} · ` : ''}
-                            {dayLabel(t.due_on ?? t.occurred_on)} · {t.status_label}
-                          </small>
-                        </div>
-                        <span className="col">{cols.group}</span>
-                        <span className="col sub">{cols.sub}</span>
-                        <div className="v num">{brl(t.amount_cents)}</div>
-                      </button>
-                      <TxMenu tx={t} onOpen={(mode) => setSelected({ id: t.id, mode })} />
-                    </div>
-                  );
-                })}
+                {g.items.map((t) => (
+                  <TxLine
+                    key={t.id}
+                    status={t.display_status}
+                    statusLabel={t.status_label}
+                    kicker={t.account_name || t.card_name || t.parent_category_name || t.category_name || g.name}
+                    title={t.description || t.category_name || (income ? 'Receita' : 'Despesa')}
+                    parcel={t.installment_label}
+                    chips={<CategoryChips tx={t} />}
+                    date={dayLabel(t.due_on ?? t.occurred_on)}
+                    amount={t.amount_cents}
+                    dim={!t.include_in_reports}
+                    onOpen={() => setSelected({ id: t.id, mode: 'view' })}
+                    menu={<TxMenu tx={t} onOpen={(mode) => setSelected({ id: t.id, mode })} />}
+                  />
+                ))}
               </section>
             ))}
             {items.length === 0 && invoices.length === 0 && (

@@ -150,6 +150,7 @@ export interface Tx {
   category_name: string | null;
   category_color: string | null;
   parent_category_name: string | null;
+  parent_category_color: string | null;
   account_id: number | null;
   account_name: string | null;
   card_id: number | null;

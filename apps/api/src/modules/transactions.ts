@@ -37,7 +37,7 @@ import { logTransactionXp, type XpResult } from './gamification';
 import { ensureRecurrences } from './recurrences';
 
 export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
-       pc.name AS parent_category_name, p.installments AS plan_installments, fu.name AS for_user_name
+       pc.name AS parent_category_name, pc.color AS parent_category_color, p.installments AS plan_installments, fu.name AS for_user_name
   FROM transactions t
   LEFT JOIN accounts a ON a.id = t.account_id
   LEFT JOIN credit_cards cc ON cc.id = t.card_id
