@@ -81,8 +81,9 @@ describe('status derivado', () => {
   it('previsto quando distante', () => {
     expect(deriveStatus({ occurred_on: '2026-10-30' }, today)).toBe('planned');
   });
-  it('compra no cartão tem status próprio', () => {
-    expect(deriveStatus({ occurred_on: '2026-10-01', card_id: 1 }, today)).toBe('card');
+  it('compra no cartão usa o relógio até a fatura ser paga', () => {
+    expect(deriveStatus({ occurred_on: '2026-10-01', card_id: 1, invoice_due_on: '2026-10-14' }, today)).toBe('near');
+    expect(deriveStatus({ occurred_on: '2026-10-01', card_id: 1, invoice_due_on: '2026-10-06', invoice_paid: 1 }, today)).toBe('paid');
   });
   it('classifica fixa, parcelada e variável', () => {
     expect(classifyRecurrence({ recurrence_id: 1 })).toBe('fixed');

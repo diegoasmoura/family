@@ -372,11 +372,13 @@ export function invoicesRouter(): Router {
       created_at: now,
       updated_at: now,
     });
-    // Pagar a fatura confirma as cobranças previstas que já aconteceram; sem isso o limite ficaria abatido duas vezes.
+    const settled = (await cardInvoiceBalances(req.ctx, card.id)).find((b) => b.id === id)!;
+    // Quitar a fatura lança tudo que está nela. Pagamento parcial só confirma o que já venceu.
     await req.ctx.db.run(
-      `UPDATE transactions SET status = 'posted', updated_at = ?
-        WHERE invoice_id = ? AND status = 'planned' AND occurred_on <= ? AND deleted_at IS NULL`,
-      [now, id, req.ctx.today],
+      settled.remaining_cents <= 0
+        ? `UPDATE transactions SET status = 'posted', updated_at = ? WHERE invoice_id = ? AND status = 'planned' AND deleted_at IS NULL`
+        : `UPDATE transactions SET status = 'posted', updated_at = ? WHERE invoice_id = ? AND status = 'planned' AND occurred_on <= ? AND deleted_at IS NULL`,
+      settled.remaining_cents <= 0 ? [now, id] : [now, id, req.ctx.today],
     );
     res.status(201).json({ id: paymentId, invoice: await invoiceDetail(req.ctx, id) });
   });

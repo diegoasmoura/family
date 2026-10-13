@@ -37,10 +37,17 @@ import { logTransactionXp, type XpResult } from './gamification';
 import { ensureRecurrences } from './recurrences';
 
 export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
-       pc.name AS parent_category_name, pc.color AS parent_category_color, p.installments AS plan_installments, fu.name AS for_user_name
+       pc.name AS parent_category_name, pc.color AS parent_category_color, p.installments AS plan_installments, fu.name AS for_user_name,
+       inv.due_date AS invoice_due_on,
+       CASE WHEN t.invoice_id IS NULL THEN 0
+            WHEN COALESCE((SELECT SUM(pmt.amount_cents) FROM invoice_payments pmt WHERE pmt.invoice_id = t.invoice_id AND pmt.deleted_at IS NULL), 0)
+                 >= COALESCE((SELECT SUM(x.amount_cents) FROM transactions x WHERE x.invoice_id = t.invoice_id AND x.deleted_at IS NULL), 0)
+                    + COALESCE(inv.adjustment_cents, 0)
+            THEN 1 ELSE 0 END AS invoice_paid
   FROM transactions t
   LEFT JOIN accounts a ON a.id = t.account_id
   LEFT JOIN credit_cards cc ON cc.id = t.card_id
+  LEFT JOIN invoices inv ON inv.id = t.invoice_id
   LEFT JOIN categories c ON c.id = t.category_id
   LEFT JOIN categories pc ON pc.id = c.parent_id
   LEFT JOIN installment_plans p ON p.id = t.plan_id

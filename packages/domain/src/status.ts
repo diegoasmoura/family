@@ -12,16 +12,26 @@ export interface StatusInput {
   paid_on?: string | null;
   due_on?: string | null;
   occurred_on: string;
+  /** Vencimento da fatura. Enquanto ela não é paga, a compra usa o relógio. */
+  invoice_due_on?: string | null;
+  invoice_paid?: boolean | number | null;
 }
 
 /**
  * Status exibido, sempre derivado das datas (nunca salvo como texto).
- * Compra no cartão não é paga individualmente: o caixa sai na fatura.
+ * Compra no cartão segue o vencimento da fatura: relógio até ela ser paga,
+ * e pago quando a fatura quita tudo que está dentro.
  */
 export function deriveStatus(tx: StatusInput, today: ISODate): DisplayStatus {
-  if (tx.card_id) return 'card';
+  if (tx.card_id) {
+    if (tx.invoice_paid) return 'paid';
+    return byDue(tx.invoice_due_on ?? tx.due_on ?? tx.occurred_on, today);
+  }
   if (tx.paid_on) return 'paid';
-  const due = tx.due_on ?? tx.occurred_on;
+  return byDue(tx.due_on ?? tx.occurred_on, today);
+}
+
+function byDue(due: ISODate, today: ISODate): DisplayStatus {
   const days = diffDays(due, today);
   if (days < 0) return 'overdue';
   if (days <= NEAR_DAYS) return 'near';

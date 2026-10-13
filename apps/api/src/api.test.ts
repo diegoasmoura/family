@@ -548,6 +548,24 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(planned.expense.total_cents).toBe(3500);
     });
 
+    it('próximo vencimento do cartão é a fatura, e pagá-la lança o que está dentro', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Servidor', amount_cents: 20742, occurred_on: '2026-09-05', card_id: ids.ultra, for_user_id: me.id }), 201);
+      const mine = await ok(await agent.get('/api/dashboard?month=2026-10&person=me'));
+      const cards = mine.upcoming.filter((u: any) => u.type === 'invoice');
+      expect(cards).toHaveLength(1);
+      expect(cards[0]).toMatchObject({ description: 'Ultra', amount_cents: 20742 });
+      expect(mine.upcoming.filter((u: any) => u.description === 'Servidor')).toHaveLength(0);
+      const open = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=me'));
+      expect(open.items.find((t: any) => t.description === 'Servidor').display_status).not.toBe('paid');
+      const inv = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
+      await ok(await agent.post(`/api/invoices/${inv.id}/payments`).send({}), 201);
+      const paid = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=me'));
+      expect(paid.items.find((t: any) => t.description === 'Servidor').display_status).toBe('paid');
+      const after = await ok(await agent.get('/api/dashboard?month=2026-10&person=me'));
+      expect(after.upcoming.filter((u: any) => u.type === 'invoice')).toHaveLength(0);
+    });
+
     it('início lista os próximos vencimentos, com atrasados primeiro', async () => {
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Luz', amount_cents: 15000, occurred_on: '2026-10-02', account_id: ids.bradesco, paid: false }), 201);
       await ok(await agent.post('/api/transactions').send({ kind: 'income', description: 'Freela', amount_cents: 80000, occurred_on: '2026-10-20', account_id: ids.bradesco }), 201);

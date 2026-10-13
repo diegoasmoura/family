@@ -303,7 +303,17 @@ export function dashboardRouter(): Router {
     for (const card of cards) {
       for (const b of await cardInvoiceBalances(ctx, card.id)) {
         if (b.remaining_cents > 0 && b.due_date <= addDays(ctx.today, 30)) {
-          upcomingInvoices.push({ type: 'invoice', id: b.id, card_id: card.id, reference_month: b.reference_month, kind: 'expense', description: `Fatura ${card.name}`, amount_cents: b.remaining_cents, due_on: b.due_date });
+          upcomingInvoices.push({
+            type: 'invoice',
+            id: b.id,
+            card_id: card.id,
+            card_name: card.name,
+            reference_month: b.reference_month,
+            kind: 'expense',
+            description: card.name,
+            amount_cents: b.remaining_cents,
+            due_on: b.due_date,
+          });
         }
       }
     }
@@ -316,7 +326,7 @@ export function dashboardRouter(): Router {
         description: t.description || (t.kind === 'income' ? 'Receita' : 'Despesa'),
         installment_label: t.installment_no && t.plan_installments ? `${t.installment_no}/${t.plan_installments}` : null,
       })),
-      ...(personId == null ? upcomingInvoices : []),
+      ...upcomingInvoices,
     ]
       .map((u) => ({ ...u, overdue: u.due_on < ctx.today }))
       .sort((a, b) => a.due_on.localeCompare(b.due_on))

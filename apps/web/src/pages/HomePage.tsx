@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 import { addDays, monthOf } from "@fin/domain";
 import { AvatarFigure } from "../Avatar";
 import { useApi, type Me, type Member } from "../api";
+import { BankMark } from "../banks";
 import { CategoryIcon } from "../categories";
 import { PersonFilter, personParam } from "../people";
 import { useAppState } from "../state";
 import {
   Bar,
   ErrorText,
-  Icon,
   Loading,
   MonthNav,
   brl,
@@ -450,13 +450,7 @@ export function HomePage({ me }: { me: Me }) {
                     style={{ minHeight: 56 }}
                   >
                     {u.type === "invoice" ? (
-                      <span
-                        className="cat-ic"
-                        style={{ width: 32, height: 32, background: "#8E9AAF" }}
-                        aria-hidden
-                      >
-                        <Icon.card />
-                      </span>
+                      <BankMark name={u.card_name || u.description} size={32} fallback />
                     ) : (
                       <CategoryIcon
                         cat={{
