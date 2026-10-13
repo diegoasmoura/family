@@ -29,6 +29,7 @@ export function LancarPage() {
     return cardId ? { type: 'card', id: Number(cardId) } : null;
   });
   const [installments, setInstallments] = useState(2);
+  const [amountBasis, setAmountBasis] = useState<'total' | 'installment'>('total');
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState('');
   const [paidOverride, setPaidOverride] = useState<boolean | null>(null);
@@ -51,19 +52,22 @@ export function LancarPage() {
   const chosen = target && !(kind === 'income' && target.type === 'card') ? target : defaultTarget;
   const chosenCard = chosen?.type === 'card' ? cards.data?.find((c) => c.id === chosen.id) : card;
   const paid = paidOverride ?? date <= today;
+  const perInstallment = effectiveMode === 'installment' && amountBasis === 'installment';
+  const totalCents = amount == null ? null : perInstallment ? amount * installments : amount;
 
   const hint = useMemo(() => {
-    if (!amount) return null;
+    if (!totalCents) return null;
     if (effectiveMode === 'installment') {
-      if (amount < installments) return null;
-      const parts = splitInstallments(amount, installments);
+      if (totalCents < installments) return null;
+      const parts = splitInstallments(totalCents, installments);
       const first = chosenCard ? `a partir da fatura de ${monthName(invoiceForPurchase(chosenCard, date).reference_month)}` : `todo dia ${dayOf(date)}`;
-      return `${installments}x de ${brl(parts[0])} ${first}`;
+      const each = parts[0] === parts[parts.length - 1] ? brl(parts[0]) : `${brl(parts[parts.length - 1])} a ${brl(parts[0])}`;
+      return `Total ${brl(totalCents)} · ${installments}x de ${each} ${first}`;
     }
     if (effectiveMode === 'fixed') return `Todo dia ${dayOf(date)}, a partir de ${monthName(monthOf(date))}`;
     if (chosenCard) return `Entra na fatura que vence em ${monthName(invoiceForPurchase(chosenCard, date).reference_month)}`;
     return null;
-  }, [amount, effectiveMode, installments, chosenCard, date]);
+  }, [totalCents, effectiveMode, installments, chosenCard, date]);
 
   const createCategory = useAction(
     (body: { name: string; parent_id: number | null }) => api<Category>('/categories', { body: { ...body, kind } }),
@@ -72,11 +76,12 @@ export function LancarPage() {
 
   const submit = useAction(
     async () => {
-      if (!amount || !chosen) throw new Error('Informe o valor e onde pagar');
+      if (!totalCents || !chosen) throw new Error('Informe o valor e onde pagar');
+      if (effectiveMode === 'installment' && totalCents < installments) throw new Error('O total precisa cobrir todas as parcelas');
       const where = chosen.type === 'card' ? { card_id: chosen.id } : { account_id: chosen.id };
       const base = { description: description.trim(), category_id: categoryId, for_user_id: forUser, ...where };
       if (effectiveMode === 'installment') {
-        return (await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: amount, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } })).xp;
+        return (await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } })).xp;
       }
       if (effectiveMode === 'fixed') {
         return (
@@ -122,7 +127,7 @@ export function LancarPage() {
             ['income', 'Receita'],
           ]}
         />
-        <MoneyInput big value={amount} onChange={setAmount} />
+        <MoneyInput big value={amount} onChange={setAmount} label={effectiveMode === 'installment' ? (perInstallment ? 'Valor parcelado' : 'Valor total') : 'Valor'} />
 
         <div className="chips" role="radiogroup" aria-label="Tipo">
           {(
@@ -137,6 +142,21 @@ export function LancarPage() {
             </button>
           ))}
         </div>
+
+        {effectiveMode === 'installment' && (
+          <div className="chips" role="radiogroup" aria-label="Como informar o valor">
+            {(
+              [
+                ['total', 'Valor total'],
+                ['installment', 'Valor parcelado'],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} type="button" role="radio" aria-checked={amountBasis === id} className={`chip sm${amountBasis === id ? ' on' : ''}`} onClick={() => setAmountBasis(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <CategoryPicker
           categories={cats.data}
@@ -203,7 +223,7 @@ export function LancarPage() {
           </div>
         )}
         <ErrorText error={submit.error ?? createCategory.error} />
-        <button className="btn big" style={{ marginTop: 'auto' }} disabled={!amount || !chosen || submit.isPending}>
+        <button className="btn big" style={{ marginTop: 'auto' }} disabled={!totalCents || !chosen || (effectiveMode === 'installment' && totalCents < installments) || submit.isPending}>
           Lançar
         </button>
       </form>
