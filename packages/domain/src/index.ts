@@ -5,3 +5,4 @@ export * from './installments';
 export * from './invoice';
 export * from './balance';
 export * from './gamification';
+export * from './color';

@@ -71,7 +71,7 @@ export function LancarPage() {
   }, [totalCents, effectiveMode, installments, countOk, chosenCard, date]);
 
   const createCategory = useAction(
-    (body: { name: string; parent_id: number | null }) => api<Category>('/categories', { body: { ...body, kind } }),
+    (body: { name: string; parent_id: number | null; color: string }) => api<Category>('/categories', { body: { ...body, kind } }),
     (cat) => setCategoryId(cat.id),
   );
 
@@ -193,7 +193,7 @@ export function LancarPage() {
           categories={cats.data}
           value={categoryId}
           onChange={setCategoryId}
-          onCreate={(name, parent_id) => createCategory.mutate({ name, parent_id })}
+          onCreate={(name, parent_id, color) => createCategory.mutate({ name, parent_id, color })}
           creating={createCategory.isPending}
         />
 

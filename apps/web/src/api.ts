@@ -101,6 +101,7 @@ export interface Account {
   archived: number;
   current_balance_cents: number;
   forecast_balance_cents: number;
+  month_closing_cents?: number | null;
 }
 
 export interface Invoice {
@@ -110,6 +111,9 @@ export interface Invoice {
   due_date: string;
   total_cents: number;
   paid_cents: number;
+  adjustment_cents?: number;
+  installment_cents?: number;
+  loose_cents?: number;
   credit_in_cents: number;
   due_cents: number;
   remaining_cents: number;

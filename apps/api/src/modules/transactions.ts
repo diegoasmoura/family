@@ -229,6 +229,18 @@ export function invoiceLines(txs: any[]) {
   return lines;
 }
 
+/** Soma o acerto da fatura na linha que não é parcela, para o total bater. */
+export function foldInvoiceAdjustment(lines: ReturnType<typeof invoiceLines>, adjustmentCents: number) {
+  if (!adjustmentCents) return lines;
+  const other = lines.find((l) => l.kind === 'other');
+  if (other && other.kind === 'other') {
+    const amount = other.amount_cents + adjustmentCents;
+    const rest = lines.filter((l) => l !== other);
+    return amount === 0 ? rest : [...rest, { ...other, amount_cents: amount }];
+  }
+  return [...lines, { kind: 'other' as const, description: 'Ajuste', count: 1, amount_cents: adjustmentCents }];
+}
+
 /** Lista do mês. Despesas de cartão aparecem agrupadas na linha da fatura. */
 export async function monthView(ctx: Ctx, month: string, kind: Kind, personId: number | null = null) {
   await ensureRecurrences(ctx, month < monthOf(ctx.today) ? monthOf(ctx.today) : month);
@@ -250,7 +262,14 @@ export async function monthView(ctx: Ctx, month: string, kind: Kind, personId: n
       const b = (await cardInvoiceBalances(ctx, card.id)).find((x) => x.reference_month === month);
       if (!b || b.total_cents === 0) continue;
       const purchases = items.filter((t) => Number(t.card_id) === card.id && Number(t.invoice_id) === Number(b.id));
-      invoices.push({ ...b, state_label: INVOICE_STATE_LABEL[b.state], card_id: card.id, card_name: card.name, card_brand: card.brand, lines: invoiceLines(purchases) });
+      invoices.push({
+        ...b,
+        state_label: INVOICE_STATE_LABEL[b.state],
+        card_id: card.id,
+        card_name: card.name,
+        card_brand: card.brand,
+        lines: foldInvoiceAdjustment(invoiceLines(purchases), b.adjustment_cents),
+      });
     }
     invoices = invoices.sort((a, b) => a.due_date.localeCompare(b.due_date));
   }

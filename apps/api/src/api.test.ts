@@ -104,6 +104,21 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(b.forecast_balance_cents).toBe(450000 + 333536 - 13000 - 196400);
     });
 
+    it('correção do fim do mês altera o previsto e não vira receita nem despesa', async () => {
+      const before = await balanceOf(ids.bradesco, '2026-10');
+      const corrected = await ok(await agent.put(`/api/accounts/${ids.bradesco}/closing`).send({ month: '2026-10', closing_cents: 120000 }));
+      expect(corrected.month_closing_cents).toBe(120000);
+      expect(corrected.forecast_balance_cents).toBe(120000);
+      expect(corrected.current_balance_cents).toBe(before.current_balance_cents);
+      const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
+      expect(dash.income.total_cents).toBe(0);
+      expect(dash.expense.total_cents).toBe(0);
+      expect(dash.balance.forecast_cents).toBe(120000);
+      const undone = await ok(await agent.delete(`/api/accounts/${ids.bradesco}/closing?month=2026-10`));
+      expect(undone.month_closing_cents).toBeNull();
+      expect(undone.forecast_balance_cents).toBe(before.forecast_balance_cents);
+    });
+
     it('transferência move saldo sem virar receita nem despesa', async () => {
       await ok(await agent.post('/api/transfers').send({ from_account_id: ids.bradesco, to_account_id: ids.nubank, amount_cents: 100000, occurred_on: '2026-10-07' }), 201);
       expect((await balanceOf(ids.bradesco)).current_balance_cents).toBe(350000);
@@ -476,16 +491,31 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await balanceOf(ids.bradesco, '2026-11')).forecast_balance_cents).toBe(450000 - 187406);
     });
 
-    it('reajustar fatura soma a diferença na mesma fatura e recusa reduzir', async () => {
+    it('reajustar fatura mexe só no que não é parcela, para cima e para baixo', async () => {
+      await ok(await agent.post('/api/installments').send({ description: 'Notebook', total_cents: 30000, installments: 3, card_id: ids.ultra, purchased_on: '2026-09-05' }), 201);
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 50000, occurred_on: '2026-09-05', card_id: ids.ultra }), 201);
       const inv = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
-      const after = await ok(await agent.post(`/api/invoices/${inv.id}/adjust`).send({ total_cents: 52345 }), 201);
-      expect(after.total_cents).toBe(52345);
-      expect(after.transactions.find((t: any) => t.description === 'Ajuste de fatura')).toMatchObject({ amount_cents: 2345, competence_month: '2026-10' });
-      expect((await agent.post(`/api/invoices/${inv.id}/adjust`).send({ total_cents: 100 })).status).toBe(400);
+      const parcel = inv.transactions.find((t: any) => t.plan_id);
+      expect(parcel.amount_cents).toBe(10000);
+      const after = await ok(await agent.post(`/api/invoices/${inv.id}/adjust`).send({ loose_cents: 52345 }));
+      expect(after.total_cents).toBe(62345);
+      expect(after.installment_cents).toBe(10000);
+      expect(after.loose_cents).toBe(52345);
+      expect(after.adjustment_cents).toBe(2345);
+      expect(after.transactions.find((t: any) => t.plan_id).amount_cents).toBe(10000);
+      expect(after.transactions.find((t: any) => t.description === 'Ajuste de fatura')).toBeUndefined();
+      const down = await ok(await agent.post(`/api/invoices/${inv.id}/adjust`).send({ loose_cents: 100 }));
+      expect(down.total_cents).toBe(10100);
+      expect(down.transactions.find((t: any) => t.plan_id).amount_cents).toBe(10000);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Ajuste de fatura', amount_cents: 500, occurred_on: '2026-09-05', card_id: ids.ultra }), 201);
+      const withLegacy = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
+      const kept = await ok(await agent.post(`/api/invoices/${inv.id}/adjust`).send({ loose_cents: withLegacy.loose_cents }));
+      expect(kept.total_cents).toBe(withLegacy.total_cents);
+      expect(kept.transactions.find((t: any) => t.description === 'Ajuste de fatura')).toBeUndefined();
+      expect(kept.transactions.find((t: any) => t.plan_id).amount_cents).toBe(10000);
 
       const month = await ok(await agent.get('/api/cards/month/2026-10'));
-      expect(month).toEqual([{ card_id: ids.ultra, invoice: expect.objectContaining({ id: inv.id, total_cents: 52345 }) }]);
+      expect(month).toEqual([{ card_id: ids.ultra, invoice: expect.objectContaining({ id: inv.id, total_cents: kept.total_cents }) }]);
       const empty = await ok(await agent.get('/api/cards/month/2027-05'));
       expect(empty[0].invoice).toMatchObject({ id: null, total_cents: 0, state: 'future' });
     });

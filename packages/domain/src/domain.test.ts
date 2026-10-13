@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addMonths,
   cardLimit,
+  closingAdjustments,
   computeInvoiceBalances,
   currentBalance,
   cycleForReference,
@@ -11,12 +12,15 @@ import {
   forecastBalance,
   formatBRL,
   invoiceForPurchase,
+  inkOn,
   isISODate,
   isoWeek,
   levelFromXp,
   nextStreak,
   parseBRL,
+  relatedColor,
   recurringChargeDate,
+  sameColor,
   splitInstallments,
   visibleStreak,
   type Movement,
@@ -84,6 +88,22 @@ describe('status derivado', () => {
     expect(classifyRecurrence({ recurrence_id: 1 })).toBe('fixed');
     expect(classifyRecurrence({ plan_id: 1 })).toBe('installment');
     expect(classifyRecurrence({})).toBe('variable');
+  });
+});
+
+describe('cores de subgrupo', () => {
+  it('muda a cor pelo nome e não repete a do grupo', () => {
+    const parent = '#1CB0F6';
+    const ipva = relatedColor(parent, 'IPVA');
+    const seguro = relatedColor(parent, 'Seguro');
+    expect(sameColor(ipva, parent)).toBe(false);
+    expect(sameColor(ipva, seguro)).toBe(false);
+    expect(relatedColor(parent, 'IPVA')).toBe(ipva);
+  });
+
+  it('escolhe tinta legível no fundo', () => {
+    expect(inkOn('#FFC800')).toBe('#12330a');
+    expect(inkOn('#2B70C9')).toBe('#ffffff');
   });
 });
 
@@ -182,6 +202,17 @@ describe('saldo', () => {
   it('saldo previsto soma o planejado até o horizonte', () => {
     expect(forecastBalance(account, movements, '2026-10-08', '2026-10-31')).toBe(723536 + 499436 - 196400);
     expect(forecastBalance(account, movements, '2026-10-08', '2026-11-30')).toBe(723536 + 499436 - 196400 - 187406);
+  });
+
+  it('correção do fim do mês só entra no saldo atual depois que o mês fecha', () => {
+    const forecast = forecastBalance(account, movements, '2026-10-08', '2026-10-31');
+    const [adjustment] = closingAdjustments(account, movements, [{ month: '2026-10', closing_cents: 100000 }], '2026-10-08');
+    expect(adjustment).toMatchObject({ date: '2026-10-31', signed_cents: 100000 - forecast, realized: false, source: 'balance_adjustment' });
+    const withIt = [...movements, adjustment];
+    expect(forecastBalance(account, withIt, '2026-10-08', '2026-10-31')).toBe(100000);
+    expect(currentBalance(account, withIt, '2026-10-08')).toBe(currentBalance(account, movements, '2026-10-08'));
+    const [closed] = closingAdjustments(account, movements, [{ month: '2026-10', closing_cents: 100000 }], '2026-11-01');
+    expect(closed.realized).toBe(true);
   });
 });
 

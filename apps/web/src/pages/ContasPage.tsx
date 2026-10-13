@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi, type Account, type Me } from '../api';
 import { useAppState } from '../state';
 import { BankMark, BankPicker } from '../banks';
-import { ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, shortDate } from '../ui';
+import { ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
 
 const TYPES: [string, string][] = [
   ['checking', 'Conta corrente'],
@@ -81,6 +81,52 @@ function AccountForm({ account, isAdmin, onClose }: { account?: Account; isAdmin
   );
 }
 
+function ClosingForm({ account, month, onClose }: { account: Account; month: string; onClose: () => void }) {
+  const { toast } = useAppState();
+  const [value, setValue] = useState<number | null>(account.month_closing_cents ?? account.forecast_balance_cents);
+  const save = useAction(
+    () => api(`/accounts/${account.id}/closing`, { method: 'PUT', body: { month, closing_cents: value ?? 0 } }),
+    () => {
+      toast('Saldo do fim do mês corrigido');
+      onClose();
+    },
+  );
+  const clear = useAction(
+    () => api(`/accounts/${account.id}/closing?month=${month}`, { method: 'DELETE' }),
+    () => {
+      toast('Correção desfeita');
+      onClose();
+    },
+  );
+  return (
+    <Sheet title={`Fim de ${monthName(month)} · ${account.name}`} onClose={onClose}>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(undefined);
+        }}
+      >
+        <small>Quanto esta conta fica no último dia do mês. Não entra em receitas nem despesas. Serve para dinheiro que veio de fora, como um investimento.</small>
+        <MoneyInput allowNegative big label="Saldo no fim do mês" value={value} onChange={setValue} />
+        <div className="kv">
+          <span>Previsto agora</span>
+          <b className="num">{brl(account.forecast_balance_cents)}</b>
+        </div>
+        <ErrorText error={save.error ?? clear.error} />
+        <button className="btn big" disabled={value == null || save.isPending}>
+          Corrigir
+        </button>
+        {account.month_closing_cents != null && (
+          <button type="button" className="btn ghost" disabled={clear.isPending} onClick={() => clear.mutate(undefined)}>
+            Desfazer correção
+          </button>
+        )}
+      </form>
+    </Sheet>
+  );
+}
+
 function TransferForm({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
   const { today, toast } = useAppState();
   const [form, setForm] = useState({
@@ -146,6 +192,7 @@ export function ContasPage({ me }: { me: Me }) {
   const q = useApi<{ accounts: Account[]; current_cents: number; forecast_cents: number }>(`/accounts?month=${month}`);
   const transfers = useApi<any[]>(`/transfers?month=${month}`);
   const [editing, setEditing] = useState<Account | 'new' | null>(null);
+  const [closing, setClosing] = useState<Account | null>(null);
   const [transferring, setTransferring] = useState(false);
   const removeTransfer = useAction((id: number) => api(`/transfers/${id}`, { method: 'DELETE' }), () => toast('Transferência removida'));
 
@@ -175,19 +222,25 @@ export function ContasPage({ me }: { me: Me }) {
           </div>
           <div className="list">
             {q.data.accounts.map((a) => (
-              <button key={a.id} className="r" onClick={() => setEditing(a)}>
-                <BankMark name={a.name} size={40} fallback />
-                <div className="m">
-                  <span className="t">{a.name}</span>
-                  <small>
-                    {typeLabel(a.type)} · desde {shortDate(a.initial_balance_on)}
-                  </small>
-                </div>
-                <div className="v num">
-                  {brl(a.current_balance_cents)}
-                  <small>previsto {brl(a.forecast_balance_cents)}</small>
-                </div>
-              </button>
+              <div className="rw" key={a.id}>
+                <button className="r" onClick={() => setEditing(a)}>
+                  <BankMark name={a.name} size={40} fallback />
+                  <div className="m">
+                    <span className="t">{a.name}</span>
+                    <small>
+                      {typeLabel(a.type)} · desde {shortDate(a.initial_balance_on)}
+                      {a.month_closing_cents != null ? ' · fim do mês corrigido' : ''}
+                    </small>
+                  </div>
+                  <div className="v num">
+                    {brl(a.current_balance_cents)}
+                    <small>previsto {brl(a.forecast_balance_cents)}</small>
+                  </div>
+                </button>
+                <button type="button" className="link" onClick={() => setClosing(a)}>
+                  Corrigir
+                </button>
+              </div>
             ))}
             {q.data.accounts.length === 0 && <p className="empty">Cadastre a primeira conta com o saldo de hoje.</p>}
           </div>
@@ -217,6 +270,7 @@ export function ContasPage({ me }: { me: Me }) {
         </>
       )}
       {editing && <AccountForm account={editing === 'new' ? undefined : editing} isAdmin={me.role === 'admin'} onClose={() => setEditing(null)} />}
+      {closing && <ClosingForm account={closing} month={month} onClose={() => setClosing(null)} />}
       {transferring && q.data && <TransferForm accounts={q.data.accounts} onClose={() => setTransferring(false)} />}
     </main>
   );

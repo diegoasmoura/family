@@ -159,6 +159,32 @@ small,
   justify-content: space-between;
   gap: 12px;
 }
+.month-nav {
+  justify-content: center;
+}
+.month-nav > b {
+  flex: 1;
+  text-align: center;
+}
+.month-back {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+.month-back small {
+  color: var(--green-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
 .row {
   display: flex;
   align-items: center;
@@ -811,15 +837,15 @@ input.inp:focus {
   white-space: nowrap;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--chip, var(--muted)) 22%, transparent);
-  color: var(--chip, var(--muted));
+  background: color-mix(in srgb, var(--chip, var(--muted)) 22%, var(--surface));
+  color: color-mix(in srgb, var(--chip, var(--muted)) 58%, var(--ink));
   font-size: 11px;
   font-weight: 800;
   line-height: 1.4;
 }
 .tx-chip.sub {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--chip, var(--muted)) 70%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--chip, var(--muted)) 55%, var(--ink));
 }
 .tx-side {
   flex: none;

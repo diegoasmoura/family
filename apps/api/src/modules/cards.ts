@@ -3,7 +3,6 @@ import { z } from 'zod';
 import type { Db } from '@fin/db';
 import {
   INVOICE_STATE_LABEL,
-  addDays,
   addMonths,
   cardLimit,
   computeInvoiceBalances,
@@ -65,28 +64,37 @@ export async function invoiceForCardPurchase(db: Db, card: Card, date: string, s
 }
 
 /** Saldos de todas as faturas do cartão, com crédito carregado entre elas. */
-export async function cardInvoiceBalances(ctx: Ctx, cardId: number): Promise<InvoiceBalance[]> {
+export async function cardInvoiceBalances(ctx: Ctx, cardId: number): Promise<(InvoiceBalance & { adjustment_cents: number })[]> {
   const rows = await ctx.db.all(
     `SELECT i.id, i.reference_month, i.closing_date, i.due_date,
-            COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.invoice_id = i.id AND t.deleted_at IS NULL), 0) AS total_cents,
+            COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.invoice_id = i.id AND t.deleted_at IS NULL), 0) + COALESCE(i.adjustment_cents, 0) AS total_cents,
+            COALESCE(i.adjustment_cents, 0) AS adjustment_cents,
             COALESCE((SELECT SUM(p.amount_cents) FROM invoice_payments p WHERE p.invoice_id = i.id AND p.deleted_at IS NULL), 0) AS paid_cents
        FROM invoices i WHERE i.card_id = ? ORDER BY i.reference_month`,
     [cardId],
   );
-  return computeInvoiceBalances(
-    rows.map((r) => ({ ...r, id: Number(r.id), total_cents: num(r.total_cents), paid_cents: num(r.paid_cents) })),
-    ctx.today,
-  );
+  const inputs = rows.map((r) => ({
+    ...r,
+    id: Number(r.id),
+    total_cents: num(r.total_cents),
+    paid_cents: num(r.paid_cents),
+    adjustment_cents: num(r.adjustment_cents),
+  }));
+  return computeInvoiceBalances(inputs, ctx.today).map((b) => ({
+    ...b,
+    adjustment_cents: inputs.find((i) => i.id === b.id)?.adjustment_cents ?? 0,
+  }));
 }
 
 async function cardTotals(ctx: Ctx, card: Card) {
   const row = await ctx.db.get(
     `SELECT
-       COALESCE((SELECT SUM(amount_cents) FROM transactions WHERE card_id = ? AND status = 'posted' AND deleted_at IS NULL), 0) AS posted,
+       COALESCE((SELECT SUM(amount_cents) FROM transactions WHERE card_id = ? AND status = 'posted' AND deleted_at IS NULL), 0)
+         + COALESCE((SELECT SUM(adjustment_cents) FROM invoices WHERE card_id = ?), 0) AS posted,
        COALESCE((SELECT SUM(amount_cents) FROM transactions WHERE card_id = ? AND status = 'planned' AND deleted_at IS NULL), 0) AS planned,
        COALESCE((SELECT SUM(p.amount_cents) FROM invoice_payments p JOIN invoices i ON i.id = p.invoice_id
                   WHERE i.card_id = ? AND p.deleted_at IS NULL), 0) AS paid`,
-    [card.id, card.id, card.id],
+    [card.id, card.id, card.id, card.id],
   );
   return { posted: num(row.posted), planned: num(row.planned), paid: num(row.paid) };
 }
@@ -179,12 +187,17 @@ async function invoiceDetail(ctx: Ctx, invoiceId: number) {
       WHERE p.invoice_id = ? AND p.deleted_at IS NULL ORDER BY p.paid_on, p.id`,
     [invoiceId],
   );
+  const transactions = decorateTransactions(txs, ctx.today);
+  const installmentCents = transactions.filter((t) => t.plan_id).reduce((a, t) => a + num(t.amount_cents), 0);
   return {
     ...withLabel(balance),
+    adjustment_cents: balance.adjustment_cents,
+    installment_cents: installmentCents,
+    loose_cents: balance.total_cents - installmentCents,
     card: { id: card.id, name: card.name, brand: card.brand, color: card.color, default_pay_account_id: card.default_pay_account_id },
     posted_cents: txs.filter((t) => t.status === 'posted').reduce((a, t) => a + num(t.amount_cents), 0),
     pending_cents: txs.filter((t) => t.status === 'planned').reduce((a, t) => a + num(t.amount_cents), 0),
-    transactions: decorateTransactions(txs, ctx.today),
+    transactions,
     payments,
   };
 }
@@ -369,37 +382,27 @@ export function invoicesRouter(): Router {
   });
 
   /**
-   * Reajuste: quando a fatura do banco é maior que a registrada, a diferença
-   * entra como uma compra "Ajuste de fatura" dentro dessa mesma fatura.
+   * Corrige só o que não é parcela. O valor informado é o restante da fatura
+   * (avulsas, fixas e o ajuste). Parcelas ficam como estão.
    */
   r.post('/:id/adjust', async (req, res) => {
     const id = idParam(req.params.id);
     const inv = await invoiceWithCard(req.ctx, id);
-    const body = parse(z.object({ total_cents: zCentsOrZero, category_id: zId.nullish() }), req.body);
-    const balance = (await cardInvoiceBalances(req.ctx, inv.card_id)).find((b) => b.id === id)!;
-    const diff = body.total_cents - balance.total_cents;
-    if (diff === 0) return void res.json(await invoiceDetail(req.ctx, id));
-    if (diff < 0) throw badRequest('Para diminuir a fatura, edite ou exclua as compras que estão a mais');
-    if (body.category_id) await owned(req.ctx, 'categories', body.category_id, 'Categoria');
+    const body = parse(z.object({ loose_cents: z.number().int() }), req.body);
     const now = nowIso();
-    const occurredOn = req.ctx.today < inv.closing_date ? req.ctx.today : addDays(inv.closing_date, -1);
-    await insert(req.ctx.db, 'transactions', {
-      client_uuid: newUuid(),
-      household_id: req.ctx.householdId,
-      kind: 'expense',
-      description: 'Ajuste de fatura',
-      amount_cents: diff,
-      occurred_on: occurredOn,
-      competence_month: inv.reference_month,
-      card_id: inv.card_id,
-      invoice_id: id,
-      category_id: body.category_id ?? null,
-      status: 'posted',
-      created_by: req.ctx.userId,
-      created_at: now,
-      updated_at: now,
-    });
-    res.status(201).json(await invoiceDetail(req.ctx, id));
+    await req.ctx.db.run(
+      `UPDATE transactions SET deleted_at = ?, updated_at = ?
+        WHERE invoice_id = ? AND deleted_at IS NULL AND plan_id IS NULL AND recurrence_id IS NULL AND description = 'Ajuste de fatura'`,
+      [now, now, id],
+    );
+    const row = await req.ctx.db.get(
+      `SELECT
+         COALESCE(SUM(CASE WHEN plan_id IS NULL THEN amount_cents ELSE 0 END), 0) AS loose
+         FROM transactions WHERE invoice_id = ? AND deleted_at IS NULL`,
+      [id],
+    );
+    await update(req.ctx.db, 'invoices', id, { adjustment_cents: body.loose_cents - num(row.loose), updated_at: now });
+    res.json(await invoiceDetail(req.ctx, id));
   });
 
   return r;

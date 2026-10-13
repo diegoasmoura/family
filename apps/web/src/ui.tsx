@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { addMonths, formatBRL, monthLabel, weekdayShort } from '@fin/domain';
+import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
+import { useAppState } from './state';
 
 export const brl = (cents: number | null | undefined) => formatBRL(cents ?? 0);
 
@@ -64,13 +65,23 @@ export function Seg<T extends string>({ value, options, onChange, label }: { val
 }
 
 export function MonthNav({ month, onChange }: { month: string; onChange: (m: string) => void }) {
+  const { today } = useAppState();
+  const current = monthOf(today);
+  const away = month !== current;
   return (
-    <div className="hd">
-      <button className="ic" aria-label="Mês anterior" onClick={() => onChange(addMonths(month, -1))}>
+    <div className="hd month-nav">
+      <button type="button" className="ic" aria-label="Mês anterior" onClick={() => onChange(addMonths(month, -1))}>
         <Icon.left />
       </button>
-      <b>{monthLabel(month)}</b>
-      <button className="ic" aria-label="Próximo mês" onClick={() => onChange(addMonths(month, 1))}>
+      {away ? (
+        <button type="button" className="month-back" aria-label={`Voltar para ${monthLabel(current)}`} onClick={() => onChange(current)}>
+          <b>{monthLabel(month)}</b>
+          <small>Mês atual</small>
+        </button>
+      ) : (
+        <b>{monthLabel(month)}</b>
+      )}
+      <button type="button" className="ic" aria-label="Próximo mês" onClick={() => onChange(addMonths(month, 1))}>
         <Icon.right />
       </button>
     </div>

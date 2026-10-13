@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { MONTHS_SHORT_PT, addMonths, monthLabel } from '@fin/domain';
 import { api, useAction, useApi, type Account, type Card, type Invoice, type Tx } from '../api';
-import { CATEGORY_COLORS, CategoryIcon } from '../categories';
+import { CATEGORY_COLORS, CategoryIcon, paintColor } from '../categories';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
@@ -182,7 +182,15 @@ type Purchase = Tx & { category_icon: string | null };
 function PurchaseRow({ t, onTx }: { t: Purchase; onTx: (t: Tx) => void }) {
   return (
     <button className="r" style={{ minHeight: 56 }} onClick={() => onTx(t)}>
-      <CategoryIcon cat={{ id: t.category_id ?? 0, name: t.category_name ?? t.description ?? 'Compra', icon: t.category_icon, color: t.category_color ?? '#8E9AAF' }} size={34} />
+      <CategoryIcon
+        cat={{
+          id: t.category_id ?? 0,
+          name: t.category_name ?? t.description ?? 'Compra',
+          icon: t.category_icon,
+          color: paintColor(t.category_color, t.parent_category_color, t.category_name ?? t.description ?? 'Compra'),
+        }}
+        size={34}
+      />
       <div className="m">
         <span className="t">
           {t.description || t.category_name || 'Compra'}
@@ -492,10 +500,12 @@ function ReajustarSheet({ card, month, onClose }: { card: Card; month: string; o
   const detail = useInvoiceDetail(card, month);
   const [value, setValue] = useState<number | null>(null);
   const inv = detail.data;
-  const target = value ?? inv?.total_cents ?? null;
-  const diff = inv && target != null ? target - inv.total_cents : 0;
+  const parcel = inv?.installment_cents ?? 0;
+  const looseNow = inv?.loose_cents ?? 0;
+  const loose = value ?? (inv ? looseNow : null);
+  const diff = inv && loose != null ? loose - looseNow : 0;
   const save = useAction(
-    () => api(`/invoices/${inv.id}/adjust`, { body: { total_cents: target } }),
+    (looseCents: number) => api(`/invoices/${inv.id}/adjust`, { body: { loose_cents: looseCents } }),
     () => {
       toast('Fatura reajustada');
       onClose();
@@ -510,21 +520,29 @@ function ReajustarSheet({ card, month, onClose }: { card: Card; month: string; o
           className="stack"
           onSubmit={(e) => {
             e.preventDefault();
-            save.mutate(undefined);
+            if (loose != null) save.mutate(loose);
           }}
         >
-          <small>Informe o valor que aparece no app do banco. A diferença entra na fatura como "Ajuste de fatura".</small>
-          <MoneyInput big label="Valor correto da fatura" value={target} onChange={setValue} />
+          <small>As parcelas ficam como estão. Corrija aqui o resto: compras avulsas, fixas e a diferença do app do banco.</small>
           <div className="kv">
-            <span>Registrado aqui</span>
-            <b className="num">{brl(inv.total_cents)}</b>
+            <span>Parcelas</span>
+            <b className="num">{brl(parcel)}</b>
           </div>
-          {diff > 0 && <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>Entra um ajuste de {brl(diff)}.</div>}
-          {diff < 0 && <p className="err">A fatura do banco está {brl(-diff)} menor. Edite ou exclua as compras que estão a mais em Despesas associadas.</p>}
+          <MoneyInput allowNegative label="O que não é parcela" value={loose} onChange={setValue} />
+          <div className="kv">
+            <span>Fatura</span>
+            <b className="num">{brl(parcel + (loose ?? 0))}</b>
+          </div>
+          {diff !== 0 && <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>{diff > 0 ? 'Sobe' : 'Desce'} {brl(Math.abs(diff))} no que não é parcela.</div>}
           <ErrorText error={save.error} />
-          <button className="btn big" disabled={diff <= 0 || save.isPending}>
+          <button className="btn big" disabled={loose == null || diff === 0 || save.isPending}>
             Reajustar
           </button>
+          {inv.adjustment_cents ? (
+            <button type="button" className="btn ghost" disabled={save.isPending} onClick={() => save.mutate(looseNow - (inv.adjustment_cents ?? 0))}>
+              Desfazer correção
+            </button>
+          ) : null}
         </form>
       )}
     </Sheet>

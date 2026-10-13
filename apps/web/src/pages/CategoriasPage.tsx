@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, useAction, useApi, type Category } from '../api';
+import { inkOn } from '@fin/domain';
 import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon, IconGlyph, categoryColor, iconKey } from '../categories';
 import { useAppState } from '../state';
 import { ErrorText, Loading, Seg, Sheet, categoryTree } from '../ui';
@@ -71,7 +72,7 @@ function CategoryForm({ kind, category, all, onClose }: { kind: 'income' | 'expe
               aria-label={label}
               title={label}
               className={shownIcon === key ? 'on' : undefined}
-              style={shownIcon === key ? { background: shownColor, color: '#fff' } : undefined}
+              style={shownIcon === key ? { background: shownColor, color: inkOn(shownColor) } : undefined}
               onClick={() => setIcon(key)}
             >
               <IconGlyph name={key} />

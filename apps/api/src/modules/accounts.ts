@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { currentBalance, forecastBalance, lastDayOfMonth, monthOf, type Movement } from '@fin/domain';
+import { closingAdjustments, currentBalance, forecastBalance, lastDayOfMonth, monthOf, type Movement, type MonthClosing } from '@fin/domain';
 import {
   badRequest,
   findByUuid,
@@ -85,7 +85,12 @@ async function loadMovements(ctx: Ctx) {
       else unassigned.push(m);
     }
   }
-  return { byAccount, unassigned };
+  const closings = await db.all<{ account_id: number; month: string; closing_cents: number }>(
+    `SELECT c.account_id, c.month, c.closing_cents FROM account_month_closings c
+       JOIN accounts a ON a.id = c.account_id WHERE a.household_id = ?`,
+    [hid],
+  );
+  return { byAccount, unassigned, closings };
 }
 
 /** Saldo atual e previsto por conta e do household até o fim de `month`. */
@@ -93,15 +98,18 @@ export async function balances(ctx: Ctx, month = monthOf(ctx.today)) {
   const accounts = await ctx.db.all<AccountRow>('SELECT * FROM accounts WHERE household_id = ? AND deleted_at IS NULL ORDER BY archived, name', [
     ctx.householdId,
   ]);
-  const { byAccount, unassigned } = await loadMovements(ctx);
+  const { byAccount, unassigned, closings } = await loadMovements(ctx);
   const horizon = lastDayOfMonth(month);
   const list = accounts.map((a) => {
     const opening = { initial_balance_cents: num(a.initial_balance_cents), initial_balance_on: a.initial_balance_on };
-    const movements = byAccount.get(a.id) ?? [];
+    const own: MonthClosing[] = closings.filter((c) => c.account_id === a.id).map((c) => ({ month: c.month, closing_cents: num(c.closing_cents) }));
+    const movements = [...(byAccount.get(a.id) ?? []), ...closingAdjustments(opening, byAccount.get(a.id) ?? [], own, ctx.today)];
+    const closing = own.find((c) => c.month === month);
     return {
       ...a,
       current_balance_cents: currentBalance(opening, movements, ctx.today),
       forecast_balance_cents: forecastBalance(opening, movements, ctx.today, horizon),
+      month_closing_cents: closing ? closing.closing_cents : null,
     };
   });
   const unassignedDue = unassigned.filter((m) => m.date <= horizon).reduce((acc, m) => acc + m.signed_cents, 0);
@@ -155,6 +163,37 @@ export function accountsRouter(): Router {
       updated_at: now,
     });
     res.status(201).json(await req.ctx.db.get('SELECT * FROM accounts WHERE id = ?', [id]));
+  });
+
+  r.put('/:id/closing', async (req, res) => {
+    const id = idParam(req.params.id);
+    const account = await owned<AccountRow>(req.ctx, 'accounts', id, 'Conta');
+    const body = parse(z.object({ month: zMonth, closing_cents: z.number().int() }), req.body);
+    if (lastDayOfMonth(body.month) < account.initial_balance_on) throw badRequest('Esse mês é anterior ao saldo inicial da conta');
+    const now = nowIso();
+    const existing = await req.ctx.db.get<{ id: number }>('SELECT id FROM account_month_closings WHERE account_id = ? AND month = ?', [id, body.month]);
+    if (existing) await update(req.ctx.db, 'account_month_closings', existing.id, { closing_cents: body.closing_cents, updated_at: now });
+    else {
+      await insert(req.ctx.db, 'account_month_closings', {
+        account_id: id,
+        month: body.month,
+        closing_cents: body.closing_cents,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+    const all = await balances(req.ctx, body.month);
+    res.json(all.accounts.find((a) => a.id === id));
+  });
+
+  r.delete('/:id/closing', async (req, res) => {
+    const id = idParam(req.params.id);
+    await owned(req.ctx, 'accounts', id, 'Conta');
+    const month = parse(zMonth, req.query.month);
+    const existing = await req.ctx.db.get<{ id: number }>('SELECT id FROM account_month_closings WHERE account_id = ? AND month = ?', [id, month]);
+    if (existing) await req.ctx.db.run('DELETE FROM account_month_closings WHERE id = ?', [existing.id]);
+    const all = await balances(req.ctx, month);
+    res.json(all.accounts.find((a) => a.id === id));
   });
 
   r.patch('/:id', async (req, res) => {

@@ -21,6 +21,10 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
     for_user_id: tx.for_user_id ?? null,
   });
   const cats = useApi<Category[]>(`/categories?kind=${tx.kind}`);
+  const createCategory = useAction(
+    (body: { name: string; parent_id: number | null; color: string }) => api<Category>('/categories', { body: { ...body, kind: tx.kind } }),
+    (cat) => setForm((f) => ({ ...f, category_id: cat.id })),
+  );
   const income = tx.kind === 'income';
   const [counted, setCounted] = useState(Boolean(tx.include_in_reports));
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -193,7 +197,13 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
                 <span>Descrição</span>
                 <input value={form.description ?? ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
               </label>
-              <CategoryPicker categories={cats.data} value={form.category_id} onChange={(category_id) => setForm((f) => ({ ...f, category_id }))} />
+              <CategoryPicker
+                categories={cats.data}
+                value={form.category_id}
+                onChange={(category_id) => setForm((f) => ({ ...f, category_id }))}
+                onCreate={(name, parent_id, color) => createCategory.mutate({ name, parent_id, color })}
+                creating={createCategory.isPending}
+              />
               <ForWhom value={form.for_user_id} onChange={(for_user_id) => setForm((f) => ({ ...f, for_user_id }))} />
             </>
           )}
@@ -227,7 +237,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
           </div>
         </form>
       )}
-      <ErrorText error={act.error} />
+      <ErrorText error={act.error ?? createCategory.error} />
     </Sheet>
   );
 }

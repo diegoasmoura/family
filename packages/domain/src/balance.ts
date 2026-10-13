@@ -1,7 +1,7 @@
-import type { ISODate } from './dates';
+import { lastDayOfMonth, type ISODate, type Month } from './dates';
 import type { Cents } from './money';
 
-export type MovementSource = 'income' | 'expense' | 'invoice_payment' | 'invoice_due' | 'transfer_in' | 'transfer_out';
+export type MovementSource = 'income' | 'expense' | 'invoice_payment' | 'invoice_due' | 'transfer_in' | 'transfer_out' | 'balance_adjustment';
 
 /** Movimento de caixa de uma conta, já com sinal. */
 export interface Movement {
@@ -27,6 +27,29 @@ export function currentBalance(account: AccountOpening, movements: Movement[], t
     if (m.realized && m.date >= account.initial_balance_on && m.date <= today) balance += m.signed_cents;
   }
   return balance;
+}
+
+export interface MonthClosing {
+  month: Month;
+  closing_cents: Cents;
+}
+
+/**
+ * Cada correção vira a diferença que falta para o saldo previsto fechar
+ * no valor informado, no último dia daquele mês. Meses seguintes enxergam
+ * as correções anteriores. Não é receita nem despesa.
+ */
+export function closingAdjustments(account: AccountOpening, movements: Movement[], closings: MonthClosing[], today: ISODate): Movement[] {
+  const extra: Movement[] = [];
+  for (const closing of [...closings].sort((a, b) => a.month.localeCompare(b.month))) {
+    const date = lastDayOfMonth(closing.month);
+    if (date < account.initial_balance_on) continue;
+    const forecast = forecastBalance(account, [...movements, ...extra], today, date);
+    const delta = closing.closing_cents - forecast;
+    if (delta === 0) continue;
+    extra.push({ date, signed_cents: delta, realized: date <= today, source: 'balance_adjustment' });
+  }
+  return extra;
 }
 
 /**

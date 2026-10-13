@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { inkOn, relatedColor, sameColor } from '@fin/domain';
 import { Icon, Sheet } from './ui';
 
 const p = (d: string) => <path d={d} />;
@@ -84,12 +85,25 @@ export function iconKey(cat: CatLike) {
   return BY_NAME.find(([re]) => re.test(name))?.[1] ?? 'shapes';
 }
 
-/** Cor da categoria; sem cor, a subcategoria usa a do pai. */
+/** Subgrupo sem cor própria, ou ainda com a cor copiada do grupo, ganha uma cor da mesma família. */
+export function paintColor(own: string | null | undefined, parent: string | null | undefined, name: string) {
+  if (parent && (!own || sameColor(own, parent))) return relatedColor(parent, name);
+  if (own) return own;
+  return parent ? relatedColor(parent, name) : CATEGORY_COLORS[0];
+}
+
+/** Cor da categoria; sem cor, a subcategoria parte da cor do pai. */
 export function categoryColor(cat: CatLike, all: CatLike[] = []) {
-  if (cat.color) return cat.color;
   const parent = cat.parent_id != null ? all.find((c) => c.id === cat.parent_id) : undefined;
-  if (parent?.color) return parent.color;
+  if (parent) return paintColor(cat.color, parent.color, cat.name);
+  if (cat.color) return cat.color;
   return CATEGORY_COLORS[(cat.id ?? 0) % CATEGORY_COLORS.length];
+}
+
+export function freshCategoryColor(parentColor: string | null | undefined, siblingColors: (string | null | undefined)[], name: string) {
+  if (parentColor) return relatedColor(parentColor, name);
+  const used = new Set(siblingColors.filter(Boolean).map((c) => c!.trim().toLowerCase()));
+  return CATEGORY_COLORS.find((c) => !used.has(c.toLowerCase())) ?? relatedColor(CATEGORY_COLORS[0], name);
 }
 
 export function IconGlyph({ name }: { name: string }) {
@@ -101,8 +115,9 @@ export function IconGlyph({ name }: { name: string }) {
 }
 
 export function CategoryIcon({ cat, all, size = 28 }: { cat: CatLike; all?: CatLike[]; size?: number }) {
+  const background = categoryColor(cat, all);
   return (
-    <span className="cat-ic" style={{ width: size, height: size, background: categoryColor(cat, all) }} aria-hidden>
+    <span className="cat-ic" style={{ width: size, height: size, background, color: inkOn(background) }} aria-hidden>
       <IconGlyph name={iconKey(cat)} />
     </span>
   );
@@ -121,7 +136,7 @@ export function CategoryPicker({
   categories?: PickerCat[];
   value: number | null;
   onChange: (id: number | null) => void;
-  onCreate?: (name: string, parentId: number | null) => void;
+  onCreate?: (name: string, parentId: number | null, color: string) => void;
   creating?: boolean;
 }) {
   const selected = categories.find((c) => c.id === value);
@@ -135,7 +150,10 @@ export function CategoryPicker({
   const creatingSub = open === 'sub';
   const create = () => {
     if (!onCreate || !newName.trim()) return;
-    onCreate(newName.trim(), creatingSub ? parentId : null);
+    const name = newName.trim();
+    const siblings = creatingSub ? children : parents;
+    const color = freshCategoryColor(creatingSub ? categoryColor(parent ?? { name: '' }, categories) : null, siblings.map((c) => c.color), name);
+    onCreate(name, creatingSub ? parentId : null, color);
     setNewName('');
     setOpen(null);
   };

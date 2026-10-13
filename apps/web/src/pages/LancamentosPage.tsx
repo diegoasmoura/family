@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { monthLabel } from '@fin/domain';
 import { useApi, type Tx } from '../api';
 import { BankMark, bankByName } from '../banks';
+import { paintColor } from '../categories';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
@@ -90,7 +91,7 @@ function CategoryChips({ tx }: { tx: Pick<Tx, 'parent_category_name' | 'category
   const cols = categoryCols(tx.parent_category_name, tx.category_name);
   if (!cols.group) return null;
   const groupColor = tx.parent_category_color || tx.category_color || CHIP_FALLBACK;
-  const subColor = tx.category_color || groupColor;
+  const subColor = cols.sub ? paintColor(tx.category_color, groupColor, cols.sub) : groupColor;
   return (
     <span className="tx-chips">
       <span className="tx-chip" style={{ '--chip': groupColor } as CSSProperties}>
@@ -263,13 +264,13 @@ export function LancamentosPage() {
     const list: Tx[] = q.data?.items ?? [];
     if (!search) return list;
     const s = search.toLowerCase();
-    return list.filter((t) => [t.description, t.category_name, t.parent_category_name, t.account_name].some((v) => v?.toLowerCase().includes(s)));
+    return list.filter((t) => [t.description, t.category_name, t.parent_category_name, t.account_name, t.card_name].some((v) => v?.toLowerCase().includes(s)));
   }, [q.data, search]);
   const groups = useMemo(() => {
     const order: string[] = [];
     const map = new Map<string, Tx[]>();
     for (const t of items) {
-      const name = t.account_name ?? 'Sem conta';
+      const name = t.account_name ?? t.card_name ?? 'Sem conta';
       if (!map.has(name)) {
         map.set(name, []);
         order.push(name);

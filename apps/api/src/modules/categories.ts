@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Db } from '@fin/db';
+import { relatedColor } from '@fin/domain';
 import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, owned, parse, update, zFlag, zId, zUuid, type Ctx } from '../core';
 
 type Kind = 'income' | 'expense';
@@ -38,7 +39,7 @@ export async function seedDefaultCategories(db: Db, householdId: number) {
         name: child,
         kind: cat.kind,
         parent_id: parentId,
-        color: cat.color,
+        color: relatedColor(cat.color, child),
         sort_order: order++,
         created_at: now,
         updated_at: now,
