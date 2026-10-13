@@ -39,7 +39,7 @@ services:
       dockerfile: deploy/web.Dockerfile
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_PORT:-3003}:80"
     depends_on:
       api:
         condition: service_healthy

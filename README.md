@@ -44,7 +44,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-O app fica em `http://IP-DO-NAS:8080`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail. No mês, Nós soma os dois salários; Eu e o nome da outra pessoa mostram só o que foi marcado como dela. O que fica "da casa" (fatura, aluguel) aparece em Nós.
+O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail. No mês, Nós soma os dois salários; Eu e o nome da outra pessoa mostram só o que foi marcado como dela. O que fica "da casa" (fatura, aluguel) aparece em Nós.
 
 Depois das duas pessoas, coloque `ALLOW_REGISTER=false` no `.env` e suba de novo. A senha se troca em Casa e usuários; o administrador da casa também redefine a senha de um membro. Não há recuperação por e-mail.
 
@@ -65,7 +65,7 @@ Para conferir o caminho do dump sem mexer no banco do NAS: `./deploy/restore-che
 
 ### Acesso fora de casa
 
-Use Cloudflare Tunnel (ou Tailscale) em vez de abrir porta no roteador. Com o tunnel apontando para `http://web:80` ou `http://IP-DO-NAS:8080`, coloque `COOKIE_SECURE=true` no `.env`, porque o acesso passa a ser por HTTPS.
+Use Cloudflare Tunnel (ou Tailscale) em vez de abrir porta no roteador. Com o tunnel apontando para `http://web:80` ou `http://IP-DO-NAS:3003`, coloque `COOKIE_SECURE=true` no `.env`, porque o acesso passa a ser por HTTPS.
 
 ## Regras adotadas
 
