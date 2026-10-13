@@ -40,7 +40,7 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
     due_day: card?.due_day ?? 10,
     limit_cents: card?.limit_cents ?? (null as number | null),
     default_pay_account_id: card?.default_pay_account_id ?? null,
-    color: card ? cardColor(card) : CARD_COLORS[0],
+    color: card?.color ?? null,
   });
   const save = useAction(
     () => (card ? api(`/cards/${card.id}`, { method: 'PATCH', body: form }) : api('/cards', { body: form })),
@@ -78,12 +78,6 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
           <span>Bandeira</span>
           <input value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} placeholder="Ex.: Mastercard" />
         </label>
-        <small>Cor</small>
-        <div className="color-row" role="radiogroup" aria-label="Cor do cartão">
-          {CARD_COLORS.map((c) => (
-            <button key={c} type="button" role="radio" aria-checked={form.color === c} aria-label={`Cor ${c}`} className={form.color === c ? 'on' : undefined} style={{ background: c }} onClick={() => setForm((f) => ({ ...f, color: c }))} />
-          ))}
-        </div>
         <div className="row">
           {day('closing_day', 'Fechamento')}
           {day('due_day', 'Vencimento')}

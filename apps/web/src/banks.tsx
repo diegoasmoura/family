@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { banks as brandBanks } from 'react-bancos';
 import { Icon } from './ui';
 
 export interface Bank {
@@ -6,201 +7,43 @@ export interface Bank {
   name: string;
   color: string;
   aliases: string[];
-  mark: ReactNode;
+  Icon: (typeof brandBanks)[number]['Icon'];
 }
 
-const word = (label: string, fill: string, size = 11) => (
-  <text
-    x="16"
-    y="21"
-    textAnchor="middle"
-    fill={fill}
-    fontSize={size}
-    fontWeight="800"
-    fontFamily="Nunito, sans-serif"
-    {...(label.length > 3 ? { textLength: 26, lengthAdjust: 'spacingAndGlyphs' as const } : {})}
-  >
-    {label}
-  </text>
-);
+const bySlug = new Map(brandBanks.map((bank) => [bank.slug, bank]));
 
-const tile = (bg: string, children: ReactNode, rx = 8) => (
-  <>
-    <rect width="32" height="32" rx={rx} fill={bg} />
-    {children}
-  </>
-);
-
-export const BANKS: Bank[] = [
-  {
-    id: 'nubank',
-    name: 'Nubank',
-    color: '#820AD1',
-    aliases: ['nu'],
-    mark: tile('#820AD1', word('nu', '#fff', 15)),
-  },
-  {
-    id: 'bradesco',
-    name: 'Bradesco',
-    color: '#CC092F',
-    aliases: [],
-    mark: tile('#CC092F', word('br', '#fff', 15)),
-  },
-  {
-    id: 'itau',
-    name: 'Itaú',
-    color: '#EC7000',
-    aliases: ['itau', 'itau unibanco'],
-    mark: tile('#EC7000', word('itaú', '#003399', 9)),
-  },
-  {
-    id: 'bb',
-    name: 'Banco do Brasil',
-    color: '#003882',
-    aliases: ['bb', 'brasil'],
-    mark: tile('#FFEF38', word('BB', '#003882', 13)),
-  },
-  {
-    id: 'caixa',
-    name: 'Caixa',
-    color: '#005CA9',
-    aliases: ['cef', 'caixa economica'],
-    mark: tile('#005CA9', word('caixa', '#fff', 8)),
-  },
-  {
-    id: 'santander',
-    name: 'Santander',
-    color: '#EC0000',
-    aliases: [],
-    mark: tile('#EC0000', word('san', '#fff', 12)),
-  },
-  {
-    id: 'inter',
-    name: 'Inter',
-    color: '#FF7A00',
-    aliases: ['banco inter'],
-    mark: tile('#FF7A00', word('inter', '#fff', 8)),
-  },
-  {
-    id: 'c6',
-    name: 'C6 Bank',
-    color: '#1A1A1A',
-    aliases: ['c6'],
-    mark: tile('#1A1A1A', word('C6', '#fff', 13)),
-  },
-  {
-    id: 'btg',
-    name: 'BTG Pactual',
-    color: '#0C0C0C',
-    aliases: ['btg'],
-    mark: tile('#0C0C0C', word('btg', '#C6A15B', 12)),
-  },
-  {
-    id: 'xp',
-    name: 'XP',
-    color: '#111111',
-    aliases: ['xp investimentos'],
-    mark: tile('#111111', word('XP', '#FFD100', 13)),
-  },
-  {
-    id: 'picpay',
-    name: 'PicPay',
-    color: '#21C25E',
-    aliases: ['pic pay'],
-    mark: tile('#21C25E', word('P', '#fff', 16)),
-  },
-  {
-    id: 'mercadopago',
-    name: 'Mercado Pago',
-    color: '#009EE3',
-    aliases: ['mercadopago', 'mp'],
-    mark: tile('#009EE3', word('MP', '#fff', 12)),
-  },
-  {
-    id: 'pagbank',
-    name: 'PagBank',
-    color: '#00A868',
-    aliases: ['pagseguro', 'pag bank'],
-    mark: tile('#00A868', word('pag', '#fff', 11)),
-  },
-  {
-    id: 'neon',
-    name: 'Neon',
-    color: '#00D4C8',
-    aliases: [],
-    mark: tile('#0E1A2B', word('neon', '#00E5D4', 8)),
-  },
-  {
-    id: 'will',
-    name: 'Will Bank',
-    color: '#FFCC00',
-    aliases: ['will'],
-    mark: tile('#FFCC00', word('will', '#1A1A1A', 9)),
-  },
-  {
-    id: 'pan',
-    name: 'Banco Pan',
-    color: '#00AEEF',
-    aliases: ['pan'],
-    mark: tile('#00AEEF', word('pan', '#fff', 11)),
-  },
-  {
-    id: 'original',
-    name: 'Original',
-    color: '#00A651',
-    aliases: ['banco original'],
-    mark: tile('#00A651', word('orig', '#fff', 8)),
-  },
-  {
-    id: 'next',
-    name: 'Next',
-    color: '#00D46A',
-    aliases: ['banco next'],
-    mark: tile('#111111', word('next', '#00D46A', 8)),
-  },
-  {
-    id: 'sicoob',
-    name: 'Sicoob',
-    color: '#003641',
-    aliases: [],
-    mark: tile('#003641', word('sicoob', '#7AC143', 6.5)),
-  },
-  {
-    id: 'sicredi',
-    name: 'Sicredi',
-    color: '#3FA110',
-    aliases: [],
-    mark: tile('#3FA110', word('sicredi', '#fff', 6.2)),
-  },
-  {
-    id: 'banrisul',
-    name: 'Banrisul',
-    color: '#003366',
-    aliases: [],
-    mark: tile('#003366', word('banri', '#fff', 7.5)),
-  },
-  {
-    id: 'safra',
-    name: 'Safra',
-    color: '#0A2F6B',
-    aliases: ['banco safra'],
-    mark: tile('#0A2F6B', word('safra', '#C6A15B', 8)),
-  },
-  {
-    id: 'bmg',
-    name: 'BMG',
-    color: '#FF6600',
-    aliases: ['banco bmg'],
-    mark: tile('#FF6600', word('BMG', '#fff', 10)),
-  },
-  {
-    id: 'digio',
-    name: 'Digio',
-    color: '#00205B',
-    aliases: [],
-    mark: tile('#00205B', word('digio', '#fff', 9)),
-  },
+const CURATED: { slug: string; name: string; aliases: string[] }[] = [
+  { slug: 'nubank', name: 'Nubank', aliases: ['nu'] },
+  { slug: 'bradesco', name: 'Bradesco', aliases: [] },
+  { slug: 'itau', name: 'Itaú', aliases: ['itau', 'itau unibanco'] },
+  { slug: 'bancodobrasil', name: 'Banco do Brasil', aliases: ['bb', 'brasil'] },
+  { slug: 'caixa', name: 'Caixa', aliases: ['cef', 'caixa economica'] },
+  { slug: 'santander', name: 'Santander', aliases: [] },
+  { slug: 'inter', name: 'Inter', aliases: ['banco inter'] },
+  { slug: 'c6bank', name: 'C6 Bank', aliases: ['c6'] },
+  { slug: 'btgpactual', name: 'BTG Pactual', aliases: ['btg'] },
+  { slug: 'xp', name: 'XP', aliases: ['xp investimentos'] },
+  { slug: 'picpay', name: 'PicPay', aliases: ['pic pay'] },
+  { slug: 'mercadopago', name: 'Mercado Pago', aliases: ['mercadopago', 'mp'] },
+  { slug: 'pagbank', name: 'PagBank', aliases: ['pagseguro', 'pag bank'] },
+  { slug: 'neon', name: 'Neon', aliases: [] },
+  { slug: 'willbank', name: 'Will Bank', aliases: ['will'] },
+  { slug: 'pan', name: 'Banco Pan', aliases: ['pan'] },
+  { slug: 'original', name: 'Original', aliases: ['banco original'] },
+  { slug: 'next', name: 'Next', aliases: ['banco next'] },
+  { slug: 'sicoob', name: 'Sicoob', aliases: [] },
+  { slug: 'sicredi', name: 'Sicredi', aliases: [] },
+  { slug: 'banrisul', name: 'Banrisul', aliases: [] },
+  { slug: 'safra', name: 'Safra', aliases: ['banco safra'] },
+  { slug: 'bmg', name: 'BMG', aliases: ['banco bmg'] },
+  { slug: 'digio', name: 'Digio', aliases: [] },
 ];
+
+export const BANKS: Bank[] = CURATED.flatMap(({ slug, name, aliases }) => {
+  const brand = bySlug.get(slug);
+  if (!brand) return [];
+  return [{ id: slug, name, color: brand.color ?? '#8E9AAF', aliases, Icon: brand.Icon }];
+});
 
 const norm = (s: string) =>
   s
@@ -219,11 +62,7 @@ export function bankByName(name: string): Bank | undefined {
 }
 
 export function BankLogo({ bank, size = 28 }: { bank: Bank; size?: number }) {
-  return (
-    <svg className="bank-logo" width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      {bank.mark}
-    </svg>
-  );
+  return <bank.Icon className="bank-logo" size={size} radius={Math.round(size * 0.28)} aria-hidden />;
 }
 
 /** Logo quando o nome é de um banco da lista. Com fallback, um círculo com as iniciais. */

@@ -1227,6 +1227,7 @@ table.year .bank-dot .bank-logo {
   display: block;
   flex: none;
   border-radius: 8px;
+  overflow: hidden;
 }
 .bank-field {
   display: flex;
