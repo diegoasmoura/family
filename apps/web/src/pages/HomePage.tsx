@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { addDays, addMonths, daysInMonth, formatBRL, inkOn, weekdayShort } from "@fin/domain";
 import {
   Area,
@@ -16,7 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { AvatarFigure } from "../Avatar";
-import { useApi, type Card, type Invoice, type Me, type Member, type Tx } from "../api";
+import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { BankMark } from "../banks";
 import { CategoryIcon } from "../categories";
 import { PersonFilter, personParam } from "../people";
@@ -88,14 +88,43 @@ function slicePercent(props: {
   );
 }
 
-function Donut({ items, total, caption }: { items: { name: string; total_cents: number; color: string | null }[]; total: number; caption: string }) {
+function Donut({ items, total, caption, onPick }: { items: { name: string; total_cents: number; color: string | null }[]; total: number; caption: string; onPick?: (name: string) => void }) {
   const parts = items.filter((item) => item.total_cents > 0);
   const hidden = useContext(HiddenMoney);
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(320);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth || 320);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const outer = Math.max(78, Math.min(104, Math.round(width * 0.3)));
+  const inner = Math.round(outer * 0.68);
   return (
-    <div className="chart-fit" role="img" aria-label={`${caption}, ${brl(total)}`}>
-      <ResponsiveContainer width="100%" height={220}>
+    <div ref={box} className={`chart-fit${onPick ? " chart-pick" : ""}`} role="img" aria-label={`${caption}, ${brl(total)}`}>
+      <ResponsiveContainer width="100%" height={outer * 2 + 12}>
         <PieChart>
-          <Pie data={parts} dataKey="total_cents" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={parts.length > 1 ? 2 : 0} stroke="none" labelLine={false} label={slicePercent} animationDuration={400}>
+          <Pie
+            data={parts}
+            dataKey="total_cents"
+            nameKey="name"
+            innerRadius={inner}
+            outerRadius={outer}
+            rootTabIndex={-1}
+            paddingAngle={parts.length > 1 ? 2 : 0}
+            stroke="none"
+            labelLine={false}
+            label={slicePercent}
+            animationDuration={400}
+            onClick={onPick ? (data) => {
+              const name = String(data.name ?? "");
+              if (name) onPick(name);
+            } : undefined}
+          >
             {parts.map((part) => (
               <Cell key={part.name} fill={part.color || "#8E9AAF"} />
             ))}
@@ -141,6 +170,7 @@ function compactAxis(cents: number) {
 }
 
 export function HomePage({ me }: { me: Me }) {
+  const navigate = useNavigate();
   const { month, setMonth, today, person } = useAppState();
   const q = useApi(`/dashboard?month=${month}&person=${personParam(person)}`);
   const budgets = useApi(`/budgets?month=${month}`);
@@ -153,6 +183,7 @@ export function HomePage({ me }: { me: Me }) {
   const [config, setConfig] = useState(false);
   const [dragId, setDragId] = useState<BlockId | null>(null);
   const [catName, setCatName] = useState<string | null>(null);
+  const [classify, setClassify] = useState<string | null>(null);
   const [showCum, setShowCum] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const yearScroll = useRef<HTMLDivElement>(null);
@@ -197,7 +228,7 @@ export function HomePage({ me }: { me: Me }) {
   const spentPrev = prevSeries[Math.min(todayDay, prevSeries.length) - 1] ?? 0;
 
   const year = Number(month.slice(0, 4));
-  const yearQ = useApi(`/reports/year?year=${year}&mode=planned`);
+  const yearQ = useApi(`/reports/year?year=${year}&mode=planned&person=${personParam(person)}`);
   const sel = Number(month.slice(5, 7)) - 1;
 
   if (!d) {
@@ -234,7 +265,10 @@ export function HomePage({ me }: { me: Me }) {
     return [...map.values()].sort((a, b) => b.total_cents - a.total_cents);
   };
 
-  const upcoming = (d.upcoming as Upcoming[]).slice(0, 5);
+  const allUpcoming = d.upcoming as Upcoming[];
+  const cardDue = allUpcoming.filter((item) => item.type === "invoice");
+  const bills = allUpcoming.filter((item) => item.type !== "invoice").slice(0, 5);
+  const upcoming = [...cardDue, ...bills].sort((a, b) => a.due_on.localeCompare(b.due_on) || a.id - b.id);
   const groups = new Map<string, Upcoming[]>();
   for (const item of upcoming) {
     const list = groups.get(item.due_on) ?? [];
@@ -317,7 +351,21 @@ export function HomePage({ me }: { me: Me }) {
                       {item.installment_label && <span className="tx-parcel">{item.installment_label}</span>}
                     </span>
                     <small className={item.overdue ? "late" : item.due_on === today ? "soon" : undefined}>
-                      {item.overdue ? "Atrasado" : item.due_on === today ? (item.kind === "income" ? "Recebe hoje" : "Vence hoje") : item.kind === "income" ? "A receber" : "Previsto"}
+                      {item.type === "invoice"
+                        ? item.overdue
+                          ? "Atrasada"
+                          : item.due_on === today
+                            ? "Vence hoje"
+                            : "A pagar"
+                        : item.overdue
+                          ? "Atrasado"
+                          : item.due_on === today
+                            ? item.kind === "income"
+                              ? "Recebe hoje"
+                              : "Vence hoje"
+                            : item.kind === "income"
+                              ? "A receber"
+                              : "Previsto"}
                     </small>
                   </span>
                   <b className={`num due-amt${item.kind === "income" ? " pos" : ""}`}>
@@ -347,14 +395,23 @@ export function HomePage({ me }: { me: Me }) {
           <p className="empty">Nenhuma despesa neste mês.</p>
         ) : (
           <>
-            <Donut items={restCents > 0 ? [...top, { name: "Demais categorias", total_cents: restCents, color: "#8E9AAF" }] : top} total={expenseTotal} caption="Despesas" />
+            <Donut
+              items={restCents > 0 ? [...top, { name: "Demais categorias", total_cents: restCents, color: "#8E9AAF" }] : top}
+              total={expenseTotal}
+              caption="Despesas"
+              onPick={(name) => {
+                if (name === "Demais categorias") return;
+                if (isCatchAll(name)) setClassify(name);
+                else setCatName(name);
+              }}
+            />
             <div className="cat-rows">
               {top.map((item) => {
                 const budget = budgetOf(item.category_id, item.name);
                 const ratio = budget?.planned_cents ? item.total_cents / budget.planned_cents : 0;
                 const barColor = ratio >= 1 ? "var(--neg)" : ratio >= 0.8 ? "var(--warn-text)" : item.color || "#8E9AAF";
                 return (
-                  <button key={item.category_id ?? item.name} type="button" className="cat-row" onClick={() => setCatName(item.name)}>
+                  <button key={item.category_id ?? item.name} type="button" className="cat-row" onClick={() => (isCatchAll(item.name) ? setClassify(item.name) : setCatName(item.name))}>
                     <CategoryIcon cat={{ id: item.category_id ?? 0, name: item.name, color: item.color, parent_id: null }} size={40} />
                     <span className="due-main">
                       <span className="due-title">
@@ -395,10 +452,10 @@ export function HomePage({ me }: { me: Me }) {
             </div>
             {outros && expenseTotal > 0 && outros.total_cents / expenseTotal > 0.2 && (
               <div className="hint-box">
-                <p>Outros é uma das maiores categorias. Que tal classificar melhor?</p>
-                <Link className="home-jump" to="/categorias">
-                  Revisar <Icon.right />
-                </Link>
+                <p>{outros.name} está entre as maiores deste mês. Classificar abre cada gasto para você escolher a categoria.</p>
+                <button type="button" className="home-jump" onClick={() => setClassify(outros.name)}>
+                  Classificar <Icon.right />
+                </button>
               </div>
             )}
           </>
@@ -425,7 +482,7 @@ export function HomePage({ me }: { me: Me }) {
                 <ComposedChart data={evolution} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <XAxis dataKey="day" ticks={[1, 8, 15, 22, 29]} tick={{ fontSize: 11, fill: "var(--faint)" }} axisLine={false} tickLine={false} />
                   <YAxis width={44} tick={{ fontSize: 11, fill: "var(--faint)" }} axisLine={false} tickLine={false} tickFormatter={(value) => compactAxis(Number(value))} />
-                  <Tooltip formatter={(value, name) => [hiddenMoney ? "R$ ••••" : brl(Number(value)), name === "anterior" ? "Mês anterior" : "Este mês"]} labelFormatter={(day) => `Dia ${day}`} contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, fontSize: 13 }} />
+                  <Tooltip cursor={false} formatter={(value, name) => [hiddenMoney ? "R$ ••••" : brl(Number(value)), name === "anterior" ? "Mês anterior" : "Este mês"]} labelFormatter={(day) => `Dia ${day}`} contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, fontSize: 13 }} />
                   <Area dataKey="atual" stroke="none" fill="#e08b84" fillOpacity={0.18} isAnimationActive animationDuration={400} />
                   <Line dataKey="anterior" stroke="#8E9AAF" strokeDasharray="4 4" strokeWidth={2} dot={false} isAnimationActive animationDuration={400} />
                   <Line dataKey="atual" stroke="#e08b84" strokeWidth={2.5} dot={(props) => <TodayDot {...props} today={todayDay} />} isAnimationActive animationDuration={400} />
@@ -456,7 +513,16 @@ export function HomePage({ me }: { me: Me }) {
           <p className="empty">Nenhuma despesa neste mês.</p>
         ) : (
           <>
-            <Donut items={d.recurrence} total={expenseTotal} caption="No mês" />
+            <Donut
+              items={d.recurrence}
+              total={expenseTotal}
+              caption="No mês"
+              onPick={(name) => {
+                const item = d.recurrence.find((row: { name: string }) => row.name === name);
+                if (!item) return;
+                navigate(item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : "/lancamentos");
+              }}
+            />
             <div className="rec-rows">
               {d.recurrence.map((item: { key: string; name: string; color: string; total_cents: number }) => (
                 <Link key={item.key} className="rec-row" to={item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : "/lancamentos"}>
@@ -515,7 +581,7 @@ export function HomePage({ me }: { me: Me }) {
         )}
       </section>
     ),
-    year: <YearBlock year={year} monthIndex={sel} data={yearQ.data} showCum={showCum} onToggle={() => setShowCum((v) => !v)} scroller={yearScroll} />,
+    year: <YearBlock year={year} monthIndex={sel} data={yearQ.data} showCum={showCum} onToggle={() => setShowCum((v) => !v)} onPick={(index) => setMonth(`${year}-${String(index + 1).padStart(2, "0")}`)} scroller={yearScroll} />,
   };
 
   const selectedCat = catName ? cats.find((item) => item.name === catName) : null;
@@ -574,6 +640,7 @@ export function HomePage({ me }: { me: Me }) {
           </div>
         </Sheet>
       )}
+      {classify && <ClassifySheet name={classify} items={bucketTxs(txs, classify)} onClose={() => setClassify(null)} />}
       {selectedCat && (
         <Sheet title={selectedCat.name} onClose={() => setCatName(null)}>
           <button type="button" className="home-jump" onClick={() => setCatName(null)}>
@@ -620,6 +687,78 @@ type Upcoming = {
   card_name?: string;
   reference_month?: string;
 };
+
+function isCatchAll(name: string) {
+  return /^(outros|sem categoria)$/i.test(name.trim());
+}
+
+function bucketTxs(txs: Tx[], name: string) {
+  return txs.filter((tx) => {
+    if (!tx.include_in_reports) return false;
+    const parent = tx.parent_category_name || tx.category_name || "Sem categoria";
+    return parent === name;
+  });
+}
+
+function ClassifySheet({ name, items, onClose }: { name: string; items: Tx[]; onClose: () => void }) {
+  const cats = useApi<Category[]>("/categories?kind=expense");
+  const { toast } = useAppState();
+  const [pending, setPending] = useState<number | null>(null);
+  const move = useAction(
+    ({ id, category_id }: { id: number; category_id: number }) => api(`/transactions/${id}`, { method: "PATCH", body: { category_id } }),
+    (_res, vars) => {
+      const cat = (cats.data ?? []).find((item) => item.id === vars.category_id);
+      toast(cat ? `Foi para ${cat.name}` : "Categoria atualizada");
+    },
+  );
+  const options = useMemo(() => {
+    const all = (cats.data ?? []).filter((item) => !item.archived);
+    const parents = all.filter((item) => item.parent_id == null);
+    return parents.flatMap((parent) => {
+      const kids = all.filter((item) => item.parent_id === parent.id);
+      return [{ id: parent.id, label: parent.name }, ...kids.map((item) => ({ id: item.id, label: `${parent.name} · ${item.name}` }))];
+    });
+  }, [cats.data]);
+
+  return (
+    <Sheet title={`Classificar ${name}`} onClose={onClose}>
+      <p className="empty">Escolha a categoria de cada gasto deste mês. A mudança vale só para esse lançamento.</p>
+      {items.length === 0 ? (
+        <p className="empty">Nada deste mês está em {name}.</p>
+      ) : (
+        items.map((tx) => (
+          <label key={tx.id} className="classify-row">
+            <span className="classify-top">
+              <span>{tx.description || tx.category_name || "Despesa"}</span>
+              <b className="num">
+                <MoneyText cents={tx.amount_cents} />
+              </b>
+            </span>
+            <select
+              className="inp"
+              aria-label={`Categoria de ${tx.description || "despesa"}`}
+              value={tx.category_id ?? ""}
+              disabled={pending === tx.id}
+              onChange={(event) => {
+                const category_id = Number(event.target.value);
+                if (!category_id || category_id === tx.category_id) return;
+                setPending(tx.id);
+                move.mutate({ id: tx.id, category_id }, { onSettled: () => setPending(null) });
+              }}
+            >
+              {!tx.category_id && <option value="">Sem categoria</option>}
+              {options.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))
+      )}
+    </Sheet>
+  );
+}
 
 function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members: Member[]; person: PersonScope; hidden: boolean; onToggle: () => void }) {
   const shown = person === "all" ? members : members.filter((member) => member.me);
@@ -684,6 +823,7 @@ function YearBlock({
   data,
   showCum,
   onToggle,
+  onPick,
   scroller,
 }: {
   year: number;
@@ -691,6 +831,7 @@ function YearBlock({
   data: { income: { months: number[] }; expense: { months: number[] }; balance: { months: number[] } } | undefined;
   showCum: boolean;
   onToggle: () => void;
+  onPick: (index: number) => void;
   scroller: React.RefObject<HTMLDivElement>;
 }) {
   useEffect(() => {
@@ -725,17 +866,17 @@ function YearBlock({
         </button>
       </div>
       <div className="year-scroll" ref={scroller}>
-        <div className="year-wide">
+        <div className="year-wide chart-pick">
           <ResponsiveContainer width="100%" height={180}>
             <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <XAxis dataKey="name" interval={0} axisLine={false} tickLine={false} tick={(props) => <MonthTick {...props} selected={props.index === monthIndex} />} />
               <YAxis width={42} tick={tick} axisLine={false} tickLine={false} tickFormatter={(value) => compactAxis(Number(value))} />
-              <MonthBar dataKey="inc" fill="#6fbf8a" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400}>
+              <MonthBar dataKey="inc" fill="#6fbf8a" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400} onClick={(_entry, index) => onPick(index)}>
                 {rows.map((row) => (
                   <Cell key={row.name} fill={row.inc ? "#6fbf8a" : "#3a3d42"} />
                 ))}
               </MonthBar>
-              <MonthBar dataKey="exp" fill="#e08b84" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400}>
+              <MonthBar dataKey="exp" fill="#e08b84" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400} onClick={(_entry, index) => onPick(index)}>
                 {rows.map((row) => (
                   <Cell key={row.name} fill={row.exp ? "#e08b84" : "#3a3d42"} />
                 ))}

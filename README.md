@@ -46,9 +46,13 @@ docker compose up -d --build
 
 O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail.
 
-No mês, Início, Lançamentos e Calendário abrem em **Eu**: só o que foi marcado como da pessoa logada. A faixa tem só Eu e Nós. **Nós** soma os dois e mostra os dois avatares; Eu mostra só o de quem está logado. O que fica "da casa" (fatura, aluguel) aparece em Nós. O ano continua da casa inteira.
+Início, Lançamentos, Calendário e a visão anual abrem em **Eu**: só o que foi marcado como da pessoa logada. A faixa tem só Eu e Nós, no mesmo tamanho nas quatro telas. **Nós** soma os dois e mostra os dois avatares; Eu mostra só o de quem está logado. O que fica "da casa" (fatura, aluguel) aparece em Nós. Cartões, contas, orçamento e metas continuam da casa inteira.
 
-No Início, a ordem é resumo do mês, próximos vencimentos, despesas por categoria, fluxo de caixa, evolução das despesas, despesas por recorrência (fixas, parceladas e variáveis), faturas, e o ano mês a mês. O olho esconde os valores neste celular. "Configurar resumo" reordena ou oculta esses cards, também só neste celular. O gráfico do ano abre no mês que está na tela; a sobra acumulada fica desligada até ser ligada. Tocar numa categoria abre as subcategorias. O total da rosca de categorias é o mesmo das despesas do resumo.
+No Início, a ordem é resumo do mês, próximos vencimentos, despesas por categoria, fluxo de caixa, evolução das despesas, despesas por recorrência (fixas, parceladas e variáveis), faturas, e o ano mês a mês. O olho esconde os valores neste celular. "Configurar resumo" reordena ou oculta esses cards, também só neste celular. O gráfico do ano abre no mês que está na tela; a sobra acumulada fica desligada até ser ligada. Tocar numa fatia da rosca abre a categoria; tocar numa barra do ano troca o mês. Se Outros estiver entre as maiores despesas, Classificar troca a categoria de cada gasto daquele mês. O total da rosca de categorias é o mesmo das despesas do resumo.
+
+Nos próximos vencimentos, cada cartão entra uma vez, como "Fatura" mais o nome, no dia do vencimento, com a soma do que ainda está em aberto. Essa linha permanece na lista mesmo quando há outras contas no período. As compras do cartão não aparecem uma a uma.
+
+Na visão anual, Realizado inclui o que já foi lançado e também a conta que ainda está a pagar, no mês do vencimento. A compra no cartão entra no mês da fatura. O número fica verde e em negrito quando o valor da célula já foi pago ou recebido por inteiro; se só uma parte foi paga, a célula fica na cor normal. Previsto acrescenta o que ainda é só previsão no cartão.
 
 O cartão usa a logo do banco e a bandeira (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club e Maestro). Uma bandeira fora dessa lista entra em Outra.
 

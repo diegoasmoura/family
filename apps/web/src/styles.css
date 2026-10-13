@@ -1367,6 +1367,15 @@ table.year .item td.cur {
 table.year .neg {
   color: var(--danger);
 }
+table.year td.paid,
+table.year td.paid .cellbtn,
+table.year .item td.paid,
+table.year .item td.paid .cellbtn,
+table.year td.fut.paid,
+table.year td.fut.paid .cellbtn {
+  color: var(--green);
+  font-weight: 700;
+}
 table.year button.exp {
   background: none;
   border: 0;
@@ -1878,8 +1887,20 @@ a.kebab {
   min-width: 0;
 }
 .chart-fit .recharts-wrapper,
-.chart-fit .recharts-surface {
+.chart-fit .recharts-surface,
+.year-wide .recharts-wrapper,
+.year-wide .recharts-surface {
   overflow: visible;
+}
+.chart-fit :focus,
+.chart-fit :focus-visible,
+.year-wide :focus,
+.year-wide :focus-visible {
+  outline: none;
+}
+.chart-pick .recharts-sector,
+.chart-pick .recharts-bar-rectangle {
+  cursor: pointer;
 }
 .card.inv-line {
   flex-direction: row;
@@ -2186,7 +2207,9 @@ a.kebab {
   height: 40px;
   border-radius: 12px;
 }
-.page.home .who {
+.page.home .who,
+.page.lanc .who,
+.page.wide .who {
   width: 100%;
   margin-top: 0;
   padding: 3px;
@@ -2194,7 +2217,9 @@ a.kebab {
   border-radius: 12px;
   background: var(--line-soft);
 }
-.page.home .who button {
+.page.home .who button,
+.page.lanc .who button,
+.page.wide .who button {
   flex: 1;
   min-height: 36px;
   border-radius: 10px;
@@ -2202,9 +2227,93 @@ a.kebab {
   font-size: 14px;
   font-weight: 600;
 }
-.page.home .who button[aria-selected='true'] {
+.page.home .who button[aria-selected='true'],
+.page.lanc .who button[aria-selected='true'],
+.page.wide .who button[aria-selected='true'] {
   background: var(--surface);
   box-shadow: none;
+}
+.page.lanc {
+  padding: 16px 16px calc(var(--nav-h) + 72px);
+  gap: 12px;
+}
+.page.lanc h1,
+.page.wide h1 {
+  font-size: 20px;
+  font-weight: 600;
+}
+.page.lanc .seg,
+.page.wide .seg {
+  width: 100%;
+  border-radius: 12px;
+  padding: 3px;
+}
+.page.lanc .seg button,
+.page.wide .seg button {
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.page.lanc .seg button.on,
+.page.wide .seg button.on {
+  box-shadow: none;
+}
+.page.wide .hd h1 {
+  flex: 1;
+  text-align: center;
+}
+.page.wide .ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.page.wide .st small,
+.page.wide .st b {
+  font-weight: 600;
+}
+.page.lanc .tx-title .name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.page.lanc .tx-side .num,
+.page.lanc .place-row > .num {
+  font-size: 14px;
+  font-weight: 600;
+}
+.page.lanc .tx-kicker,
+.page.lanc .tx-date,
+.page.lanc .tx-chip,
+.page.lanc .place-name b,
+.page.lanc .place-name small,
+.page.lanc .st small,
+.page.lanc .st b {
+  font-weight: 600;
+}
+.page.lanc .place-name b {
+  font-size: 14px;
+}
+.classify-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.classify-row:last-child { border-bottom: 0; }
+.classify-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.classify-top > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .home-stack {
   display: flex;

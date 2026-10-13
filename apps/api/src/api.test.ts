@@ -539,13 +539,49 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const realized = await ok(await agent.get('/api/reports/year?year=2026&mode=realized'));
       const food = realized.expense.rows.find((r: any) => r.name === 'Alimentação');
       expect(food.months.slice(0, 2)).toEqual([1000, 2000]);
-      expect(food.total_cents).toBe(3000);
+      expect(food.months[10]).toBe(500);
+      expect(food.total_cents).toBe(3500);
       expect(food.children.map((c: any) => c.name)).toEqual(['Mercado', 'Restaurante']);
       expect(realized.balance.months[0]).toBe(8000);
-      expect(realized.balance.total_cents).toBe(9000 - 3000);
+      expect(realized.balance.total_cents).toBe(9000 - 3500);
 
       const planned = await ok(await agent.get('/api/reports/year?year=2026&mode=planned'));
       expect(planned.expense.total_cents).toBe(3500);
+    });
+
+    it('a visão anual mostra a conta a pagar e o cartão no mês da fatura', async () => {
+      await ok(
+        await agent.post('/api/transactions').send({ kind: 'expense', description: 'IPVA', amount_cents: 68361, occurred_on: '2026-10-13', account_id: ids.bradesco, category_id: ids.cat.Moradia, paid: false }),
+        201,
+      );
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Posto', amount_cents: 4000, occurred_on: '2026-09-05', card_id: ids.ultra, category_id: ids.cat.Mercado }), 201);
+
+      const year = await ok(await agent.get('/api/reports/year?year=2026&mode=realized'));
+      const housing = year.expense.rows.find((r: any) => r.name === 'Moradia');
+      const market = year.expense.rows.find((r: any) => r.name === 'Alimentação').children.find((c: any) => c.name === 'Mercado');
+      expect(housing.months[9]).toBe(68361);
+      expect(housing.paid_months[9]).toBe(0);
+      expect(market.months[9]).toBe(4000);
+      const open = await ok(await agent.get('/api/reports/year/transactions?year=2026&mode=realized&kind=expense&month=10&category=' + ids.cat.Moradia));
+      expect(open.transactions.map((t: any) => t.description)).toEqual(['IPVA']);
+    });
+
+    it('célula anual só fica paga quando a conta ou a fatura quitou', async () => {
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Conta', amount_cents: 4000, occurred_on: '2026-10-01', account_id: ids.bradesco, category_id: ids.cat['Mercado'] }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Cartão', amount_cents: 7000, occurred_on: '2026-09-05', card_id: ids.ultra, category_id: ids.cat['Mercado'] }), 201);
+
+      const mercadoOf = (year: any) => year.expense.rows.find((r: any) => r.name === 'Alimentação').children.find((c: any) => c.name === 'Mercado');
+      const open = mercadoOf(await ok(await agent.get('/api/reports/year?year=2026&mode=realized')));
+      expect(open.months[9]).toBe(11000);
+      expect(open.paid_months[9]).toBe(4000);
+      expect(open.items.find((i: any) => i.name === 'Conta').paid_months[9]).toBe(4000);
+      expect(open.items.find((i: any) => i.name === 'Cartão').paid_months[9]).toBe(0);
+
+      const inv = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
+      await ok(await agent.post(`/api/invoices/${inv.id}/payments`).send({}), 201);
+      const paid = mercadoOf(await ok(await agent.get('/api/reports/year?year=2026&mode=realized')));
+      expect(paid.paid_months[9]).toBe(11000);
+      expect(paid.items.find((i: any) => i.name === 'Cartão').paid_months[9]).toBe(7000);
     });
 
     it('próximo vencimento do cartão é a fatura, e pagá-la lança o que está dentro', async () => {
@@ -554,7 +590,7 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const mine = await ok(await agent.get('/api/dashboard?month=2026-10&person=me'));
       const cards = mine.upcoming.filter((u: any) => u.type === 'invoice');
       expect(cards).toHaveLength(1);
-      expect(cards[0]).toMatchObject({ description: 'Ultra', amount_cents: 20742 });
+      expect(cards[0]).toMatchObject({ description: 'Fatura Ultra', amount_cents: 20742, due_on: '2026-10-06' });
       expect(mine.upcoming.filter((u: any) => u.description === 'Servidor')).toHaveLength(0);
       const open = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=me'));
       expect(open.items.find((t: any) => t.description === 'Servidor').display_status).not.toBe('paid');
@@ -564,6 +600,21 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(paid.items.find((t: any) => t.description === 'Servidor').display_status).toBe('paid');
       const after = await ok(await agent.get('/api/dashboard?month=2026-10&person=me'));
       expect(after.upcoming.filter((u: any) => u.type === 'invoice')).toHaveLength(0);
+    });
+
+    it('compras do cartão viram uma soma no vencimento da fatura', async () => {
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Mercado', amount_cents: 10000, occurred_on: '2026-09-02', card_id: ids.ultra }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Posto', amount_cents: 5000, occurred_on: '2026-09-03', card_id: ids.ultra }), 201);
+      for (let i = 0; i < 8; i++) {
+        await ok(
+          await agent.post('/api/transactions').send({ kind: 'expense', description: `Conta ${i}`, amount_cents: 100, occurred_on: '2026-10-01', account_id: ids.bradesco, paid: false }),
+          201,
+        );
+      }
+      const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
+      const invoices = dash.upcoming.filter((u: any) => u.type === 'invoice');
+      expect(invoices).toEqual([expect.objectContaining({ description: 'Fatura Ultra', amount_cents: 15000, due_on: '2026-10-06' })]);
+      expect(dash.upcoming.filter((u: any) => u.description === 'Mercado' || u.description === 'Posto')).toHaveLength(0);
     });
 
     it('início lista os próximos vencimentos, com atrasados primeiro', async () => {
@@ -608,9 +659,9 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const salario = year.income.rows.find((r: any) => r.name === 'Pagamentos').children[0];
       expect(salario.months.slice(0, 2)).toEqual([500000, 301000]);
       expect(salario.items).toEqual([
-        { key: 'd:Salário dia 15', name: 'Salário dia 15', fixed: false, card_name: null, months: [300000, 300000, ...Array(10).fill(0)], total_cents: 600000 },
-        { key: 'd:Salário dia 30', name: 'Salário dia 30', fixed: false, card_name: null, months: [200000, ...Array(11).fill(0)], total_cents: 200000 },
-        { key: 'd:', name: 'Sem descrição', fixed: false, card_name: null, months: [0, 1000, ...Array(10).fill(0)], total_cents: 1000 },
+        { key: 'd:Salário dia 15', name: 'Salário dia 15', fixed: false, card_name: null, months: [300000, 300000, ...Array(10).fill(0)], paid_months: [300000, 300000, ...Array(10).fill(0)], total_cents: 600000 },
+        { key: 'd:Salário dia 30', name: 'Salário dia 30', fixed: false, card_name: null, months: [200000, ...Array(11).fill(0)], paid_months: [200000, ...Array(11).fill(0)], total_cents: 200000 },
+        { key: 'd:', name: 'Sem descrição', fixed: false, card_name: null, months: [0, 1000, ...Array(10).fill(0)], paid_months: [0, 1000, ...Array(10).fill(0)], total_cents: 1000 },
       ]);
     });
 
@@ -761,6 +812,32 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const member = request.agent(app);
       await ok(await member.post('/api/auth/login').send({ email: 'jhersyka@x.com', password: 'senha-segura' }));
       expect((await member.get(`/api/transactions/${hersSalary.transaction.id}`)).status).toBe(200);
+    });
+
+    it('a visão anual em Eu tira o outro e a casa, e em Nós soma os dois', async () => {
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'jhersyka@x.com', password: 'senha-segura' }), 201);
+      const users = await ok(await agent.get('/api/users'));
+      const hers = users.find((u: { email: string }) => u.email === 'jhersyka@x.com');
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/transactions').send({ kind: 'income', description: 'Salário Diego', amount_cents: 100000, occurred_on: '2026-10-05', account_id: ids.bradesco, category_id: ids.cat.Pagamentos, for_user_id: me.id }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'income', description: 'Salário Jhersyka', amount_cents: 80000, occurred_on: '2026-10-05', account_id: ids.bradesco, category_id: ids.cat.Pagamentos, for_user_id: hers.id }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Aluguel', amount_cents: 5000, occurred_on: '2026-10-01', account_id: ids.bradesco, category_id: ids.cat.Moradia }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Farmácia', amount_cents: 3000, occurred_on: '2026-10-02', account_id: ids.bradesco, category_id: ids.cat.Saúde, for_user_id: hers.id }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Mercado', amount_cents: 2000, occurred_on: '2026-10-03', account_id: ids.bradesco, category_id: ids.cat.Alimentação, for_user_id: me.id }), 201);
+
+      const mine = await ok(await agent.get('/api/reports/year?year=2026&mode=realized&person=me'));
+      expect(mine.income.total_cents).toBe(100000);
+      expect(mine.expense.total_cents).toBe(2000);
+      const both = await ok(await agent.get('/api/reports/year?year=2026&mode=realized&person=all'));
+      expect(both.income.total_cents).toBe(180000);
+      expect(both.expense.total_cents).toBe(10000);
+      const house = await ok(await agent.get('/api/reports/year?year=2026&mode=realized'));
+      expect(house.income.total_cents).toBe(180000);
+
+      const mineIncome = await ok(await agent.get('/api/reports/year/transactions?year=2026&mode=realized&kind=income&person=me'));
+      expect(mineIncome.transactions.map((item: { description: string }) => item.description)).toEqual(['Salário Diego']);
+      const allExpenses = await ok(await agent.get('/api/reports/year/transactions?year=2026&mode=realized&kind=expense&person=all'));
+      expect(allExpenses.transactions.map((item: { description: string }) => item.description).sort()).toEqual(['Aluguel', 'Farmácia', 'Mercado']);
     });
   });
 

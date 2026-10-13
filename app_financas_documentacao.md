@@ -8,10 +8,12 @@
 O que mudou depois desta especificação:
 
 - Uma casa só. A segunda pessoa entra em Casa e usuários, como membro, sem convite entre casas.
-- Início, Lançamentos e Calendário abrem em Eu. Nós soma as duas pessoas. O que fica "da casa" aparece em Nós. O ano continua da casa inteira.
+- Início, Lançamentos, Calendário e a visão anual abrem em Eu. Nós soma as duas pessoas. O que fica "da casa" aparece em Nós. Cartões, contas, orçamento e metas continuam da casa inteira.
 - O cartão mostra a logo do banco e a bandeira com ícone (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club, Maestro). Outra aceita um nome livre.
 - A senha continua. Em https com nome, o celular pode entrar com a digital ou o Face ID já salvos no aparelho. Em `http://IP` esse botão não aparece.
 - A Início mostra, nesta ordem: resumo (saldo, previsto, receitas e despesas), próximos vencimentos, despesas por categoria, fluxo de caixa em barras horizontais, evolução das despesas no mês, despesas por recorrência, faturas e o ano mês a mês. O olho e "Configurar resumo" ficam salvos só no celular.
+- Nos próximos vencimentos, a fatura do cartão aparece somada no dia do vencimento e não sai da lista por causa de outras contas. Tocar na rosca ou na barra do ano abre o detalhe. Outros, quando é uma das maiores categorias, pode ser reclassificado gasto a gasto.
+- Na visão anual, a conta a pagar entra no mês do vencimento. A compra no cartão entra no mês da fatura. A célula fica verde e em negrito quando o valor já foi pago ou recebido por inteiro.
 
 ---
 
@@ -244,13 +246,13 @@ Mostrar em poucos segundos a situação financeira do mês.
 1. Cabeçalho com o nome da casa, saudação, olho para ocultar valores e avatar.
 2. Mês e o controle Eu / Nós.
 3. Resumo: saldo atual, previsto no fim do mês, receitas e despesas em duas colunas. Cada coluna traz o valor numa linha e a barra do que já foi recebido ou pago.
-4. Próximos vencimentos, agrupados por dia, até cinco itens. Atrasado em vermelho, vence hoje em âmbar, receita com sinal de mais.
-5. Despesas por categoria: rosca com o total no centro e a lista com ícone, valor e porcentagem. Tocar numa categoria abre as subcategorias. Se houver orçamento, a barra fica âmbar a partir de 80% e vermelha a partir de 100%.
+4. Próximos vencimentos, agrupados por dia. As contas mostram até cinco itens. Cada cartão entra à parte, uma vez, como "Fatura" mais o nome, no dia do vencimento, com a soma em aberto. Atrasado em vermelho, vence hoje em âmbar, receita com sinal de mais.
+5. Despesas por categoria: rosca com o total no centro e a lista com ícone, valor e porcentagem. Tocar numa fatia ou numa linha abre as subcategorias. Se Outros estiver entre as maiores, Classificar escolhe a categoria de cada gasto deste mês. Se houver orçamento, a barra fica âmbar a partir de 80% e vermelha a partir de 100%.
 6. Fluxo de caixa em barras horizontais: entradas, saídas e saldo previsto. A parte lisa é o realizado; a listrada é o que ainda falta.
 7. Evolução das despesas, acumulada por dia, comparada com o mesmo ponto do mês anterior.
 8. Despesas por recorrência: fixas, parceladas e variáveis, mais o total das parcelas que ainda vão vencer.
 9. Faturas dos cartões do mês, uma linha por cartão, com o total embaixo.
-10. Ano mês a mês, com o mês da tela selecionado. A sobra acumulada começa desligada.
+10. Ano mês a mês, no mesmo Eu ou Nós do restante da Início, com o mês da tela selecionado. Tocar numa barra troca o mês. A sobra acumulada começa desligada.
 11. Configurar resumo: reordenar ou ocultar os cards. A escolha fica neste celular.
 
 O total da rosca de categorias é o mesmo valor de despesas do resumo. O menu inferior não entra nessa ordem.
@@ -1131,6 +1133,8 @@ A tabela deve conter:
 - saldo.
 
 O mês atual deve possuir destaque visual.
+
+A tela usa o mesmo Eu e Nós do restante do app. Realizado inclui o que já foi lançado e a conta que ainda está a pagar, no mês do vencimento. A compra no cartão entra no mês da fatura, não no dia da compra. Previsto acrescenta o que ainda é só previsão no cartão. A célula fica verde e em negrito quando todo o valor dela já foi pago ou recebido; uma célula só em parte paga permanece na cor normal. O saldo não muda de cor, porque é a diferença do mês.
 
 No celular:
 

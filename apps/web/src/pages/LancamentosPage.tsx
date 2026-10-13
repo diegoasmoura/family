@@ -286,12 +286,9 @@ export function LancamentosPage() {
     [...items, ...invoices.flatMap((inv) => (inv.lines ?? []).flatMap((l) => (l.kind === 'other' ? [] : [l.tx])))].find((t) => t.id === selected.id);
 
   return (
-    <main className="page">
+    <main className="page lanc">
       <div className="hd">
-        <div>
-          <h1>Lançamentos</h1>
-          <PersonFilter />
-        </div>
+        <h1>Lançamentos</h1>
         <div className="row">
           <button className="ic" aria-label="Resumo" onClick={() => setSummaryOpen(true)} disabled={!q.data}>
             <Icon.chart />
@@ -301,6 +298,7 @@ export function LancamentosPage() {
           </button>
         </div>
       </div>
+      <PersonFilter />
       <Seg
         label="Tipo de lançamento"
         value={kind}

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MONTHS_SHORT_PT, formatBRL, yearOf } from '@fin/domain';
 import { useApi, type Tx } from '../api';
 import { CategoryIcon } from '../categories';
+import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, bankByName } from '../banks';
@@ -13,10 +14,11 @@ interface Row {
   icon: string | null;
   color: string | null;
   months: number[];
+  paid_months?: number[];
   total_cents: number;
   card_name: string | null;
   children?: Row[];
-  items?: { key: string; name: string; fixed: boolean; card_name: string | null; months: number[]; total_cents: number }[];
+  items?: { key: string; name: string; fixed: boolean; card_name: string | null; months: number[]; paid_months?: number[]; total_cents: number }[];
 }
 
 type Kind = 'income' | 'expense';
@@ -37,8 +39,8 @@ function filterOf(r: Row, kind: Kind, depth: number): AuditFilter {
 }
 
 /** Lista os lançamentos que formam um valor da tabela. */
-function AuditSheet({ audit, year, mode, onClose, onTx }: { audit: Audit; year: number; mode: string; onClose: () => void; onTx: (t: Tx) => void }) {
-  const params = new URLSearchParams({ year: String(year), mode, kind: audit.kind });
+function AuditSheet({ audit, year, mode, person, onClose, onTx }: { audit: Audit; year: number; mode: string; person: string; onClose: () => void; onTx: (t: Tx) => void }) {
+  const params = new URLSearchParams({ year: String(year), mode, kind: audit.kind, person });
   if (audit.month) params.set('month', String(audit.month));
   if (audit.category != null) params.set('category', String(audit.category));
   if (audit.tree) params.set('tree', audit.tree);
@@ -86,13 +88,14 @@ function AuditSheet({ audit, year, mode, onClose, onTx }: { audit: Audit; year: 
 }
 
 export function AnoPage() {
-  const { today } = useAppState();
+  const { today, person } = useAppState();
   const [year, setYear] = useState(yearOf(today));
   const [mode, setMode] = useState<'realized' | 'planned'>('realized');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [audit, setAudit] = useState<Audit | null>(null);
   const [tx, setTx] = useState<Tx | null>(null);
-  const q = useApi(`/reports/year?year=${year}&mode=${mode}`);
+  const who = personParam(person);
+  const q = useApi(`/reports/year?year=${year}&mode=${mode}&person=${who}`);
   const d = q.data;
   const scRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -146,16 +149,22 @@ export function AnoPage() {
       cell(v)
     );
 
-  const cells = (months: number[], total: number, neg = false, filter?: AuditFilter) => (
-    <>
-      {months.map((v, i) => (
-        <td key={i} className={[cls(i), neg && v < 0 ? 'neg' : ''].join(' ').trim() || undefined}>
-          {value(v, filter, i + 1)}
-        </td>
-      ))}
-      <td className={neg && total < 0 ? 'neg' : undefined}>{value(total, filter)}</td>
-    </>
-  );
+  const settled = (amount: number, paid?: number) => amount > 0 && paid === amount;
+  const cells = (months: number[], total: number, paidMonths?: number[], neg = false, filter?: AuditFilter) => {
+    const paidTotal = paidMonths?.reduce((sum, v) => sum + v, 0) ?? 0;
+    const tone = (amount: number, paid: number | undefined, negative: boolean) =>
+      [negative ? 'neg' : '', settled(amount, paid) ? 'paid' : ''].filter(Boolean).join(' ') || undefined;
+    return (
+      <>
+        {months.map((v, i) => (
+          <td key={i} className={[cls(i), tone(v, paidMonths?.[i], neg && v < 0)].filter(Boolean).join(' ') || undefined}>
+            {value(v, filter, i + 1)}
+          </td>
+        ))}
+        <td className={tone(total, paidTotal, neg && total < 0)}>{value(total, filter)}</td>
+      </>
+    );
+  };
 
   const cardDot = (name: string, size: number) =>
     bankByName(name) ? (
@@ -194,7 +203,7 @@ export function AnoPage() {
               label(r, depth ? 20 : 24)
             )}
           </td>
-          {cells(r.months, r.total_cents, false, filter)}
+          {cells(r.months, r.total_cents, r.paid_months, false, filter)}
         </tr>
         {expanded && r.children?.map((c) => row(c, `${key}-${c.category_id}-${c.name}`, depth + 1, kind))}
         {expanded &&
@@ -205,7 +214,7 @@ export function AnoPage() {
                 {it.fixed && <span className="tag fx">Fixa</span>}
                 {it.card_name && cardDot(it.card_name, depth ? 20 : 24)}
               </td>
-              {cells(it.months, it.total_cents, false, { ...filter, tree: '0', item: it.key, title: `${r.name.replace(/ \(geral\)$/, '')} · ${it.name}` })}
+              {cells(it.months, it.total_cents, it.paid_months, false, { ...filter, tree: '0', item: it.key, title: `${r.name.replace(/ \(geral\)$/, '')} · ${it.name}` })}
             </tr>
           ))}
       </Fragment>
@@ -224,26 +233,25 @@ export function AnoPage() {
 
   return (
     <main className="page wide">
-      <div className="hd" style={{ flexWrap: 'wrap' }}>
-        <div className="row">
-          <button className="ic" aria-label="Ano anterior" onClick={() => setYear(year - 1)}>
-            <Icon.left />
-          </button>
-          <h1 style={{ fontSize: 26 }}>Visão anual · {year}</h1>
-          <button className="ic" aria-label="Próximo ano" onClick={() => setYear(year + 1)}>
-            <Icon.right />
-          </button>
-        </div>
-        <Seg
-          label="Realizado ou previsto"
-          value={mode}
-          onChange={setMode}
-          options={[
-            ['realized', 'Realizado'],
-            ['planned', 'Previsto'],
-          ]}
-        />
+      <div className="hd">
+        <button className="ic" aria-label="Ano anterior" onClick={() => setYear(year - 1)}>
+          <Icon.left />
+        </button>
+        <h1>Visão anual · {year}</h1>
+        <button className="ic" aria-label="Próximo ano" onClick={() => setYear(year + 1)}>
+          <Icon.right />
+        </button>
       </div>
+      <PersonFilter />
+      <Seg
+        label="Realizado ou previsto"
+        value={mode}
+        onChange={setMode}
+        options={[
+          ['realized', 'Realizado'],
+          ['planned', 'Previsto'],
+        ]}
+      />
       <ErrorText error={q.error} />
       {!d ? (
         <Loading />
@@ -314,26 +322,26 @@ export function AnoPage() {
                 )}
                 <tr className="t">
                   <td>Total receitas</td>
-                  {cells(d.income.months, d.income.total_cents, false, { kind: 'income', title: 'Receitas' })}
+                  {cells(d.income.months, d.income.total_cents, d.income.paid_months, false, { kind: 'income', title: 'Receitas' })}
                 </tr>
                 <tr className="t">
                   <td>Total despesas</td>
-                  {cells(d.expense.months, d.expense.total_cents, false, { kind: 'expense', title: 'Despesas' })}
+                  {cells(d.expense.months, d.expense.total_cents, d.expense.paid_months, false, { kind: 'expense', title: 'Despesas' })}
                 </tr>
                 <tr className="sd">
                   <td>Saldo</td>
-                  {cells(d.balance.months, d.balance.total_cents, true)}
+                  {cells(d.balance.months, d.balance.total_cents, undefined, true)}
                 </tr>
               </tbody>
             </table>
           </div>
           </div>
           <small>
-            A coluna destacada é o mês atual; {mode === 'realized' ? 'só entra o que já foi efetivado' : 'inclui o que ainda está previsto'}. Compras no cartão entram no mês da fatura.
+            A coluna destacada é o mês atual. Contas entram no vencimento, pagas ou a pagar. Compras no cartão entram no mês da fatura. O que já foi pago fica em verde.
           </small>
         </>
       )}
-      {audit && <AuditSheet key={JSON.stringify(audit)} audit={audit} year={year} mode={mode} onClose={() => setAudit(null)} onTx={setTx} />}
+      {audit && <AuditSheet key={JSON.stringify(audit)} audit={audit} year={year} mode={mode} person={who} onClose={() => setAudit(null)} onTx={setTx} />}
       {tx && <TxSheet key={`${tx.id}-${tx.status}`} tx={tx} onClose={() => setTx(null)} />}
     </main>
   );

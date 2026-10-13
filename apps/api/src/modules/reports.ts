@@ -16,13 +16,25 @@ interface Row {
   icon: string | null;
   color: string | null;
   months: number[];
+  /** Centavos já pagos ou recebidos em cada mês. A célula está quitada quando isto cobre `months`. */
+  paid_months: number[];
   total_cents: number;
   /** Nome do cartão quando todo o valor da linha veio dele. */
   card_name: string | null;
   children?: Row[];
   /** Composição: cada fixa e cada parcelamento numa linha; avulsos agrupados pela descrição. */
-  items?: { key: string; name: string; fixed: boolean; card_name: string | null; months: number[]; total_cents: number }[];
+  items?: { key: string; name: string; fixed: boolean; card_name: string | null; months: number[]; paid_months: number[]; total_cents: number }[];
 }
+
+/** Na conta, pago é `paid_on`. No cartão, pago é a fatura quitada — a mesma conta da lista. */
+const PAID_CENTS = `SUM(CASE
+        WHEN t.card_id IS NULL AND t.paid_on IS NOT NULL THEN t.amount_cents
+        WHEN t.card_id IS NOT NULL AND t.invoice_id IS NOT NULL
+             AND COALESCE((SELECT SUM(pmt.amount_cents) FROM invoice_payments pmt WHERE pmt.invoice_id = t.invoice_id AND pmt.deleted_at IS NULL), 0)
+                 >= COALESCE((SELECT SUM(x.amount_cents) FROM transactions x WHERE x.invoice_id = t.invoice_id AND x.deleted_at IS NULL), 0)
+                    + COALESCE(inv.adjustment_cents, 0)
+        THEN t.amount_cents
+        ELSE 0 END)`;
 
 const DESC = "COALESCE(NULLIF(TRIM(t.description), ''), '')";
 
@@ -30,8 +42,12 @@ const DESC = "COALESCE(NULLIF(TRIM(t.description), ''), '')";
  * Categoria x mês. As filhas aparecem dentro do pai, e o total do pai é a
  * soma dele com as filhas. O total anual é a soma dos meses.
  */
-async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mode: 'realized' | 'planned') {
-  const statusFilter = mode === 'realized' ? "AND t.status = 'posted'" : '';
+async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mode: 'realized' | 'planned', personId: number | null = null) {
+  // No cartão, a compra já nasce efetivada na fatura. Na conta, o que ainda está a pagar também entra no mês do vencimento.
+  const statusFilter = mode === 'realized' ? "AND (t.status = 'posted' OR t.card_id IS NULL)" : '';
+  const personSql = personId == null ? '' : 'AND t.for_user_id = ?';
+  const params: unknown[] = [ctx.householdId, kind, `${year}-01`, `${year}-12`];
+  if (personId != null) params.push(personId);
   const rows = await ctx.db.all<{
     category_id: number | null;
     recurrence_id: number | null;
@@ -44,23 +60,26 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
     card_name: string | null;
     competence_month: string;
     total: number;
+    paid: number;
   }>(
     `SELECT t.category_id, t.recurrence_id, t.plan_id, ${DESC} AS description,
             COALESCE(r.description, p.description) AS origin_description, r.day_of_month, p.installments,
             t.card_id, cc.name AS card_name,
-            t.competence_month, SUM(t.amount_cents) AS total
+            t.competence_month, SUM(t.amount_cents) AS total, ${PAID_CENTS} AS paid
        FROM transactions t
        LEFT JOIN recurrences r ON r.id = t.recurrence_id
        LEFT JOIN installment_plans p ON p.id = t.plan_id
        LEFT JOIN credit_cards cc ON cc.id = t.card_id
+       LEFT JOIN invoices inv ON inv.id = t.invoice_id
       WHERE t.household_id = ? AND t.kind = ? AND t.deleted_at IS NULL AND t.include_in_reports = 1
-        AND t.competence_month >= ? AND t.competence_month <= ? ${statusFilter}
+        AND t.competence_month >= ? AND t.competence_month <= ? ${statusFilter} ${personSql}
       GROUP BY t.category_id, t.recurrence_id, t.plan_id, ${DESC}, r.description, p.description, r.day_of_month, p.installments, t.card_id, cc.name, t.competence_month`,
-    [ctx.householdId, kind, `${year}-01`, `${year}-12`],
+    params,
   );
 
+  const zeros = () => Array(12).fill(0) as number[];
   // Cada fixa e cada parcelamento é uma linha; avulsos se juntam pela descrição e pelo cartão.
-  type Item = { key: string; base: string; day: number | null; installments: number | null; months: number[]; cards: Set<string>; account: boolean };
+  type Item = { key: string; base: string; day: number | null; installments: number | null; months: number[]; paid: number[]; cards: Set<string>; account: boolean };
   const items = new Map<number | null, Map<string, Item>>();
   const origin = new Map<number | null, { cards: Set<string>; account: boolean }>();
   const noteOrigin = (id: number | null, card: string | null) => {
@@ -81,13 +100,16 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
       base: (r.recurrence_id || r.plan_id ? r.origin_description?.trim() : '') || r.description || 'Sem descrição',
       day: r.recurrence_id ? Number(r.day_of_month) : null,
       installments: r.plan_id ? Number(r.installments) : null,
-      months: Array(12).fill(0),
+      months: zeros(),
+      paid: zeros(),
       cards: new Set<string>(),
       account: false,
     };
     if (card) item.cards.add(card);
     else item.account = true;
-    item.months[Number(r.competence_month.slice(5, 7)) - 1] += num(r.total);
+    const monthIdx = Number(r.competence_month.slice(5, 7)) - 1;
+    item.months[monthIdx] += num(r.total);
+    item.paid[monthIdx] += num(r.paid);
     byKey.set(key, item);
     items.set(cat, byKey);
   }
@@ -113,7 +135,7 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
         if (it.installments) name = `${it.base} · ${it.installments}x`;
         else if (it.day && count.get(it.base)! > 1) name = `${it.base} · dia ${it.day}`;
         else if (!it.day && count.get(it.base)! > 1) name = `${it.base} · avulsos`;
-        return { key: it.key, name, fixed: Boolean(it.day), card_name: cardLabel(it.cards, it.account), months: it.months, total_cents: it.months.reduce((a, v) => a + v, 0) };
+        return { key: it.key, name, fixed: Boolean(it.day), card_name: cardLabel(it.cards, it.account), months: it.months, paid_months: it.paid, total_cents: it.months.reduce((a, v) => a + v, 0) };
       })
       .sort((a, b) => b.total_cents - a.total_cents || a.name.localeCompare(b.name));
   };
@@ -122,21 +144,27 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
     [ctx.householdId, kind],
   );
   const own = new Map<number | null, number[]>();
+  const ownPaid = new Map<number | null, number[]>();
   for (const r of rows) {
     const key = r.category_id == null ? null : Number(r.category_id);
-    const arr = own.get(key) ?? Array(12).fill(0);
-    arr[Number(r.competence_month.slice(5, 7)) - 1] += num(r.total);
+    const arr = own.get(key) ?? zeros();
+    const paidArr = ownPaid.get(key) ?? zeros();
+    const monthIdx = Number(r.competence_month.slice(5, 7)) - 1;
+    arr[monthIdx] += num(r.total);
+    paidArr[monthIdx] += num(r.paid);
     own.set(key, arr);
+    ownPaid.set(key, paidArr);
   }
   const sumArr = (a: number[], b: number[]) => a.map((v, i) => v + b[i]);
   const catById = new Map(cats.map((c) => [c.id, c]));
-  const mk = (id: number | null, name: string, parent: number | null, months: number[], scope: (number | null)[], withItems = false): Row => ({
+  const mk = (id: number | null, name: string, parent: number | null, months: number[], paidMonths: number[], scope: (number | null)[], withItems = false): Row => ({
     category_id: id,
     name,
     parent_id: parent,
     icon: id == null ? null : (catById.get(id)?.icon ?? null),
     color: id == null ? null : (catById.get(id)?.color ?? (parent == null ? null : (catById.get(parent)?.color ?? null))),
     months,
+    paid_months: paidMonths,
     total_cents: months.reduce((a, v) => a + v, 0),
     card_name: cardOf(scope),
     ...(withItems ? { items: itemsOf(id) } : {}),
@@ -146,18 +174,21 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
   for (const parent of cats.filter((c) => c.parent_id == null)) {
     const children = cats
       .filter((c) => c.parent_id === parent.id && own.has(c.id))
-      .map((c) => mk(c.id, c.name, parent.id, own.get(c.id)!, [c.id], true));
-    const ownMonths = own.get(parent.id) ?? Array(12).fill(0);
+      .map((c) => mk(c.id, c.name, parent.id, own.get(c.id)!, ownPaid.get(c.id)!, [c.id], true));
+    const ownMonths = own.get(parent.id) ?? zeros();
+    const ownPaidMonths = ownPaid.get(parent.id) ?? zeros();
     if (!children.length && !own.has(parent.id)) continue;
     const months = children.reduce((acc, c) => sumArr(acc, c.months), ownMonths);
+    const paidMonths = children.reduce((acc, c) => sumArr(acc, c.paid_months), ownPaidMonths);
     const scope = [parent.id, ...children.map((c) => c.category_id)];
-    const row = mk(parent.id, parent.name, null, months, scope, !children.length);
-    if (children.length) row.children = own.has(parent.id) ? [mk(parent.id, `${parent.name} (geral)`, parent.id, ownMonths, [parent.id], true), ...children] : children;
+    const row = mk(parent.id, parent.name, null, months, paidMonths, scope, !children.length);
+    if (children.length) row.children = own.has(parent.id) ? [mk(parent.id, `${parent.name} (geral)`, parent.id, ownMonths, ownPaidMonths, [parent.id], true), ...children] : children;
     out.push(row);
   }
-  if (own.has(null)) out.push(mk(null, 'Sem categoria', null, own.get(null)!, [null], true));
-  const totals = out.reduce((acc, r) => sumArr(acc, r.months), Array(12).fill(0) as number[]);
-  return { rows: out, months: totals, total_cents: totals.reduce((a, v) => a + v, 0) };
+  if (own.has(null)) out.push(mk(null, 'Sem categoria', null, own.get(null)!, ownPaid.get(null)!, [null], true));
+  const totals = out.reduce((acc, r) => sumArr(acc, r.months), zeros());
+  const paidTotals = out.reduce((acc, r) => sumArr(acc, r.paid_months), zeros());
+  return { rows: out, months: totals, paid_months: paidTotals, total_cents: totals.reduce((a, v) => a + v, 0) };
 }
 
 export function reportsRouter(): Router {
@@ -166,9 +197,10 @@ export function reportsRouter(): Router {
   r.get('/year', async (req, res) => {
     const year = parse(z.coerce.number().int().min(2000).max(2100).optional(), req.query.year) ?? yearOf(req.ctx.today);
     const mode = parse(z.enum(['realized', 'planned']).default('realized'), req.query.mode);
+    const personId = await personFilter(req.ctx, req.query.person);
     if (year >= yearOf(req.ctx.today)) await ensureRecurrences(req.ctx, `${year}-12`);
-    const income = await yearMatrix(req.ctx, year, 'income', mode);
-    const expense = await yearMatrix(req.ctx, year, 'expense', mode);
+    const income = await yearMatrix(req.ctx, year, 'income', mode, personId);
+    const expense = await yearMatrix(req.ctx, year, 'expense', mode, personId);
     const balance = income.months.map((v, i) => v - expense.months[i]);
     res.json({
       year,
@@ -204,7 +236,12 @@ export function reportsRouter(): Router {
       where.push('t.competence_month >= ? AND t.competence_month <= ?');
       params.push(`${q.year}-01`, `${q.year}-12`);
     }
-    if (q.mode === 'realized') where.push("t.status = 'posted'");
+    if (q.mode === 'realized') where.push("(t.status = 'posted' OR t.card_id IS NULL)");
+    const personId = await personFilter(req.ctx, req.query.person);
+    if (personId != null) {
+      where.push('t.for_user_id = ?');
+      params.push(personId);
+    }
     if (q.category === 'none') where.push('t.category_id IS NULL');
     else if (q.category != null && q.tree === '1') {
       where.push('(t.category_id = ? OR c.parent_id = ?)');
@@ -300,7 +337,8 @@ export function dashboardRouter(): Router {
       if (!invoice || (candidate.remaining_cents > 0 && candidate.due_date < invoice.due_date) || invoice.remaining_cents === 0) invoice = candidate;
     }
 
-    const upcomingParams: unknown[] = [ctx.householdId, addDays(ctx.today, 30)];
+    const horizon = addDays(ctx.today, 30);
+    const upcomingParams: unknown[] = [ctx.householdId, horizon];
     if (personId != null) upcomingParams.push(personId);
     const upcomingTx = await ctx.db.all(
       `SELECT t.id, t.kind, t.description, t.amount_cents, COALESCE(t.due_on, t.occurred_on) AS due_on, t.installment_no, p.installments AS plan_installments,
@@ -318,7 +356,7 @@ export function dashboardRouter(): Router {
     const upcomingInvoices = [];
     for (const card of cards) {
       for (const b of await cardInvoiceBalances(ctx, card.id)) {
-        if (b.remaining_cents > 0 && b.due_date <= addDays(ctx.today, 30)) {
+        if (b.remaining_cents > 0 && b.due_date <= horizon) {
           upcomingInvoices.push({
             type: 'invoice',
             id: b.id,
@@ -326,7 +364,7 @@ export function dashboardRouter(): Router {
             card_name: card.name,
             reference_month: b.reference_month,
             kind: 'expense',
-            description: card.name,
+            description: `Fatura ${card.name}`,
             amount_cents: b.remaining_cents,
             due_on: b.due_date,
           });
@@ -345,8 +383,7 @@ export function dashboardRouter(): Router {
       ...upcomingInvoices,
     ]
       .map((u) => ({ ...u, overdue: u.due_on < ctx.today }))
-      .sort((a, b) => a.due_on.localeCompare(b.due_on))
-      .slice(0, 8);
+      .sort((a, b) => a.due_on.localeCompare(b.due_on) || a.description.localeCompare(b.description));
     const futureParams: unknown[] = [ctx.householdId, month];
     if (personId != null) futureParams.push(personId);
     const futureInstallments = await ctx.db.get(
