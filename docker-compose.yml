@@ -28,6 +28,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?defina SESSION_SECRET no .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       ALLOW_REGISTER: ${ALLOW_REGISTER:-true}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
       TZ: America/Sao_Paulo
     depends_on:
       db:

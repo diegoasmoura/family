@@ -8,6 +8,7 @@ import { todayIn } from '@fin/domain';
 import type { Config } from '../config';
 import { HttpError, badRequest, insert, nowIso, parse, type Role } from '../core';
 import { seedDefaultCategories } from './categories';
+import { mountWebauthn } from './webauthn';
 
 export const SESSION_COOKIE = 'fin_session';
 const SESSION_DAYS = 30;
@@ -21,7 +22,7 @@ const zPassword = z.string().min(8, 'A senha precisa ter pelo menos 8 caracteres
 
 export const hashPassword = (password: string) => bcrypt.hash(password, 12);
 
-function setSession(res: Response, config: Config, userId: number) {
+export function setSession(res: Response, config: Config, userId: number) {
   const token = jwt.sign({ uid: userId } satisfies SessionPayload, config.sessionSecret, { expiresIn: `${SESSION_DAYS}d` });
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -32,7 +33,7 @@ function setSession(res: Response, config: Config, userId: number) {
   });
 }
 
-async function publicUser(db: Db, userId: number) {
+export async function publicUser(db: Db, userId: number) {
   return db.get(
     `SELECT u.id, u.name, u.email, u.role, u.household_id, h.name AS household_name, h.timezone
        FROM users u JOIN households h ON h.id = u.household_id WHERE u.id = ?`,
@@ -104,6 +105,8 @@ export function authRouter(db: Db, config: Config): Router {
   r.get('/me', requireAuth(db, config), async (req, res) => {
     res.json({ ...(await publicUser(db, req.ctx.userId)), today: req.ctx.today });
   });
+
+  mountWebauthn(r, db, config, limiter);
 
   r.post('/password', requireAuth(db, config), async (req, res) => {
     const body = parse(

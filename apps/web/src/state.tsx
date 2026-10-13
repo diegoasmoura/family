@@ -13,7 +13,7 @@ export type PersonScope = 'all' | 'me' | number;
 interface AppState {
   month: string;
   setMonth: (m: string) => void;
-  /** all soma a casa. me e um id mostram só essa pessoa. */
+  /** Começa em Eu. all soma a casa. me e um id mostram só essa pessoa. */
   person: PersonScope;
   setPerson: (person: PersonScope) => void;
   today: string;
@@ -25,7 +25,7 @@ const Ctx = createContext<AppState | null>(null);
 
 export function AppStateProvider({ today, children }: { today: string; children: ReactNode }) {
   const [month, setMonth] = useState(monthOf(today));
-  const [person, setPerson] = useState<PersonScope>('all');
+  const [person, setPerson] = useState<PersonScope>('me');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 

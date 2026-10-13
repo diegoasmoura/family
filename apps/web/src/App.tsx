@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, useState, type ReactNode } from "react";
 import {
   NavLink,
   Navigate,
@@ -7,9 +7,10 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { ApiError, useApi, type Me } from "./api";
+import { ApiError, useAction, useApi, type Me } from "./api";
 import { AppStateProvider } from "./state";
-import { Icon, Loading } from "./ui";
+import { canUsePasskey, dismissPasskeyOffer, passkeyOfferDismissed, registerPasskey, savedPasskeyId } from "./passkey";
+import { ErrorText, Icon, Loading, Sheet } from "./ui";
 import { AuthPage } from "./pages/AuthPage";
 import { HomePage } from "./pages/HomePage";
 import { LancamentosPage } from "./pages/LancamentosPage";
@@ -83,6 +84,30 @@ class PageBoundary extends Component<
   }
 }
 
+function PasskeyOffer() {
+  const [open, setOpen] = useState(() => canUsePasskey() && !savedPasskeyId() && !passkeyOfferDismissed());
+  const action = useAction(registerPasskey, (saved) => {
+    if (saved) setOpen(false);
+  });
+  if (!open) return null;
+  const close = () => {
+    dismissPasskeyOffer();
+    setOpen(false);
+  };
+  return (
+    <Sheet title="Entrar mais rápido neste celular" onClose={close}>
+      <p>Na próxima vez, o aparelho pede a digital ou o Face ID que já estão salvos nele. A senha continua valendo.</p>
+      <ErrorText error={action.error} />
+      <button className="btn big" type="button" disabled={action.isPending} onClick={() => action.mutate(undefined)}>
+        Ativar neste celular
+      </button>
+      <button className="btn ghost block" type="button" onClick={close}>
+        Agora não
+      </button>
+    </Sheet>
+  );
+}
+
 export function App() {
   const me = useApi<Me>("/auth/me", { retry: false, staleTime: 60_000 });
   const location = useLocation();
@@ -99,6 +124,7 @@ export function App() {
 
   return (
     <AppStateProvider today={me.data.today}>
+      <PasskeyOffer />
       <div className="app">
         <PageBoundary key={location.pathname}>
           <Routes>

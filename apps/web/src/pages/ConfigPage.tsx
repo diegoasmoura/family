@@ -1,9 +1,44 @@
 import { useState } from 'react';
 import { api, useAction, useApi, type Me } from '../api';
+import { canUsePasskey, forgetLocalPasskey, registerPasskey, savedPasskeyId } from '../passkey';
 import { useAppState } from '../state';
 import { ErrorText, Loading, Sheet } from '../ui';
 
 const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Rio_Branco', 'America/Noronha'];
+
+function PasskeyCard() {
+  const { toast } = useAppState();
+  const available = canUsePasskey();
+  const keys = useApi<{ id: number; credential_id: string; device_label: string }[]>(available ? '/auth/webauthn' : null);
+  const mine = keys.data?.find((key) => key.credential_id === savedPasskeyId());
+  const enable = useAction(registerPasskey, (saved) => {
+    if (saved) toast('Digital ou Face ID ativados neste celular');
+  });
+  const disable = useAction(
+    () => api(`/auth/webauthn/${mine?.id}`, { method: 'DELETE' }),
+    () => {
+      forgetLocalPasskey();
+      toast('Desligado neste celular');
+    },
+  );
+  if (!available) return null;
+  return (
+    <section className="card">
+      <b>Digital ou Face ID</b>
+      <small>Neste celular, o app pede a digital ou o Face ID que já estão no aparelho. A senha continua como reserva.</small>
+      {mine ? (
+        <button className="btn block" type="button" disabled={disable.isPending} onClick={() => disable.mutate(undefined)}>
+          Desligar neste celular
+        </button>
+      ) : (
+        <button className="btn block" type="button" disabled={enable.isPending} onClick={() => enable.mutate(undefined)}>
+          Ativar neste celular
+        </button>
+      )}
+      <ErrorText error={enable.error || disable.error} />
+    </section>
+  );
+}
 
 export function ConfigPage({ me }: { me: Me }) {
   const { toast } = useAppState();
@@ -95,6 +130,8 @@ export function ConfigPage({ me }: { me: Me }) {
         </button>
         <ErrorText error={changePassword.error} />
       </section>
+
+      <PasskeyCard />
 
       <div className="hd">
         <h2>Membros</h2>

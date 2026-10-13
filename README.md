@@ -44,7 +44,13 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail. No mês, Nós soma os dois salários; Eu e o nome da outra pessoa mostram só o que foi marcado como dela. O que fica "da casa" (fatura, aluguel) aparece em Nós.
+O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail.
+
+No mês, Início, Lançamentos e Calendário abrem em **Eu**: só o que foi marcado como da pessoa logada. **Nós** soma os dois. O que fica "da casa" (fatura, aluguel) aparece em Nós. O ano continua da casa inteira.
+
+O cartão usa a logo do banco e a bandeira (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club e Maestro). Uma bandeira fora dessa lista entra em Outra.
+
+Depois do primeiro login com senha, o celular pode oferecer entrar com a digital ou o Face ID que já estão no aparelho. Cada um ativa no próprio celular. Em Casa e usuários dá para desligar o aparelho atual. A senha continua valendo. O botão só aparece em https com nome.
 
 Depois das duas pessoas, coloque `ALLOW_REGISTER=false` no `.env` e suba de novo. A senha se troca em Casa e usuários; o administrador da casa também redefine a senha de um membro. Não há recuperação por e-mail.
 
@@ -65,7 +71,7 @@ Para conferir o caminho do dump sem mexer no banco do NAS: `./deploy/restore-che
 
 ### Acesso fora de casa
 
-Use Cloudflare Tunnel (ou Tailscale) em vez de abrir porta no roteador. Com o tunnel apontando para `http://web:80` ou `http://IP-DO-NAS:3003`, coloque `COOKIE_SECURE=true` no `.env`, porque o acesso passa a ser por HTTPS.
+Use Cloudflare Tunnel (ou Tailscale) em vez de abrir porta no roteador. Com o tunnel apontando para `http://web:80` ou `http://IP-DO-NAS:3003`, coloque `COOKIE_SECURE=true` no `.env`, porque o acesso passa a ser por HTTPS. Para a digital ou o Face ID, preencha também `WEBAUTHN_RP_ID` (o host, sem https) e `WEBAUTHN_ORIGIN` (a página inteira, com https). Em `http://IP-DO-NAS:3003` o celular recusa esses dois, e o botão não aparece.
 
 ## Regras adotadas
 

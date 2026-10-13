@@ -8,6 +8,9 @@ export interface Config {
   allowRegister: boolean;
   /** Só para testes: fixa o "hoje" do household. */
   fixedToday?: string;
+  /** Host https do app, quando o túnel tem um nome fixo. Os dois vêm juntos. */
+  webauthnRpId?: string;
+  webauthnOrigin?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -24,5 +27,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     production,
     allowRegister: env.ALLOW_REGISTER === undefined ? true : env.ALLOW_REGISTER === 'true',
     fixedToday: production ? undefined : env.FIXED_TODAY,
+    webauthnRpId: env.WEBAUTHN_RP_ID || undefined,
+    webauthnOrigin: env.WEBAUTHN_ORIGIN || undefined,
   };
 }

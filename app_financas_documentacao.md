@@ -2,8 +2,15 @@
 ## Produto, UX, regras de negócio, modelo de dados e plano de implementação
 
 **Versão do documento:** 0.3  
-**Status:** Especificação consolidada para início da implementação  
+**Status:** Especificação de partida. O comportamento atual está no README.  
 **Base:** wireframes do projeto + referências visuais do My Finances + `schema.sql` v0.1/v0.2 + decisões registradas durante o desenho
+
+O que mudou depois desta especificação:
+
+- Uma casa só. A segunda pessoa entra em Casa e usuários, como membro, sem convite entre casas.
+- Início, Lançamentos e Calendário abrem em Eu. Nós soma as duas pessoas. O que fica "da casa" aparece em Nós. O ano continua da casa inteira.
+- O cartão mostra a logo do banco e a bandeira com ícone (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club, Maestro). Outra aceita um nome livre.
+- A senha continua. Em https com nome, o celular pode entrar com a digital ou o Face ID já salvos no aparelho. Em `http://IP` esse botão não aparece.
 
 ---
 
@@ -1397,7 +1404,7 @@ Esposa
 Membro
 ```
 
-A autenticação deve utilizar senha armazenada somente em hash.
+A autenticação utiliza senha armazenada somente em hash. Em https com nome, a pessoa pode ainda registrar a digital ou o Face ID do próprio celular. A chave fica nesse aparelho e a senha continua como caminho reserva.
 
 ---
 

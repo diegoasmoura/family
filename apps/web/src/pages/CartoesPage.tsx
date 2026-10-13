@@ -6,6 +6,7 @@ import { CATEGORY_COLORS, CategoryIcon } from '../categories';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
+import { BrandMark, BrandPicker } from '../brands';
 import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, Sheet, brl, monthName, shortDate } from '../ui';
 
 const CARD_COLORS = ['#8A05BE', '#EC7000', '#CC092F', '#1E1E1E', '#0070AF', '#00A868', '#FFB800', ...CATEGORY_COLORS.slice(3, 6)];
@@ -76,7 +77,7 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
         </label>
         <label className="f">
           <span>Bandeira</span>
-          <input value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} placeholder="Ex.: Mastercard" />
+          <BrandPicker name={form.brand} onChange={(brand) => setForm((f) => ({ ...f, brand }))} />
         </label>
         <div className="row">
           {day('closing_day', 'Fechamento')}
@@ -592,10 +593,10 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           <div style={{ minWidth: 0 }}>
             <b style={{ fontSize: 18 }}>{card.name}</b>
             {card.brand && (
-              <>
-                <br />
+              <span className="brand-line">
+                <BrandMark name={card.brand} width={28} />
                 <small>{card.brand}</small>
-              </>
+              </span>
             )}
           </div>
         </div>

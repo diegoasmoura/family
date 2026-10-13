@@ -690,4 +690,60 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await member.get(`/api/transactions/${hersSalary.transaction.id}`)).status).toBe(200);
     });
   });
+
+  describe('digital e Face ID', () => {
+    const origin = 'http://localhost:5173';
+
+    it('pede um endereço https com nome e recusa IP', async () => {
+      expect((await request(app).post('/api/auth/webauthn/login/options')).status).toBe(400);
+      const ip = await request(app).post('/api/auth/webauthn/login/options').set('Origin', 'http://192.168.0.10:3003');
+      expect(ip.status).toBe(400);
+      expect(ip.body.error).toMatch(/https/);
+    });
+
+    it('abre a cerimônia no localhost e recusa uma resposta inventada', async () => {
+      expect((await request(app).post('/api/auth/webauthn/register/options').set('Origin', origin)).status).toBe(401);
+      const options = await ok(await request(app).post('/api/auth/webauthn/login/options').set('Origin', origin));
+      expect(options.rpId).toBe('localhost');
+      expect(options.userVerification).toBe('required');
+      const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge: options.challenge, origin })).toString('base64url');
+      const forged = await request(app)
+        .post('/api/auth/webauthn/login/verify')
+        .set('Origin', origin)
+        .send({
+          response: {
+            id: 'cred-inventada',
+            rawId: 'cred-inventada',
+            type: 'public-key',
+            response: { clientDataJSON, authenticatorData: 'aa', signature: 'bb' },
+            clientExtensionResults: {},
+          },
+        });
+      expect(forged.status).toBe(400);
+    });
+
+    it('cada pessoa só apaga a própria chave', async () => {
+      expect((await agent.get('/api/auth/webauthn')).body).toEqual([]);
+      const registered = await ok(await agent.post('/api/auth/webauthn/register/options').set('Origin', origin));
+      expect(registered.authenticatorSelection.authenticatorAttachment).toBe('platform');
+      const me = await ok(await agent.get('/api/auth/me'));
+      await db.run(
+        'INSERT INTO webauthn_credentials (user_id, credential_id, public_key, counter, device_label, created_at) VALUES (?, ?, ?, 0, ?, ?)',
+        [me.id, 'chave-do-diego', 'cHVi', 'iPhone', new Date().toISOString()],
+      );
+      const list = await ok(await agent.get('/api/auth/webauthn'));
+      expect(list.map((row: { credential_id: string }) => row.credential_id)).toEqual(['chave-do-diego']);
+      const other = await register('outra-chave@x.com', 'Outra casa');
+      expect((await other.delete(`/api/auth/webauthn/${list[0].id}`)).status).toBe(404);
+      expect((await agent.delete(`/api/auth/webauthn/${list[0].id}`)).status).toBe(204);
+      expect((await agent.get('/api/auth/webauthn')).body).toEqual([]);
+      expect((await agent.delete('/api/auth/webauthn/999')).status).toBe(404);
+    });
+
+    it('usa o host fixo do túnel quando ele está configurado', async () => {
+      const pinned = createApp(db, { ...loadConfig({}), fixedToday: TODAY, webauthnRpId: 'familia.example', webauthnOrigin: 'https://familia.example' });
+      const options = await ok(await request(pinned).post('/api/auth/webauthn/login/options'));
+      expect(options.rpId).toBe('familia.example');
+    });
+  });
 });

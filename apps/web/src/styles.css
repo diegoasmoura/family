@@ -1229,6 +1229,19 @@ table.year .bank-dot .bank-logo {
   border-radius: 8px;
   overflow: hidden;
 }
+.brand-logo {
+  display: block;
+  flex: none;
+  width: auto;
+  height: auto;
+  border-radius: 4px;
+}
+.brand-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
 .bank-field {
   display: flex;
   flex-direction: column;
