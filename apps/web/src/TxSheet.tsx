@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { daysInMonth } from '@fin/domain';
 import { api, useAction, useApi, type Category, type Tx } from './api';
 import { useAppState } from './state';
-import type { TxSheetMode } from './TxMenu';
+import { InstallmentDeleteChoices, type TxSheetMode } from './TxMenu';
 import { CategoryPicker } from './categories';
 import { ForWhom } from './people';
 import { CategoryTags, ErrorText, MoneyInput, Seg, Sheet, brl, shortDate } from './ui';
@@ -23,6 +23,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
   const cats = useApi<Category[]>(`/categories?kind=${tx.kind}`);
   const income = tx.kind === 'income';
   const [counted, setCounted] = useState(Boolean(tx.include_in_reports));
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => setCounted(Boolean(tx.include_in_reports)), [tx.id, tx.include_in_reports]);
 
   const act = useAction(
@@ -87,7 +88,22 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
         )}
       </div>
 
-      {!editing ? (
+      {confirmDelete && tx.plan_id ? (
+        <InstallmentDeleteChoices
+          label={tx.installment_label}
+          onClose={() => setConfirmDelete(false)}
+          onChoose={(scope) => {
+            if (scope === 'following' && tx.installment_no) {
+              run(
+                () => api(`/installments/${tx.plan_id}/delete-from`, { body: { from_installment: tx.installment_no } }),
+                'Esta parcela e as seguintes foram excluídas',
+              );
+            } else {
+              run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Parcela excluída');
+            }
+          }}
+        />
+      ) : !editing ? (
         <div className="stack">
           {!tx.card_id && !tx.paid_on && (
             <button className="btn block" onClick={() => run(() => api(`/transactions/${tx.id}/pay`, { body: {} }), income ? 'Recebimento registrado' : 'Pagamento registrado')}>
@@ -126,7 +142,10 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
               }}
             />
           </label>
-          <button className="btn danger block" onClick={() => run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Lançamento excluído')}>
+          <button
+            className="btn danger block"
+            onClick={() => (tx.plan_id ? setConfirmDelete(true) : run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Lançamento excluído'))}
+          >
             Excluir
           </button>
         </div>

@@ -3,9 +3,52 @@ import { useNavigate } from 'react-router-dom';
 import { addMonthsToDate } from '@fin/domain';
 import { ApiError, api, clientUuid, useAction, type Tx } from './api';
 import { useAppState } from './state';
-import { Confirm, Icon } from './ui';
+import { Confirm, Icon, Sheet } from './ui';
 
 export type TxSheetMode = 'view' | 'edit' | 'amount';
+
+function isLastInstallment(label: string | null) {
+  const [current, total] = label?.split('/') ?? [];
+  return Boolean(current && total && current === total);
+}
+
+/** Pergunta se a exclusão vale só para a parcela aberta ou também para as seguintes. */
+export function InstallmentDeleteChoices({
+  label,
+  onChoose,
+  onClose,
+}: {
+  label: string | null;
+  onChoose: (scope: 'one' | 'following') => void;
+  onClose: () => void;
+}) {
+  const last = isLastInstallment(label);
+  return (
+    <>
+      <p style={{ margin: 0, fontWeight: 700 }}>
+        {last
+          ? `Esta é a última parcela${label ? ` (${label})` : ''}. Apagar só ela?`
+          : label
+            ? `A parcela ${label} pode sair sozinha, ou junto com as que vêm depois.`
+            : 'Esta parcela pode sair sozinha, ou junto com as que vêm depois.'}
+      </p>
+      {!last && <small>As parcelas anteriores continuam.</small>}
+      <div className="stack">
+        <button type="button" className="btn ghost block" onClick={() => onChoose('one')}>
+          Só esta parcela
+        </button>
+        {!last && (
+          <button type="button" className="btn danger block" onClick={() => onChoose('following')}>
+            Esta e as seguintes
+          </button>
+        )}
+        <button type="button" className="btn ghost block" onClick={onClose}>
+          Voltar
+        </button>
+      </div>
+    </>
+  );
+}
 
 /** Menu de três pontos de uma linha de lançamento. */
 export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => void }) {
@@ -123,23 +166,40 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
           {item('Excluir', () => setConfirmDelete(true), 'danger')}
         </div>
       )}
-      {confirmDelete && (
-        <Confirm
-          danger
-          text={
-            tx.recurrence_id
-              ? 'Excluir só este mês? A fixa continua nos outros meses.'
-              : tx.plan_id
-                ? 'Excluir só esta parcela? As outras continuam.'
+      {confirmDelete &&
+        (tx.plan_id ? (
+          <Sheet title="Excluir parcela" onClose={() => setConfirmDelete(false)}>
+            <InstallmentDeleteChoices
+              label={tx.installment_label}
+              onClose={() => setConfirmDelete(false)}
+              onChoose={(scope) => {
+                setConfirmDelete(false);
+                if (scope === 'following' && tx.installment_no) {
+                  run(
+                    () => api(`/installments/${tx.plan_id}/delete-from`, { body: { from_installment: tx.installment_no } }),
+                    'Esta parcela e as seguintes foram excluídas',
+                  );
+                } else {
+                  run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Parcela excluída');
+                }
+              }}
+            />
+          </Sheet>
+        ) : (
+          <Confirm
+            danger
+            text={
+              tx.recurrence_id
+                ? 'Excluir só este mês? A fixa continua nos outros meses.'
                 : `Excluir ${tx.description || (income ? 'esta receita' : 'esta despesa')}?`
-          }
-          onClose={() => setConfirmDelete(false)}
-          onConfirm={() => {
-            setConfirmDelete(false);
-            run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Lançamento excluído');
-          }}
-        />
-      )}
+            }
+            onClose={() => setConfirmDelete(false)}
+            onConfirm={() => {
+              setConfirmDelete(false);
+              run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Lançamento excluído');
+            }}
+          />
+        ))}
     </div>
   );
 }

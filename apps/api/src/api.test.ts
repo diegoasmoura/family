@@ -359,6 +359,29 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(res.plan.settled_count).toBe(1);
     });
 
+    it('apaga a parcela escolhida e as seguintes, e tira o plano quando não sobra nenhuma', async () => {
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({ description: 'Geladeira', total_cents: 30000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-01' }),
+        201,
+      );
+      const partial = await ok(await agent.post(`/api/installments/${plan.id}/delete-from`).send({ from_installment: 2 }));
+      expect(partial.deleted).toBe(2);
+      expect(partial.plan.deleted_at).toBeNull();
+      expect(partial.plan.active_count).toBe(1);
+      const left = await db.all('SELECT installment_no, deleted_at FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
+      expect(left.map((r) => [r.installment_no, r.deleted_at == null])).toEqual([
+        [1, true],
+        [2, false],
+        [3, false],
+      ]);
+
+      const gone = await ok(await agent.post(`/api/installments/${plan.id}/delete-from`).send({ from_installment: 1 }));
+      expect(gone.deleted).toBe(1);
+      expect(gone.plan.deleted_at).toBeTruthy();
+      const list = await ok(await agent.get('/api/installments'));
+      expect(list.find((p: { id: number }) => p.id === plan.id)).toBeUndefined();
+    });
+
     it('rejeita parcela repetida no mesmo plano', async () => {
       const { plan } = await ok(await agent.post('/api/installments').send({ description: 'X', total_cents: 200, installments: 2, account_id: ids.bradesco }), 201);
       const user = await db.get('SELECT id FROM users LIMIT 1');

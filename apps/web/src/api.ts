@@ -156,6 +156,7 @@ export interface Tx {
   card_name: string | null;
   invoice_id: number | null;
   plan_id: number | null;
+  installment_no: number | null;
   recurrence_id: number | null;
   for_user_id: number | null;
   for_user_name: string | null;

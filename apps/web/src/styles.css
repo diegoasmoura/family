@@ -495,20 +495,22 @@ input.inp:focus {
 }
 .stats {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
 }
 .st {
-  flex: 1;
-  min-width: 120px;
+  flex: 1 1 0;
+  min-width: 0;
+  container-type: inline-size;
   border: 2px solid var(--line);
   border-radius: 16px;
-  padding: 8px 12px;
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
 }
 .st b {
-  font-size: 17px;
+  font-size: clamp(12px, 14cqi, 17px);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .st.warn {
   background: var(--warn-bg);

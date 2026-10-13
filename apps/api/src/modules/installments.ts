@@ -136,6 +136,28 @@ export function installmentsRouter(): Router {
   });
 
   /**
+   * Apaga a parcela indicada e as que vêm depois. As anteriores ficam.
+   * Se não sobra nenhuma parcela ativa, o plano sai da lista.
+   */
+  r.post('/:id/delete-from', async (req, res) => {
+    const id = idParam(req.params.id);
+    await owned(req.ctx, 'installment_plans', id, 'Parcelamento');
+    const body = parse(z.object({ from_installment: z.number().int().min(1).max(480) }), req.body);
+    const now = nowIso();
+    const deleted = await req.ctx.db.tx(async (db) => {
+      const result = await db.run(
+        `UPDATE transactions SET deleted_at = ?, updated_at = ?
+          WHERE plan_id = ? AND deleted_at IS NULL AND installment_no >= ?`,
+        [now, now, id, body.from_installment],
+      );
+      const left = await db.get<{ n: number }>('SELECT COUNT(*) AS n FROM transactions WHERE plan_id = ? AND deleted_at IS NULL', [id]);
+      if (num(left?.n) === 0) await update(db, 'installment_plans', id, { deleted_at: now, updated_at: now });
+      return result.changes;
+    });
+    res.json({ deleted, plan: await loadPlan(req.ctx, id) });
+  });
+
+  /**
    * Cancela o restante: em conta, só parcelas ainda não pagas; no cartão,
    * só as que caem em faturas que ainda não fecharam. O que já foi efetivado fica.
    */
