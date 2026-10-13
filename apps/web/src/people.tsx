@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApi, type Me } from './api';
 import { useAppState, type PersonScope } from './state';
-import { Seg } from './ui';
 
 interface HouseUser {
   id: number;
@@ -16,26 +15,22 @@ function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
 }
 
-/** Eu, cada outra pessoa da casa e Nós. A escolha vale no mês inteiro. */
+/** Eu e Nós. A escolha vale no mês inteiro. */
 export function PersonFilter() {
   const { person, setPerson } = useAppState();
-  const me = useApi<Me>('/auth/me');
-  const users = useApi<HouseUser[]>('/users');
-  const others = (users.data ?? []).filter((user) => user.id !== me.data?.id);
-  const options: [string, string][] = [
-    ['me', 'Eu'],
-    ...others.map((user) => [String(user.id), firstName(user.name)] as [string, string]),
-    ['all', 'Nós'],
-  ];
-  const value = person === 'all' ? 'all' : person === 'me' ? 'me' : String(person);
-  const known = options.some(([id]) => id === value);
+  useEffect(() => {
+    if (person !== 'all' && person !== 'me') setPerson('me');
+  }, [person, setPerson]);
+  const tab = (id: 'me' | 'all', label: string) => (
+    <button type="button" role="tab" aria-selected={person === id} className={`chip sm${person === id ? ' on' : ''}`} onClick={() => setPerson(id)}>
+      {label}
+    </button>
+  );
   return (
-    <Seg
-      label="Quem aparece"
-      value={known ? value : 'all'}
-      onChange={(next) => setPerson(next === 'all' ? 'all' : next === 'me' ? 'me' : Number(next))}
-      options={options}
-    />
+    <div className="chips" role="tablist" aria-label="Quem aparece">
+      {tab('me', 'Eu')}
+      {tab('all', 'Nós')}
+    </div>
   );
 }
 

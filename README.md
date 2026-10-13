@@ -46,7 +46,7 @@ docker compose up -d --build
 
 O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail.
 
-No mês, Início, Lançamentos e Calendário abrem em **Eu**: só o que foi marcado como da pessoa logada. **Nós** soma os dois. O que fica "da casa" (fatura, aluguel) aparece em Nós. O ano continua da casa inteira.
+No mês, Início, Lançamentos e Calendário abrem em **Eu**: só o que foi marcado como da pessoa logada. A faixa tem só Eu e Nós. **Nós** soma os dois e mostra os dois avatares; Eu mostra só o de quem está logado. O que fica "da casa" (fatura, aluguel) aparece em Nós. O ano continua da casa inteira.
 
 O cartão usa a logo do banco e a bandeira (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club e Maestro). Uma bandeira fora dessa lista entra em Outra.
 

@@ -348,11 +348,11 @@ export function HomePage({ me }: { me: Me }) {
         </div>
         {d && (
           <Link to="/progresso" className="avatars" aria-label="Ver avatares">
-            {d.members.map((m: Member) => (
+            {(person === "all" ? d.members : d.members.filter((m: Member) => m.me)).map((m: Member) => (
               <AvatarFigure
                 key={m.id}
                 avatar={m.avatar}
-                size={m.me ? 48 : 38}
+                size={person === "all" && !m.me ? 38 : 48}
                 level={m.level}
                 label={`${m.name}, nível ${m.level}`}
               />
