@@ -155,6 +155,15 @@ export function ConfigPage({ me }: { me: Me }) {
         <Sheet title="Adicionar membro" onClose={() => setAdding(false)}>
           <form
             className="stack"
+            autoComplete="off"
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+              const fields = [...e.currentTarget.querySelectorAll<HTMLElement>('input, select')];
+              const next = fields[fields.indexOf(e.target) + 1];
+              if (!next) return;
+              e.preventDefault();
+              next.focus();
+            }}
             onSubmit={(e) => {
               e.preventDefault();
               addUser.mutate(undefined);
@@ -162,15 +171,15 @@ export function ConfigPage({ me }: { me: Me }) {
           >
             <label className="f">
               <span>Nome</span>
-              <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+              <input name="member-name" autoComplete="name" enterKeyHint="next" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
             </label>
             <label className="f">
               <span>E-mail</span>
-              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+              <input name="member-email" type="email" inputMode="email" autoComplete="email" enterKeyHint="next" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
             </label>
             <label className="f">
               <span>Senha inicial</span>
-              <input type="password" minLength={8} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required autoComplete="new-password" />
+              <input name="member-password" type="password" minLength={8} enterKeyHint="done" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required autoComplete="new-password" />
             </label>
             <label className="f">
               <span>Permissão</span>

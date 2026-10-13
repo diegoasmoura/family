@@ -75,12 +75,16 @@ export function MonthNav({ month, onChange }: { month: string; onChange: (m: str
 
 export function Sheet({ title, onClose, children, full }: { title: string; onClose: () => void; children: ReactNode; full?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current();
+    };
     window.addEventListener('keydown', onKey);
     ref.current?.querySelector<HTMLElement>('input, select, button:not(.ic)')?.focus();
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`sheet${full ? ' full' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
