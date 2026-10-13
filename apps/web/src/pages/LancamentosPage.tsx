@@ -288,7 +288,10 @@ export function LancamentosPage() {
   return (
     <main className="page">
       <div className="hd">
-        <h1>Lançamentos</h1>
+        <div>
+          <h1>Lançamentos</h1>
+          <PersonFilter />
+        </div>
         <div className="row">
           <button className="ic" aria-label="Resumo" onClick={() => setSummaryOpen(true)} disabled={!q.data}>
             <Icon.chart />
@@ -311,7 +314,6 @@ export function LancamentosPage() {
         <input className="inp" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
       )}
       <MonthNav month={month} onChange={setMonth} />
-      <PersonFilter />
       <ErrorText error={q.error} />
       {!q.data ? (
         <Loading />

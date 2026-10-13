@@ -270,6 +270,22 @@ export function dashboardRouter(): Router {
       total_cents: num(c.total),
     }));
 
+    const rhythm = await ctx.db.get(
+      `SELECT
+         SUM(CASE WHEN plan_id IS NOT NULL THEN amount_cents ELSE 0 END) AS installment_cents,
+         SUM(CASE WHEN plan_id IS NULL AND recurrence_id IS NOT NULL THEN amount_cents ELSE 0 END) AS fixed_cents,
+         SUM(CASE WHEN plan_id IS NULL AND recurrence_id IS NULL THEN amount_cents ELSE 0 END) AS variable_cents
+       FROM transactions
+       WHERE household_id = ? AND competence_month = ? AND kind = 'expense' AND include_in_reports = 1 AND deleted_at IS NULL
+         ${personId == null ? '' : 'AND for_user_id = ?'}`,
+      catParams,
+    );
+    const recurrence = [
+      { key: 'fixed', name: 'Fixas', color: '#6aa4e0', total_cents: num(rhythm?.fixed_cents) },
+      { key: 'installment', name: 'Parceladas', color: '#e6c15a', total_cents: num(rhythm?.installment_cents) },
+      { key: 'variable', name: 'Variáveis', color: '#e08b84', total_cents: num(rhythm?.variable_cents) },
+    ];
+
     const cards = await ctx.db.all<Card>('SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0 ORDER BY name', [
       ctx.householdId,
     ]);
@@ -330,7 +346,16 @@ export function dashboardRouter(): Router {
     ]
       .map((u) => ({ ...u, overdue: u.due_on < ctx.today }))
       .sort((a, b) => a.due_on.localeCompare(b.due_on))
-      .slice(0, 6);
+      .slice(0, 8);
+    const futureParams: unknown[] = [ctx.householdId, month];
+    if (personId != null) futureParams.push(personId);
+    const futureInstallments = await ctx.db.get(
+      `SELECT SUM(amount_cents) AS total FROM transactions
+        WHERE household_id = ? AND kind = 'expense' AND plan_id IS NOT NULL AND deleted_at IS NULL
+          AND include_in_reports = 1 AND competence_month > ?
+          ${personId == null ? '' : 'AND for_user_id = ?'}`,
+      futureParams,
+    );
 
     const goals = await ctx.db.all(
       'SELECT id, name, target_cents, saved_cents, deadline FROM goals WHERE household_id = ? AND deleted_at IS NULL AND completed_at IS NULL ORDER BY deadline, id LIMIT 3',
@@ -350,6 +375,8 @@ export function dashboardRouter(): Router {
       },
       result_cents: totals.income_posted + totals.income_planned - totals.expense_posted - totals.expense_planned,
       categories,
+      recurrence,
+      future_installments_cents: num(futureInstallments?.total),
       invoice: personId == null ? invoice : null,
       goals: goals.map((g) => ({ ...g, target_cents: num(g.target_cents), saved_cents: num(g.saved_cents) })),
       upcoming,

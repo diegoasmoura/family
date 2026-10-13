@@ -48,6 +48,8 @@ O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa us
 
 No mês, Início, Lançamentos e Calendário abrem em **Eu**: só o que foi marcado como da pessoa logada. A faixa tem só Eu e Nós. **Nós** soma os dois e mostra os dois avatares; Eu mostra só o de quem está logado. O que fica "da casa" (fatura, aluguel) aparece em Nós. O ano continua da casa inteira.
 
+No Início, a ordem é resumo do mês, próximos vencimentos, despesas por categoria, fluxo de caixa, evolução das despesas, despesas por recorrência (fixas, parceladas e variáveis), faturas, e o ano mês a mês. O olho esconde os valores neste celular. "Configurar resumo" reordena ou oculta esses cards, também só neste celular. O gráfico do ano abre no mês que está na tela; a sobra acumulada fica desligada até ser ligada. Tocar numa categoria abre as subcategorias. O total da rosca de categorias é o mesmo das despesas do resumo.
+
 O cartão usa a logo do banco e a bandeira (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club e Maestro). Uma bandeira fora dessa lista entra em Outra.
 
 Depois do primeiro login com senha, o celular pode oferecer entrar com a digital ou o Face ID que já estão no aparelho. Cada um ativa no próprio celular. Em Casa e usuários dá para desligar o aparelho atual. A senha continua valendo. O botão só aparece em https com nome.

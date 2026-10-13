@@ -11,6 +11,7 @@ O que mudou depois desta especificação:
 - Início, Lançamentos e Calendário abrem em Eu. Nós soma as duas pessoas. O que fica "da casa" aparece em Nós. O ano continua da casa inteira.
 - O cartão mostra a logo do banco e a bandeira com ícone (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club, Maestro). Outra aceita um nome livre.
 - A senha continua. Em https com nome, o celular pode entrar com a digital ou o Face ID já salvos no aparelho. Em `http://IP` esse botão não aparece.
+- A Início mostra, nesta ordem: resumo (saldo, previsto, receitas e despesas), próximos vencimentos, despesas por categoria, fluxo de caixa em barras horizontais, evolução das despesas no mês, despesas por recorrência, faturas e o ano mês a mês. O olho e "Configurar resumo" ficam salvos só no celular.
 
 ---
 
@@ -238,67 +239,21 @@ A tela de Metas não precisa ser uma aba principal; metas e missões podem apare
 
 Mostrar em poucos segundos a situação financeira do mês.
 
-## Informações
+## Ordem da tela
 
-### Saldo
+1. Cabeçalho com o nome da casa, saudação, olho para ocultar valores e avatar.
+2. Mês e o controle Eu / Nós.
+3. Resumo: saldo atual, previsto no fim do mês, receitas e despesas em duas colunas. Cada coluna traz o valor numa linha e a barra do que já foi recebido ou pago.
+4. Próximos vencimentos, agrupados por dia, até cinco itens. Atrasado em vermelho, vence hoje em âmbar, receita com sinal de mais.
+5. Despesas por categoria: rosca com o total no centro e a lista com ícone, valor e porcentagem. Tocar numa categoria abre as subcategorias. Se houver orçamento, a barra fica âmbar a partir de 80% e vermelha a partir de 100%.
+6. Fluxo de caixa em barras horizontais: entradas, saídas e saldo previsto. A parte lisa é o realizado; a listrada é o que ainda falta.
+7. Evolução das despesas, acumulada por dia, comparada com o mesmo ponto do mês anterior.
+8. Despesas por recorrência: fixas, parceladas e variáveis, mais o total das parcelas que ainda vão vencer.
+9. Faturas dos cartões do mês, uma linha por cartão, com o total embaixo.
+10. Ano mês a mês, com o mês da tela selecionado. A sobra acumulada começa desligada.
+11. Configurar resumo: reordenar ou ocultar os cards. A escolha fica neste celular.
 
-Mostrar:
-
-- saldo do mês;
-- receitas;
-- despesas;
-- valor previsto;
-- situação da fatura;
-- sequência de atividade;
-- XP.
-
----
-
-## Missão do mês
-
-Exemplo:
-
-```text
-Missão do mês
-
-Ficar abaixo do orçamento
-██████████░░░░░ 72%
-
-720 / 1.000
-+50 XP
-```
-
----
-
-## Categorias
-
-Mostrar distribuição das despesas por categoria.
-
-Exemplo:
-
-```text
-Moradia        R$ 2.500
-Transporte     R$ 1.100
-Alimentação    R$   850
-Serviços       R$   420
-```
-
----
-
-## Fatura
-
-Mostrar a fatura em aberto mais relevante.
-
-Exemplo:
-
-```text
-Ultra
-
-Fatura atual
-R$ 2.100,00
-
-Vence em 06/11
-```
+O total da rosca de categorias é o mesmo valor de despesas do resumo. O menu inferior não entra nessa ordem.
 
 ---
 

@@ -650,6 +650,8 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
       expect(dash.missions.find((m: any) => m.type === 'stay_under_budget')).toMatchObject({ target: 100000, progress: 72000 });
       expect(dash.categories[0]).toMatchObject({ name: 'Alimentação', total_cents: 72000 });
+      expect(dash.recurrence.map((r: { key: string; total_cents: number }) => r.key)).toEqual(['fixed', 'installment', 'variable']);
+      expect(dash.recurrence.reduce((sum: number, r: { total_cents: number }) => sum + r.total_cents, 0)).toBe(dash.expense.total_cents);
     });
   });
 

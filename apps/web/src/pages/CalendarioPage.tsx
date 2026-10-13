@@ -68,10 +68,12 @@ export function CalendarioPage() {
   return (
     <main className="page">
       <div className="hd">
-        <h1>Calendário</h1>
+        <div>
+          <h1>Calendário</h1>
+          <PersonFilter />
+        </div>
       </div>
       <MonthNav month={month} onChange={(m) => { setMonth(m); setDay(null); }} />
-      <PersonFilter />
       <ErrorText error={cal.error} />
       {!data ? (
         <Loading />

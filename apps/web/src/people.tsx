@@ -22,12 +22,12 @@ export function PersonFilter() {
     if (person !== 'all' && person !== 'me') setPerson('me');
   }, [person, setPerson]);
   const tab = (id: 'me' | 'all', label: string) => (
-    <button type="button" role="tab" aria-selected={person === id} className={`chip sm${person === id ? ' on' : ''}`} onClick={() => setPerson(id)}>
+    <button type="button" role="tab" aria-selected={person === id} onClick={() => setPerson(id)}>
       {label}
     </button>
   );
   return (
-    <div className="chips" role="tablist" aria-label="Quem aparece">
+    <div className="who" role="tablist" aria-label="Quem aparece">
       {tab('me', 'Eu')}
       {tab('all', 'Nós')}
     </div>
