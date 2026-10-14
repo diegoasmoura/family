@@ -54,8 +54,8 @@
   --chart-exp: #f2685a;
   --chart-cum: #5aa9f0;
   --green-text: #7ed957;
-  --green-soft: #1d2b15;
-  --green-border: #355a1f;
+  --green-soft: #1a2e22;
+  --green-border: #2f4a38;
   --ink: #ececec;
   --muted: #a3a8ad;
   --faint: #868c92;
@@ -83,6 +83,10 @@
   --exp: #ff8f84;
   --exp-fill: #f2685a;
   color-scheme: dark;
+}
+:root[data-theme="dark"] .card.soft {
+  background: #26282c;
+  border-color: var(--line);
 }
 :root[data-theme="dark"] .overlay {
   background: rgba(0, 0, 0, 0.6);
@@ -1529,20 +1533,10 @@ table.year .tag.card {
   background: color-mix(in srgb, var(--ink) 8%, var(--surface));
   color: var(--muted);
 }
-table.year .bank-dot {
+table.year .bank-mark {
   display: inline-flex;
-  flex: none;
+  vertical-align: middle;
   margin-left: 8px;
-  border-radius: 50%;
-  overflow: hidden;
-}
-table.year .lbl .bank-dot {
-  margin-left: 0;
-}
-table.year .bank-dot .bank-logo {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
 }
 .bank-logo {
   display: block;

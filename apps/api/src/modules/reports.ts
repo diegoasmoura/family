@@ -420,17 +420,19 @@ export function dashboardRouter(): Router {
       const params: unknown[] = [ctx.householdId, target];
       if (personId != null) params.push(personId);
       const rows = await ctx.db.all(
-        `SELECT t.amount_cents, COALESCE(t.due_on, t.occurred_on) AS date
+        `SELECT t.amount_cents,
+                CASE WHEN t.card_id IS NOT NULL THEN i.due_date ELSE COALESCE(t.due_on, t.occurred_on) END AS date
            FROM transactions t
+           LEFT JOIN invoices i ON i.id = t.invoice_id
           WHERE t.household_id = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
-            AND substr(COALESCE(t.due_on, t.occurred_on), 1, 7) = ?
+            AND t.competence_month = ?
             ${personId == null ? 'AND t.card_id IS NULL' : 'AND t.for_user_id = ?'}`,
         params,
       );
       const byDay = Array.from({ length: daysInMonth(target) }, () => 0);
       for (const row of rows) {
         const date = String(row.date ?? '');
-        const index = Number(date.slice(8, 10)) - 1;
+        const index = date.startsWith(target) ? Number(date.slice(8, 10)) - 1 : 0;
         if (index >= 0 && index < byDay.length) byDay[index] += num(row.amount_cents);
       }
       let run = 0;

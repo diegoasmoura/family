@@ -180,7 +180,7 @@ export function AnoPage() {
 
   const cardDot = (name: string, size: number) =>
     bankByName(name) ? (
-      <span className="bank-dot" title={name} aria-label={name} style={{ width: size, height: size }}>
+      <span className="bank-mark" title={name}>
         <BankMark name={name} size={size} />
       </span>
     ) : (

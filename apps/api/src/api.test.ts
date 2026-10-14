@@ -808,6 +808,28 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(dash.evolution.current[1]).toBe(1000);
     });
 
+    it('em Eu, o parcelamento do cartão entra uma parcela por mês da fatura', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(
+        await agent.post('/api/transactions').send({
+          kind: 'expense', description: 'BYD', amount_cents: 196400, occurred_on: '2026-10-10', account_id: ids.bradesco, for_user_id: me.id,
+        }),
+        201,
+      );
+      await ok(
+        await agent.post('/api/installments').send({
+          description: 'Notebook', total_cents: 600000, installments: 3, card_id: ids.ultra, purchased_on: '2026-10-20', for_user_id: me.id,
+        }),
+        201,
+      );
+      const eu = await ok(await agent.get('/api/dashboard?month=2026-10&person=me'));
+      expect(eu.evolution.current[9]).toBe(196400);
+      expect(eu.evolution.current[30]).toBe(196400);
+      const dec = await ok(await agent.get('/api/dashboard?month=2026-12&person=me'));
+      expect(dec.evolution.current[30]).toBe(200000);
+      expect(dec.evolution.current[5]).toBe(200000);
+    });
+
     it('o vencimento de conta devolve o id do lançamento', async () => {
       const created = await ok(
         await agent.post('/api/transactions').send({ kind: 'expense', description: 'Luz', amount_cents: 15000, occurred_on: '2026-10-02', account_id: ids.bradesco, paid: false }),

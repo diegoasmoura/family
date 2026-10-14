@@ -160,6 +160,7 @@ export interface Tx {
   card_id: number | null;
   card_name: string | null;
   invoice_id: number | null;
+  invoice_due_on?: string | null;
   plan_id: number | null;
   installment_no: number | null;
   recurrence_id: number | null;

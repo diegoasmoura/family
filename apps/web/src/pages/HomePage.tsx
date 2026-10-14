@@ -150,8 +150,9 @@ function cumulative(items: Tx[], month: string) {
   const byDay = Array.from({ length: days }, () => 0);
   for (const tx of items) {
     if (!tx.include_in_reports || tx.kind !== "expense") continue;
-    const date = tx.due_on || tx.occurred_on;
-    if (!date?.startsWith(month)) continue;
+    if (tx.competence_month && tx.competence_month !== month) continue;
+    const raw = tx.card_id ? tx.invoice_due_on || "" : tx.due_on || tx.occurred_on;
+    const date = raw.startsWith(month) ? raw : `${month}-01`;
     byDay[Number(date.slice(8, 10)) - 1] += tx.amount_cents;
   }
   let run = 0;
