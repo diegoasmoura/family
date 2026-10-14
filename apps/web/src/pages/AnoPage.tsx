@@ -175,19 +175,20 @@ export function AnoPage() {
       <span className="tag card">{name}</span>
     );
 
-  const label = (r: Row, size: number) => (
+  const label = (r: Row, size: number, bank: boolean) => (
     <span className="lbl">
       <CategoryIcon cat={{ id: r.category_id ?? 0, name: r.name.replace(/ \(geral\)$/, ''), icon: r.icon, color: r.color ?? '#8E9AAF' }} size={size} />
       {r.name}
-      {r.card_name && cardDot(r.card_name, size)}
+      {bank && r.card_name && cardDot(r.card_name, size)}
     </span>
   );
 
-  const row = (r: Row, key: string, depth: number, kind: Kind): ReactNode => {
+  const row = (r: Row, key: string, depth: number, kind: Kind, rootSingle: boolean): ReactNode => {
     const expanded = open.has(key);
     const filter = filterOf(r, kind, depth);
     const items = r.items ?? [];
     const canExpand = Boolean(r.children?.length || items.length);
+    const bankSize = depth ? 20 : 24;
     return (
       <Fragment key={key}>
         <tr className={depth ? 'child' : undefined}>
@@ -197,22 +198,22 @@ export function AnoPage() {
                 <span className={`caret${expanded ? ' open' : ''}`}>
                   <Icon.right />
                 </span>
-                {label(r, depth ? 20 : 24)}
+                {label(r, bankSize, depth === 0 && rootSingle)}
               </button>
             ) : (
-              label(r, depth ? 20 : 24)
+              label(r, bankSize, depth === 0 && rootSingle)
             )}
           </td>
           {cells(r.months, r.total_cents, r.paid_months, false, filter)}
         </tr>
-        {expanded && r.children?.map((c) => row(c, `${key}-${c.category_id}-${c.name}`, depth + 1, kind))}
+        {expanded && r.children?.map((c) => row(c, `${key}-${c.category_id}-${c.name}`, depth + 1, kind, rootSingle))}
         {expanded &&
           items.map((it) => (
             <tr key={`${key}-i-${it.key}`} className={`item${depth ? '' : ' l1'}`}>
               <td>
                 {it.name}
                 {it.fixed && <span className="tag fx">Fixa</span>}
-                {it.card_name && cardDot(it.card_name, depth ? 20 : 24)}
+                {!rootSingle && it.card_name && cardDot(it.card_name, bankSize)}
               </td>
               {cells(it.months, it.total_cents, it.paid_months, false, { ...filter, tree: '0', item: it.key, title: `${r.name.replace(/ \(geral\)$/, '')} · ${it.name}` })}
             </tr>
@@ -229,7 +230,8 @@ export function AnoPage() {
   const allKeys = d ? [...keysOf(d.income.rows, 'i'), ...keysOf(d.expense.rows, 'e')] : [];
   const allOpen = allKeys.length > 0 && allKeys.every((k) => open.has(k));
 
-  const section = (rows: Row[], prefix: 'i' | 'e') => rows.map((r) => row(r, `${prefix}${r.category_id}`, 0, prefix === 'i' ? 'income' : 'expense'));
+  const section = (rows: Row[], prefix: 'i' | 'e') =>
+    rows.map((r) => row(r, `${prefix}${r.category_id}`, 0, prefix === 'i' ? 'income' : 'expense', Boolean(r.card_name)));
 
   return (
     <main className="page wide">

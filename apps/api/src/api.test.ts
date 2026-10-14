@@ -647,6 +647,26 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(g.members[0]).toMatchObject({ me: true, avatar: { hat: 'cap' } });
     });
 
+    it('grupo anual guarda o banco só quando é um, e cada lançamento guarda o seu', async () => {
+      await ok(
+        await agent.post('/api/transactions').send({ kind: 'expense', description: 'IPVA', amount_cents: 1000, occurred_on: '2026-10-13', account_id: ids.bradesco, category_id: ids.cat.Moradia, paid: false }),
+        201,
+      );
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Posto', amount_cents: 2000, occurred_on: '2026-09-05', card_id: ids.ultra, category_id: ids.cat.Moradia }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Consulta', amount_cents: 3000, occurred_on: '2026-10-01', account_id: ids.bradesco, category_id: ids.cat.Saúde }), 201);
+
+      const year = await ok(await agent.get('/api/reports/year?year=2026&mode=realized'));
+      const housing = year.expense.rows.find((r: any) => r.name === 'Moradia');
+      expect(housing.card_name).toBeNull();
+      expect(housing.items.map((i: any) => [i.name, i.card_name])).toEqual([
+        ['Posto', 'Ultra'],
+        ['IPVA', 'Bradesco'],
+      ]);
+      const health = year.expense.rows.find((r: any) => r.name === 'Saúde');
+      expect(health.card_name).toBe('Bradesco');
+      expect(health.items[0]).toMatchObject({ name: 'Consulta', card_name: 'Bradesco' });
+    });
+
     it('visão anual mostra a composição de cada categoria pela descrição', async () => {
       const post = (description: string, amount_cents: number, occurred_on: string) =>
         agent.post('/api/transactions').send({ kind: 'income', description, amount_cents, occurred_on, account_id: ids.bradesco, category_id: ids.cat['Salário'] });
@@ -658,10 +678,11 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const year = await ok(await agent.get('/api/reports/year?year=2026&mode=realized'));
       const salario = year.income.rows.find((r: any) => r.name === 'Pagamentos').children[0];
       expect(salario.months.slice(0, 2)).toEqual([500000, 301000]);
+      expect(salario.card_name).toBe('Bradesco');
       expect(salario.items).toEqual([
-        { key: 'd:Salário dia 15', name: 'Salário dia 15', fixed: false, card_name: null, months: [300000, 300000, ...Array(10).fill(0)], paid_months: [300000, 300000, ...Array(10).fill(0)], total_cents: 600000 },
-        { key: 'd:Salário dia 30', name: 'Salário dia 30', fixed: false, card_name: null, months: [200000, ...Array(11).fill(0)], paid_months: [200000, ...Array(11).fill(0)], total_cents: 200000 },
-        { key: 'd:', name: 'Sem descrição', fixed: false, card_name: null, months: [0, 1000, ...Array(10).fill(0)], paid_months: [0, 1000, ...Array(10).fill(0)], total_cents: 1000 },
+        { key: `d:Salário dia 15::a${ids.bradesco}`, name: 'Salário dia 15', fixed: false, card_name: 'Bradesco', months: [300000, 300000, ...Array(10).fill(0)], paid_months: [300000, 300000, ...Array(10).fill(0)], total_cents: 600000 },
+        { key: `d:Salário dia 30::a${ids.bradesco}`, name: 'Salário dia 30', fixed: false, card_name: 'Bradesco', months: [200000, ...Array(11).fill(0)], paid_months: [200000, ...Array(11).fill(0)], total_cents: 200000 },
+        { key: `d:::a${ids.bradesco}`, name: 'Sem descrição', fixed: false, card_name: 'Bradesco', months: [0, 1000, ...Array(10).fill(0)], paid_months: [0, 1000, ...Array(10).fill(0)], total_cents: 1000 },
       ]);
     });
 

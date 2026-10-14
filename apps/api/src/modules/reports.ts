@@ -19,7 +19,7 @@ interface Row {
   /** Centavos já pagos ou recebidos em cada mês. A célula está quitada quando isto cobre `months`. */
   paid_months: number[];
   total_cents: number;
-  /** Nome do cartão quando todo o valor da linha veio dele. */
+  /** Banco ou cartão quando todo o valor da linha veio de um só. Vazio quando a linha mistura mais de um. */
   card_name: string | null;
   children?: Row[];
   /** Composição: cada fixa e cada parcelamento numa linha; avulsos agrupados pela descrição. */
@@ -58,43 +58,56 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
     installments: number | null;
     card_id: number | null;
     card_name: string | null;
+    account_id: number | null;
+    account_name: string | null;
     competence_month: string;
     total: number;
     paid: number;
   }>(
     `SELECT t.category_id, t.recurrence_id, t.plan_id, ${DESC} AS description,
             COALESCE(r.description, p.description) AS origin_description, r.day_of_month, p.installments,
-            t.card_id, cc.name AS card_name,
+            t.card_id, cc.name AS card_name, t.account_id, ac.name AS account_name,
             t.competence_month, SUM(t.amount_cents) AS total, ${PAID_CENTS} AS paid
        FROM transactions t
        LEFT JOIN recurrences r ON r.id = t.recurrence_id
        LEFT JOIN installment_plans p ON p.id = t.plan_id
        LEFT JOIN credit_cards cc ON cc.id = t.card_id
+       LEFT JOIN accounts ac ON ac.id = t.account_id
        LEFT JOIN invoices inv ON inv.id = t.invoice_id
       WHERE t.household_id = ? AND t.kind = ? AND t.deleted_at IS NULL AND t.include_in_reports = 1
         AND t.competence_month >= ? AND t.competence_month <= ? ${statusFilter} ${personSql}
-      GROUP BY t.category_id, t.recurrence_id, t.plan_id, ${DESC}, r.description, p.description, r.day_of_month, p.installments, t.card_id, cc.name, t.competence_month`,
+      GROUP BY t.category_id, t.recurrence_id, t.plan_id, ${DESC}, r.description, p.description, r.day_of_month, p.installments, t.card_id, cc.name, t.account_id, ac.name, t.competence_month`,
     params,
   );
 
   const zeros = () => Array(12).fill(0) as number[];
-  // Cada fixa e cada parcelamento é uma linha; avulsos se juntam pela descrição e pelo cartão.
-  type Item = { key: string; base: string; day: number | null; installments: number | null; months: number[]; paid: number[]; cards: Set<string>; account: boolean };
+  // Cada fixa e cada parcelamento é uma linha; avulsos se juntam pela descrição e pelo banco.
+  type Item = { key: string; base: string; day: number | null; installments: number | null; months: number[]; paid: number[]; places: Set<string> };
   const items = new Map<number | null, Map<string, Item>>();
-  const origin = new Map<number | null, { cards: Set<string>; account: boolean }>();
-  const noteOrigin = (id: number | null, card: string | null) => {
-    const o = origin.get(id) ?? { cards: new Set<string>(), account: false };
-    if (card) o.cards.add(card);
-    else o.account = true;
-    origin.set(id, o);
+  const origin = new Map<number | null, Set<string>>();
+  const placeOf = (r: { card_id: number | null; card_name: string | null; account_name: string | null }) =>
+    (r.card_id != null ? r.card_name : r.account_name)?.trim() || null;
+  const noteOrigin = (id: number | null, place: string | null) => {
+    const places = origin.get(id) ?? new Set<string>();
+    if (place) places.add(place);
+    origin.set(id, places);
   };
   for (const r of rows) {
     const cat = r.category_id == null ? null : Number(r.category_id);
     const cardId = r.card_id == null ? null : Number(r.card_id);
-    const card = r.card_name?.trim() || null;
-    noteOrigin(cat, card);
+    const accountId = r.account_id == null ? null : Number(r.account_id);
+    const place = placeOf(r);
+    noteOrigin(cat, place);
     const byKey = items.get(cat) ?? new Map<string, Item>();
-    const key = r.recurrence_id ? `r${r.recurrence_id}` : r.plan_id ? `p${r.plan_id}` : cardId ? `d:${r.description}::c${cardId}` : `d:${r.description}`;
+    const key = r.recurrence_id
+      ? `r${r.recurrence_id}`
+      : r.plan_id
+        ? `p${r.plan_id}`
+        : cardId
+          ? `d:${r.description}::c${cardId}`
+          : accountId
+            ? `d:${r.description}::a${accountId}`
+            : `d:${r.description}`;
     const item = byKey.get(key) ?? {
       key,
       base: (r.recurrence_id || r.plan_id ? r.origin_description?.trim() : '') || r.description || 'Sem descrição',
@@ -102,28 +115,24 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
       installments: r.plan_id ? Number(r.installments) : null,
       months: zeros(),
       paid: zeros(),
-      cards: new Set<string>(),
-      account: false,
+      places: new Set<string>(),
     };
-    if (card) item.cards.add(card);
-    else item.account = true;
+    if (place) item.places.add(place);
     const monthIdx = Number(r.competence_month.slice(5, 7)) - 1;
     item.months[monthIdx] += num(r.total);
     item.paid[monthIdx] += num(r.paid);
     byKey.set(key, item);
     items.set(cat, byKey);
   }
-  const cardLabel = (cards: Set<string>, account: boolean) => (account || cards.size === 0 ? null : cards.size === 1 ? [...cards][0] : 'Cartão');
+  const placeLabel = (places: Set<string>) => (places.size === 1 ? [...places][0] : null);
   const cardOf = (ids: (number | null)[]) => {
-    let account = false;
-    const cards = new Set<string>();
+    const places = new Set<string>();
     for (const id of ids) {
-      const o = origin.get(id);
-      if (!o) continue;
-      if (o.account) account = true;
-      for (const name of o.cards) cards.add(name);
+      const named = origin.get(id);
+      if (!named) continue;
+      for (const name of named) places.add(name);
     }
-    return cardLabel(cards, account);
+    return placeLabel(places);
   };
   const itemsOf = (id: number | null) => {
     const list = [...(items.get(id)?.values() ?? [])];
@@ -135,7 +144,7 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
         if (it.installments) name = `${it.base} · ${it.installments}x`;
         else if (it.day && count.get(it.base)! > 1) name = `${it.base} · dia ${it.day}`;
         else if (!it.day && count.get(it.base)! > 1) name = `${it.base} · avulsos`;
-        return { key: it.key, name, fixed: Boolean(it.day), card_name: cardLabel(it.cards, it.account), months: it.months, paid_months: it.paid, total_cents: it.months.reduce((a, v) => a + v, 0) };
+        return { key: it.key, name, fixed: Boolean(it.day), card_name: placeLabel(it.places), months: it.months, paid_months: it.paid, total_cents: it.months.reduce((a, v) => a + v, 0) };
       })
       .sort((a, b) => b.total_cents - a.total_cents || a.name.localeCompare(b.name));
   };
@@ -257,11 +266,19 @@ export function reportsRouter(): Router {
       where.push('t.plan_id = ?');
       params.push(Number(q.item.slice(1)));
     } else if (q.item?.startsWith('d:')) {
-      const marked = q.item.match(/::c(\d+)$/);
-      const description = marked ? q.item.slice(2, -marked[0].length) : q.item.slice(2);
-      where.push(`t.recurrence_id IS NULL AND t.plan_id IS NULL AND ${DESC} = ? AND t.card_id ${marked ? '= ?' : 'IS NULL'}`);
+      const card = q.item.match(/::c(\d+)$/);
+      const account = q.item.match(/::a(\d+)$/);
+      const suffix = card?.[0] ?? account?.[0] ?? '';
+      const description = q.item.slice(2, q.item.length - suffix.length);
+      where.push(`t.recurrence_id IS NULL AND t.plan_id IS NULL AND ${DESC} = ?`);
       params.push(description);
-      if (marked) params.push(Number(marked[1]));
+      if (card) {
+        where.push('t.card_id = ?');
+        params.push(Number(card[1]));
+      } else if (account) {
+        where.push('t.card_id IS NULL AND t.account_id = ?');
+        params.push(Number(account[1]));
+      } else where.push('t.card_id IS NULL');
     }
     const rows = await req.ctx.db.all(
       `${TX_SELECT} WHERE ${where.join(' AND ')} ORDER BY t.competence_month, COALESCE(t.due_on, t.occurred_on), t.id`,
