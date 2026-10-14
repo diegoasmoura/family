@@ -10,7 +10,7 @@ O corte é **960px** de largura da janela.
 
 ### Celular (até 959px)
 
-A barra fica fixa embaixo, com altura **76px** (`--nav-h`). A ordem é Início, Lançamentos, botão **+** (56×56), Cartões, Ano e Mais. Os cinco itens dividem a largura. O nome fica em 10px, numa linha, e o item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`.
+A barra fica fixa embaixo, com altura **76px** (`--nav-h`). A ordem é Início, Lançamentos, botão **+** (56×56), Cartões, Ano e Mais. Os cinco itens dividem a largura que sobra depois do **+**. No celular o nome fica curto, em 10px e numa linha: Início, Lançar, Cartão, Ano e Mais. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`.
 
 O conteúdo fica centralizado.
 

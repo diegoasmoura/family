@@ -274,7 +274,17 @@ nav.tabbar button.tab {
   line-height: 1.15;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  overflow: hidden;
   color: var(--muted);
+}
+nav.tabbar .fab-wrap {
+  flex: none;
+  width: 56px;
+  display: flex;
+  justify-content: center;
+}
+nav.tabbar .tab-long {
+  display: none;
 }
 nav.tabbar a.active {
   color: var(--green-text);
@@ -328,14 +338,23 @@ nav.tabbar svg {
     font-weight: 700;
     letter-spacing: 0;
     white-space: normal;
+    overflow: visible;
     border-radius: 14px;
     min-height: 48px;
+  }
+  nav.tabbar .tab-short {
+    display: none;
+  }
+  nav.tabbar .tab-long {
+    display: inline;
   }
   nav.tabbar a.active {
     background: var(--green-soft);
   }
   nav.tabbar .fab-wrap {
     order: -1;
+    width: auto;
+    display: block;
     margin-bottom: 12px;
   }
   nav.tabbar .fab {

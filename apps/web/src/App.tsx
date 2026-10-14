@@ -30,21 +30,23 @@ import { CalendarioPage } from "./pages/CalendarioPage";
 function TabBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const tab = (to: string, label: string, icon: JSX.Element, end = false) => (
+  const tab = (to: string, label: string, short: string, icon: JSX.Element, end = false) => (
     <NavLink
       to={to}
       end={end}
+      aria-label={label}
       className={({ isActive }) => (isActive ? "active" : "")}
     >
       {icon}
-      {label}
+      <span className="tab-short">{short}</span>
+      <span className="tab-long">{label}</span>
     </NavLink>
   );
   return (
     <nav className="tabbar" aria-label="Navegação principal">
       <span className="brand">Finanças do casal</span>
-      {tab("/", "Início", <Icon.home />, true)}
-      {tab("/lancamentos", "Lançamentos", <Icon.list />)}
+      {tab("/", "Início", "Início", <Icon.home />, true)}
+      {tab("/lancamentos", "Lançamentos", "Lançar", <Icon.list />)}
       <span className="fab-wrap">
         <button
           className="fab"
@@ -58,9 +60,9 @@ function TabBar() {
           +
         </button>
       </span>
-      {tab("/cartoes", "Cartões", <Icon.card />)}
-      {tab("/ano", "Ano", <Icon.year />)}
-      {tab("/mais", "Mais", <Icon.more />)}
+      {tab("/cartoes", "Cartões", "Cartão", <Icon.card />)}
+      {tab("/ano", "Ano", "Ano", <Icon.year />)}
+      {tab("/mais", "Mais", "Mais", <Icon.more />)}
     </nav>
   );
 }
