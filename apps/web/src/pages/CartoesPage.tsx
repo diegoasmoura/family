@@ -560,7 +560,6 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
   const pct = Math.round(card.used_ratio * 100);
   const level = pct >= 95 ? 'crit' : pct >= 80 ? 'warn' : 'ok';
   const barColor = level === 'crit' ? 'var(--neg)' : level === 'warn' ? 'var(--warn-text)' : cardColor(card);
-  const closed = invoice && (invoice.state === 'closed' || invoice.state === 'overdue' || invoice.state === 'paid');
   const closeIn = invoice && invoice.state === 'open' ? daysUntil(invoice.closing_date, today) : null;
   const dueIn = invoice && invoice.state !== 'paid' && invoice.state !== 'future' ? daysUntil(invoice.due_date, today) : null;
   return (
@@ -656,7 +655,7 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           </div>
           <div className="hd">
             <span>Pagamentos realizados</span>
-            <span className="num pos">{brl(invoice.paid_cents + invoice.credit_in_cents)}</span>
+            <span className={`num${invoice.paid_cents + invoice.credit_in_cents > 0 ? ' pos' : ''}`}>{brl(invoice.paid_cents + invoice.credit_in_cents)}</span>
           </div>
           <div className="hd">
             <span>Despesas do mês</span>
@@ -668,19 +667,25 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
       )}
 
       <div className="hd">
-        {invoice ? (
+        {invoice && invoice.remaining_cents > 0 ? (
+          <span className={`badge ${invoice.state === 'overdue' ? 'red' : 'quiet'}`}>
+            <span style={{ width: 14, height: 14, display: 'inline-flex' }}>{invoice.state === 'overdue' ? <Icon.alert /> : <Icon.clock />}</span>
+            {invoice.state === 'overdue' ? 'Atrasada' : 'A pagar'}
+          </span>
+        ) : invoice ? (
           <span className={`badge ${stateBadge(invoice.state)}`}>
-            <span style={{ width: 14, height: 14, display: 'inline-flex' }}>{closed ? <Icon.lock /> : <Icon.unlock />}</span>
+            {invoice.state === 'paid' && (
+              <span style={{ width: 14, height: 14, display: 'inline-flex' }}>
+                <Icon.check />
+              </span>
+            )}
             {invoice.state_label}
           </span>
         ) : (
           <span />
         )}
-        <button type="button" className="link row" style={{ gap: 6 }} onClick={() => onPanel('pagar')}>
-          <span style={{ width: 22, height: 22, display: 'inline-flex' }}>
-            <Icon.checkCircle />
-          </span>
-          {invoice && invoice.remaining_cents > 0 ? 'Registrar pagamento' : 'Pagamento antecipado'}
+        <button type="button" className={invoice && invoice.remaining_cents > 0 ? 'btn sm' : 'btn ghost sm'} onClick={() => onPanel('pagar')}>
+          {invoice && invoice.remaining_cents > 0 ? `Pagar ${brl(invoice.remaining_cents)}` : 'Pagamento antecipado'}
         </button>
       </div>
       {card.credit_cents > 0 && <small>Crédito de pagamento antecipado: {brl(card.credit_cents)}</small>}

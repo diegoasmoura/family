@@ -602,8 +602,8 @@ export function HomePage({ me }: { me: Me }) {
                 </span>
                 <small>Vence {shortDate(invoice!.due_date)}</small>
               </span>
-              <span className={`badge ${invoice!.state === "paid" ? "green" : invoice!.state === "closed" || invoice!.state === "overdue" ? "red" : "quiet"}`}>
-                {invoice!.state_label}
+              <span className={`badge ${invoice!.state === "paid" ? "green" : invoice!.state === "overdue" ? "red" : "quiet"}`}>
+                {invoice!.state === "overdue" ? "Atrasada" : invoice!.remaining_cents > 0 ? "A pagar" : invoice!.state_label}
               </span>
               <b className="num">
                 <MoneyText cents={invoice!.remaining_cents || invoice!.total_cents} />
