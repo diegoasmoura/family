@@ -424,6 +424,45 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(list.find((p: { id: number }) => p.id === plan.id)).toBeUndefined();
     });
 
+    it('aplica valor e dia nesta parcela e nas seguintes que ainda não foram pagas', async () => {
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({ description: 'Sofá', total_cents: 30000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-01', first_paid: true }),
+        201,
+      );
+      const before = await db.all('SELECT id, installment_no FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
+      const first = await ok(await agent.get(`/api/transactions/${before[0].id}`));
+      const last = await ok(await agent.get(`/api/transactions/${before[2].id}`));
+      expect(first.has_following).toBe(1);
+      expect(last.has_following).toBe(0);
+
+      await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, amount_cents: 8000, day_of_month: 15 }));
+      const mid = await db.get('SELECT id FROM transactions WHERE plan_id = ? AND installment_no = 2', [plan.id]);
+      await ok(await agent.post(`/api/transactions/${mid.id}/pay`).send({ paid_on: '2026-11-15' }));
+      await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, amount_cents: 7000 }));
+
+      const rows = await db.all('SELECT installment_no, amount_cents, due_on FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
+      expect(rows.map((r) => [r.installment_no, Number(r.amount_cents), r.due_on])).toEqual([
+        [1, 7000, '2026-10-15'],
+        [2, 8000, '2026-11-15'],
+        [3, 7000, '2026-12-15'],
+      ]);
+    });
+
+    it('no cartão, o valor segue para as faturas que ainda não passaram e a data não muda', async () => {
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({ description: 'Notebook', total_cents: 30000, installments: 3, card_id: ids.ultra, purchased_on: '2026-06-08' }),
+        201,
+      );
+      expect((await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, day_of_month: 10 })).status).toBe(400);
+      await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, amount_cents: 9000 }));
+      const rows = await db.all('SELECT installment_no, amount_cents, competence_month FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
+      expect(rows.map((r) => [r.installment_no, Number(r.amount_cents), r.competence_month])).toEqual([
+        [1, 9000, '2026-08'],
+        [2, 10000, '2026-09'],
+        [3, 9000, '2026-10'],
+      ]);
+    });
+
     it('rejeita parcela repetida no mesmo plano', async () => {
       const { plan } = await ok(await agent.post('/api/installments').send({ description: 'X', total_cents: 200, installments: 2, account_id: ids.bradesco }), 201);
       const user = await db.get('SELECT id FROM users LIMIT 1');

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { XP_VALUES, addMonthsToDate, monthOf, splitInstallments } from '@fin/domain';
+import { XP_VALUES, addMonthsToDate, dateInMonth, monthOf, splitInstallments } from '@fin/domain';
 import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, parse, update, zCents, zDate, zId, zUuid, type Ctx } from '../core';
 import { invoiceForCardPurchase } from './cards';
 import { assertCategory } from './categories';
@@ -155,6 +155,61 @@ export function installmentsRouter(): Router {
       return result.changes;
     });
     res.json({ deleted, plan: await loadPlan(req.ctx, id) });
+  });
+
+  /**
+   * Aplica valor e/ou dia nesta parcela e nas seguintes que ainda não foram pagas.
+   * No cartão, a data segue a fatura. Parcela de fatura já passada também fica.
+   */
+  r.post('/:id/apply-from', async (req, res) => {
+    const id = idParam(req.params.id);
+    const plan = await owned<{ card_id: number | null }>(req.ctx, 'installment_plans', id, 'Parcelamento');
+    const body = parse(
+      z.object({
+        from_installment: z.number().int().min(1).max(480),
+        amount_cents: zCents.optional(),
+        day_of_month: z.number().int().min(1).max(31).optional(),
+      }),
+      req.body,
+    );
+    if (body.amount_cents === undefined && body.day_of_month === undefined) throw badRequest('Informe o valor ou o dia');
+    if (body.day_of_month !== undefined && plan.card_id) throw badRequest('A data de uma parcela no cartão segue a fatura');
+    const currentMonth = monthOf(req.ctx.today);
+    const updated = await req.ctx.db.tx(async (db) => {
+      const rows = await db.all<{
+        id: number;
+        installment_no: number;
+        account_id: number | null;
+        card_id: number | null;
+        paid_on: string | null;
+        competence_month: string;
+      }>(
+        `SELECT id, installment_no, account_id, card_id, paid_on, competence_month
+           FROM transactions WHERE plan_id = ? AND deleted_at IS NULL AND installment_no >= ?
+          ORDER BY installment_no`,
+        [id, body.from_installment],
+      );
+      if (!rows.some((row) => row.installment_no === body.from_installment)) throw badRequest('Parcela não encontrada');
+      const now = nowIso();
+      let count = 0;
+      for (const row of rows) {
+        const current = row.installment_no === body.from_installment;
+        const paidAccount = row.account_id != null && row.paid_on != null;
+        const pastCard = row.card_id != null && row.competence_month < currentMonth;
+        if (!current && (paidAccount || pastCard)) continue;
+        const patch: Record<string, unknown> = { updated_at: now, overridden: 1 };
+        if (body.amount_cents !== undefined) patch.amount_cents = body.amount_cents;
+        if (body.day_of_month !== undefined) {
+          const date = dateInMonth(row.competence_month, body.day_of_month);
+          patch.occurred_on = date;
+          patch.due_on = date;
+        }
+        await update(db, 'transactions', row.id, patch);
+        count += 1;
+      }
+      return count;
+    });
+    res.json({ updated, plan: await loadPlan(req.ctx, id) });
   });
 
   /**

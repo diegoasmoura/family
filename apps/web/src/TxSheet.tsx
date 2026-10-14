@@ -5,14 +5,14 @@ import { useAppState } from './state';
 import { InstallmentDeleteChoices, type TxSheetMode } from './TxMenu';
 import { CategoryPicker } from './categories';
 import { ForWhom } from './people';
-import { CategoryTags, ErrorText, MoneyInput, Seg, Sheet, brl, shortDate } from './ui';
+import { CategoryTags, ErrorText, MoneyInput, Sheet, brl, shortDate } from './ui';
 
 /** Detalhe de um lançamento: efetivar, editar, "não somar" e excluir. */
 export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () => void; mode?: TxSheetMode }) {
-  const { toast } = useAppState();
+  const { toast, today } = useAppState();
   const [editing, setEditing] = useState(mode !== 'view');
   const amountOnly = mode === 'amount';
-  const [scope, setScope] = useState<'one' | 'next'>('one');
+  const [ask, setAsk] = useState(false);
   const [form, setForm] = useState({
     description: tx.description,
     amount_cents: tx.amount_cents as number | null,
@@ -43,6 +43,57 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
     });
 
   const generated = tx.recurrence_id ? 'recorrência' : tx.plan_id ? 'parcelamento' : null;
+  const amountChanged = form.amount_cents != null && form.amount_cents !== tx.amount_cents;
+  const dateChanged = !amountOnly && form.occurred_on !== tx.occurred_on;
+  const localChanged =
+    !amountOnly &&
+    ((form.description ?? '') !== (tx.description ?? '') || form.category_id !== tx.category_id || (form.for_user_id ?? null) !== (tx.for_user_id ?? null));
+  const question =
+    amountChanged && dateChanged
+      ? 'O valor e a data podem valer só para esta, ou também para as que vêm depois.'
+      : dateChanged
+        ? 'A data pode valer só para esta, ou também para as que vêm depois.'
+        : 'O valor pode valer só para esta, ou também para as que vêm depois.';
+
+  const save = (scope: 'one' | 'following') => {
+    const body = amountOnly ? { amount_cents: form.amount_cents } : { ...form };
+    const series = scope === 'following' && Boolean(tx.has_following) && (amountChanged || dateChanged);
+    run(
+      async () => {
+        if (series && tx.recurrence_id) {
+          await api(`/recurrences/${tx.recurrence_id}`, {
+            method: 'PATCH',
+            body: {
+              ...(amountChanged ? { amount_cents: form.amount_cents } : {}),
+              ...(dateChanged ? { day_of_month: Number(form.occurred_on.slice(8, 10)) } : {}),
+              from_month: tx.competence_month,
+            },
+          });
+          const covered = !tx.overridden && tx.status === 'planned' && tx.competence_month >= today.slice(0, 7);
+          if (!covered || localChanged) await api(`/transactions/${tx.id}`, { method: 'PATCH', body });
+          return;
+        }
+        if (series && tx.plan_id && tx.installment_no) {
+          await api(`/installments/${tx.plan_id}/apply-from`, {
+            body: {
+              from_installment: tx.installment_no,
+              ...(amountChanged ? { amount_cents: form.amount_cents } : {}),
+              ...(dateChanged ? { day_of_month: Number(form.occurred_on.slice(8, 10)) } : {}),
+            },
+          });
+          if (localChanged) {
+            await api(`/transactions/${tx.id}`, {
+              method: 'PATCH',
+              body: { description: form.description, category_id: form.category_id, for_user_id: form.for_user_id },
+            });
+          }
+          return;
+        }
+        await api(`/transactions/${tx.id}`, { method: 'PATCH', body });
+      },
+      series ? 'Esta e as seguintes foram atualizadas' : amountOnly ? 'Valor alterado' : 'Lançamento atualizado',
+    );
+  };
 
   return (
     <Sheet title={tx.description || (income ? 'Receita' : 'Despesa')} onClose={onClose}>
@@ -153,43 +204,32 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
             Excluir
           </button>
         </div>
+      ) : ask ? (
+        <div className="stack">
+          <p style={{ margin: 0, fontWeight: 700 }}>{question}</p>
+          <small>As anteriores ficam. O que já foi pago também fica.</small>
+          <button type="button" className="btn ghost block" disabled={act.isPending} onClick={() => save('one')}>
+            Só esta
+          </button>
+          <button type="button" className="btn block" disabled={act.isPending} onClick={() => save('following')}>
+            Esta e as seguintes
+          </button>
+          <button type="button" className="btn ghost block" onClick={() => setAsk(false)}>
+            Voltar
+          </button>
+        </div>
       ) : (
         <form
           className="stack"
           onSubmit={(e) => {
             e.preventDefault();
-            const body = amountOnly ? { amount_cents: form.amount_cents } : { ...form };
-            if (scope === 'next' && tx.recurrence_id) {
-              run(async () => {
-                await api(`/recurrences/${tx.recurrence_id}`, {
-                  method: 'PATCH',
-                  body: {
-                    ...(form.description?.trim() ? { description: form.description } : {}),
-                    amount_cents: form.amount_cents,
-                    category_id: form.category_id,
-                    for_user_id: form.for_user_id,
-                    ...(tx.card_id || amountOnly ? {} : { day_of_month: Number(form.occurred_on.slice(8, 10)) }),
-                    from_month: tx.competence_month,
-                  },
-                });
-                if (tx.overridden) await api(`/transactions/${tx.id}`, { method: 'PATCH', body });
-              }, 'Fixa atualizada a partir deste mês');
-            } else {
-              run(() => api(`/transactions/${tx.id}`, { method: 'PATCH', body }), amountOnly ? 'Valor alterado' : 'Lançamento atualizado');
+            if ((amountChanged || dateChanged) && tx.has_following) {
+              setAsk(true);
+              return;
             }
+            save('one');
           }}
         >
-          {tx.recurrence_id && (
-            <Seg
-              label="Alcance da edição"
-              value={scope}
-              onChange={setScope}
-              options={[
-                ['one', 'Só este mês'],
-                ['next', 'Este e os próximos'],
-              ]}
-            />
-          )}
           <MoneyInput value={form.amount_cents} onChange={(v) => setForm((f) => ({ ...f, amount_cents: v }))} />
           {!amountOnly && (
             <>
@@ -209,7 +249,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
           )}
           {!amountOnly && !(generated && tx.card_id) && (
             <label className="f">
-              <span>{scope === 'next' ? 'Dia do mês' : 'Data'}</span>
+              <span>Data</span>
               <input
                 type="date"
                 value={form.occurred_on}
@@ -220,13 +260,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
               />
             </label>
           )}
-          {generated && (
-            <small>
-              {scope === 'next'
-                ? 'Muda a fixa deste mês em diante. Meses anteriores e os que já foram pagos ficam como estão.'
-                : `Muda só esta ocorrência; ${tx.recurrence_id ? 'a recorrência' : 'o parcelamento'} continua igual.`}
-            </small>
-          )}
+          {Boolean(tx.has_following) && <small>Se o valor ou a data mudar, a tela pergunta se vale só para esta ou também para as seguintes.</small>}
           <div className="row">
             <button type="button" className="btn ghost grow" onClick={() => (mode === 'view' ? setEditing(false) : onClose())}>
               Cancelar

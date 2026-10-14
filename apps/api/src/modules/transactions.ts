@@ -43,7 +43,19 @@ export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_na
             WHEN COALESCE((SELECT SUM(pmt.amount_cents) FROM invoice_payments pmt WHERE pmt.invoice_id = t.invoice_id AND pmt.deleted_at IS NULL), 0)
                  >= COALESCE((SELECT SUM(x.amount_cents) FROM transactions x WHERE x.invoice_id = t.invoice_id AND x.deleted_at IS NULL), 0)
                     + COALESCE(inv.adjustment_cents, 0)
-            THEN 1 ELSE 0 END AS invoice_paid
+            THEN 1 ELSE 0 END AS invoice_paid,
+       CASE
+         WHEN t.plan_id IS NOT NULL AND EXISTS (
+           SELECT 1 FROM transactions nxt
+           WHERE nxt.plan_id = t.plan_id AND nxt.deleted_at IS NULL AND nxt.installment_no > t.installment_no
+         ) THEN 1
+         WHEN t.recurrence_id IS NOT NULL AND EXISTS (
+           SELECT 1 FROM recurrences r
+           WHERE r.id = t.recurrence_id AND r.deleted_at IS NULL
+             AND (r.end_month IS NULL OR r.end_month > t.competence_month)
+         ) THEN 1
+         ELSE 0
+       END AS has_following
   FROM transactions t
   LEFT JOIN accounts a ON a.id = t.account_id
   LEFT JOIN credit_cards cc ON cc.id = t.card_id
@@ -79,6 +91,7 @@ export function decorateTransactions(rows: any[], today: string) {
       status_label: statusLabel(display, t.kind),
       recurrence_class: classifyRecurrence(t),
       installment_label: t.plan_id ? `${t.installment_no}/${t.plan_installments}` : null,
+      has_following: num(t.has_following),
     };
   });
 }

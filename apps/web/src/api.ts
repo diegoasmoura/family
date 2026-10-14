@@ -174,6 +174,8 @@ export interface Tx {
   status_label: string;
   recurrence_class: 'fixed' | 'installment' | 'variable';
   installment_label: string | null;
+  /** 1 quando a fixa continua depois deste mês, ou ainda há parcela seguinte. */
+  has_following: number;
 }
 
 export interface XpResult {
