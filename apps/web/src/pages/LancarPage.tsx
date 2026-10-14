@@ -46,7 +46,7 @@ export function LancarPage() {
     return cardId ? { type: 'card', id: Number(cardId) } : null;
   });
   const [installments, setInstallments] = useState<number | null>(2);
-  const [amountBasis, setAmountBasis] = useState<'total' | 'installment'>('total');
+  const [amountBasis, setAmountBasis] = useState<'total' | 'installment'>('installment');
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState('');
   const [paidOverride, setPaidOverride] = useState<boolean | null>(null);
@@ -195,8 +195,8 @@ export function LancarPage() {
             <div className="chips" role="radiogroup" aria-label="Como informar o valor">
               {(
                 [
-                  ['total', 'Valor total'],
                   ['installment', 'Cada parcela'],
+                  ['total', 'Valor total'],
                 ] as const
               ).map(([id, label]) => (
                 <button key={id} type="button" role="radio" aria-checked={amountBasis === id} className={`chip sm${amountBasis === id ? ' on' : ''}`} onClick={() => setAmountBasis(id)}>
@@ -327,8 +327,8 @@ export function LancarPage() {
             </span>
           </div>
         )}
-        <div className="row" style={{ gap: 8, marginTop: 'auto' }}>
-          <button type="submit" className="btn big grow" disabled={!canSubmit}>Lançar</button>
+        <div className="launch-actions">
+          <button type="submit" className="btn big" disabled={!canSubmit}>Lançar</button>
           <button
             type="button"
             className="btn big ghost"

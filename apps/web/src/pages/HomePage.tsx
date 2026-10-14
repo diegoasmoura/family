@@ -17,7 +17,6 @@ import {
 } from "recharts";
 import { AvatarFigure } from "../Avatar";
 import { TxSheet } from "../TxSheet";
-import { PaySheet } from "../PaySheet";
 import { setHidden, useHidden } from "../privacy";
 import { useInView } from "../useInView";
 import { usePullToRefresh } from "../usePullToRefresh";
@@ -200,7 +199,6 @@ export function HomePage({ me }: { me: Me }) {
   const [showCum, setShowCum] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const [txId, setTxId] = useState<number | null>(null);
-  const [payInvoice, setPayInvoice] = useState<{ card: Card; month: string } | null>(null);
   const txQ = useApi<Tx>(txId ? `/transactions/${txId}` : null);
   const yearScroll = useRef<HTMLDivElement>(null);
   const d = q.data;
@@ -358,7 +356,6 @@ export function HomePage({ me }: { me: Me }) {
               </div>
               {items.map((item) => {
                 const isInvoice = item.type === "invoice";
-                const card = isInvoice ? cards.data?.find((c) => c.id === item.card_id) : undefined;
                 const body = (
                   <>
                     {isInvoice ? (
@@ -403,11 +400,6 @@ export function HomePage({ me }: { me: Me }) {
                     ) : (
                       <button type="button" className="due-hit" onClick={() => setTxId(item.id)}>
                         {body}
-                      </button>
-                    )}
-                    {isInvoice && card && item.reference_month && (
-                      <button type="button" className="btn sm" onClick={() => item.reference_month && setPayInvoice({ card, month: item.reference_month })}>
-                        Pagar
                       </button>
                     )}
                   </div>
@@ -685,7 +677,6 @@ export function HomePage({ me }: { me: Me }) {
       )}
       {classify && <ClassifySheet name={classify} items={bucketTxs(txs, classify)} onClose={() => setClassify(null)} />}
       {txQ.data && <TxSheet key={`${txQ.data.id}-${txQ.data.status}`} tx={txQ.data} onClose={() => setTxId(null)} />}
-      {payInvoice && <PaySheet card={payInvoice.card} month={payInvoice.month} onClose={() => setPayInvoice(null)} />}
       {selectedCat && (
         <Sheet title={selectedCat.name} onClose={() => setCatName(null)}>
           <button type="button" className="home-jump" onClick={() => setCatName(null)}>

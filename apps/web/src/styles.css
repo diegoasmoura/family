@@ -255,21 +255,26 @@ nav.tabbar a,
 nav.tabbar button.tab {
   background: none;
   border: 0;
-  min-width: 60px;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 48px;
+  padding: 0 2px;
   border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
   color: var(--muted);
 }
 nav.tabbar a.active {
   color: var(--green-text);
-  background: var(--green-soft);
+  background: none;
 }
 nav.tabbar svg {
   width: 22px;
@@ -310,11 +315,15 @@ nav.tabbar svg {
   }
   nav.tabbar a,
   nav.tabbar button.tab {
+    flex: none;
     flex-direction: row;
     justify-content: flex-start;
     gap: 12px;
     padding: 0 14px;
     font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0;
+    white-space: normal;
     border-radius: 14px;
     min-height: 48px;
   }
@@ -2365,6 +2374,8 @@ a.kebab {
   border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 .page.lanc .seg button.on,
 .page.wide .seg button.on {
@@ -2674,6 +2685,25 @@ html[data-hide-money="1"] .cchart .ax { visibility: hidden; }
   font-weight: 700;
 }
 .sheet .btn.big { scroll-margin-bottom: 96px; }
+.launch-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+.launch-actions .btn {
+  white-space: nowrap;
+}
+@media (min-width: 640px) {
+  .launch-actions {
+    flex-direction: row;
+  }
+  .launch-actions .btn.big {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+  }
+}
 .sheet .hd { touch-action: none; cursor: grab; }
 
 /* =====================================================================

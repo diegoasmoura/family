@@ -10,7 +10,7 @@ O corte é **960px** de largura da janela.
 
 ### Celular (até 959px)
 
-A barra fica fixa embaixo, com altura **76px** (`--nav-h`). A ordem é Início, Lançamentos, botão **+** (56×56), Cartões, Ano e Mais. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`.
+A barra fica fixa embaixo, com altura **76px** (`--nav-h`). A ordem é Início, Lançamentos, botão **+** (56×56), Cartões, Ano e Mais. Os cinco itens dividem a largura. O nome fica em 10px, numa linha, e o item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`.
 
 O conteúdo fica centralizado.
 
@@ -124,7 +124,7 @@ Ordem padrão, de cima para baixo:
 2. Mês.
 3. Eu / Nós.
 4. **Resumo.** Saldo atual nas contas: é o saldo de hoje, em qualquer mês que esteja na tela. A faixa “Previsto no fim do mês” vai até o fim do mês visto e inclui correção de fechamento e fatura sem conta de pagamento. Duas colunas: Receitas (com “a receber” ou “recebidas”) e Despesas (com “a pagar” ou “pagas”). Receitas abrem Lançamentos em receitas. Despesas abrem Lançamentos. O “a pagar” daqui não é o mesmo número de Lançamentos: em Nós ele soma o restante das faturas do mês, e uma cobrança fixa prevista do cartão pode entrar nas duas contas. A barra de orçamento, quando aparece na categoria, compara o gasto já filtrado por Eu ou Nós com o teto da casa inteira.
-5. **Próximos vencimentos.** Link Calendário. Não segue o mês da tela: são contas previstas com vencimento até 30 dias à frente, mais as atrasadas. Agrupados por dia (Hoje, Amanhã, ou a data), com o saldo do dia (receita soma, despesa subtrai). Cada cartão em aberto entra **uma vez**, como “Fatura” mais o nome, na data de vencimento, com o que ainda falta. As compras desse cartão não aparecem uma a uma. As contas mostram no máximo cinco itens, as mais cedo; a fatura não entra nesse corte. Atrasado em vermelho, vence hoje em âmbar, receita com sinal de mais. Toque na fatura abre o cartão naquele mês. Toque na conta abre Lançamentos e leva o mês do app para o mês do vencimento. Se houver itens, aparece **Ver todos**. O que está com a soma desligada continua nesta lista.
+5. **Próximos vencimentos.** Link Calendário. Não segue o mês da tela: são contas previstas com vencimento até 30 dias à frente, mais as atrasadas. Agrupados por dia (Hoje, Amanhã, ou a data), com o saldo do dia (receita soma, despesa subtrai). Cada cartão em aberto entra **uma vez**, como “Fatura” mais o nome, na data de vencimento, com o que ainda falta. As compras desse cartão não aparecem uma a uma. As contas mostram no máximo cinco itens, as mais cedo; a fatura não entra nesse corte. Atrasado em vermelho, vence hoje em âmbar, receita com sinal de mais. Toque na fatura abre o cartão naquele mês, sem botão de pagar nessa lista. Toque na conta abre a ficha na própria tela. Se houver itens, aparece **Ver todos**. O que está com a soma desligada continua nesta lista.
 6. **Despesas por categoria.** Rosca das cinco maiores; o resto vira “Demais categorias”. Toque na fatia ou na linha abre as subcategorias. “Demais categorias” não abre. Gasto lançado direto na categoria pai aparece como Geral. Se o nome for Outros ou Sem categoria, abre **Classificar**: cada gasto daquele mês ganha outra categoria, e a troca vale só naquele lançamento. Se houver orçamento, a barra fica de alerta a partir de 80% e vermelha ao chegar em 100%. Se Outros ou Sem categoria passar de 20% do mês, a tela avisa. Em Nós a rosca inclui o cartão, mas abrir a categoria não lista essas compras: elas foram para o bloco da fatura.
 7. **Fluxo de caixa.** Três barras horizontais: entradas, saídas e saldo previsto. Em entradas e saídas, a parte lisa é o que já aconteceu e o restante é o que falta. A barra do saldo previsto fica inteira na cor lisa.
 8. **Evolução das despesas.** Acumulado do mês contra o mês anterior. No mês corrente, até hoje a linha é contínua e uma bolinha marca hoje; depois, tracejada. Em outro mês a bolinha fica no último dia. Mês futuro fica todo tracejado. A dica mostra “Este mês” e “Mês anterior”. Abaixo, quanto se gastou até hoje e o percentual contra o mesmo ponto do mês passado. Se até hoje a soma é zero, o gráfico some. Em Nós esta série deixa o cartão de fora, então pode divergir da rosca.
@@ -192,7 +192,7 @@ Toque num valor abre os lançamentos daquela célula. Toque num lançamento dess
 Folha em tela cheia.
 
 1. Despesa ou receita. Trocar o tipo zera a categoria.
-2. Valor. No parcelado, “Valor total” ou “Cada parcela”.
+2. Valor. No parcelado, “Cada parcela” é o padrão; “Valor total” fica à direita.
 3. Única, Fixa e, só em despesa, Parcelada. Receita não parcela.
 4. No parcelado: de 2 a 480 vezes, com atalhos até 60. O texto diz o total e a partir de qual fatura, no cartão, ou o dia, na conta.
 5. Categoria, opcional, com criação na hora.
@@ -203,6 +203,8 @@ Folha em tela cheia.
 10. Em conta, “Já pago” ou “Já recebido”. Na fixa e no parcelado o texto é “Primeira já paga” ou “Primeira já recebida”, e só a primeira nasce paga. O controle já vem marcado quando a data é hoje ou anterior. No cartão o controle some. A compra única já nasce na fatura. A fixa no cartão ainda usa esse padrão por baixo: a primeira nasce confirmada se a data já chegou; as seguintes nascem previstas.
 
 O total parcelado precisa ter pelo menos 1 centavo por parcela. Fixa vazia vira “Despesa fixa” ou “Receita fixa”. Parcelado vazio vira “Parcelado”.
+
+No celular, **Lançar** fica em cima e **Lançar e novo** embaixo, cada um na largura da folha. A partir de 640px os dois dividem a mesma linha. **Lançar e novo** permanece na folha, limpa valor, descrição e categoria, e troca o identificador do lançamento. O destino, a data, o tipo e de quem continuam.
 
 Depois de lançar, o aviso é “Despesa lançada” ou “Receita lançada”, e a tela volta. O número de XP não aparece. Se o nível subir, um segundo aviso diz “Seu avatar subiu para o nível N”. Lançamento avulso vale 10 XP. Criar uma fixa vale 10 XP uma vez. Criar um parcelamento vale 10 XP uma vez, no plano, não em cada parcela.
 
@@ -307,10 +309,11 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 ## Atualização das melhorias
 
 - Configurar resumo usa as setas ↑ e ↓. A ordem fica em `fin-home-layout`. Há “Restaurar padrão”. A ordem padrão coloca Faturas dos cartões logo depois de Próximos vencimentos.
-- Tocar numa conta em Próximos vencimentos abre a ficha na própria tela. A fatura tem o botão Pagar.
+- Tocar numa conta em Próximos vencimentos abre a ficha na própria tela. A fatura abre o cartão, sem botão de pagar nessa lista.
 - O olho oculta valores em todo o app. Em Mais há “Ocultar valores” e “Ocultar ao sair do app”.
-- Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos. A linha “Cartões de crédito” saiu da folha de resumo. No modo Eu, uma nota explica que a compra do cartão entra em Despesas e não em Pago nem em A pagar.
-- Novo lançamento lembra o último destino, tem Hoje, Ontem e Outra, “Lançar e novo”, categorias mais usadas, sugestão de descrição e a linha de onde o valor sai ou entra.
+- No celular os nomes da barra dividem a largura, ficam numa linha em 10px, e o item ativo só muda de cor. No computador o item ativo continua com fundo verde claro.
+- Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, os quatro na mesma linha. A linha “Cartões de crédito” saiu da folha de resumo. No modo Eu, uma nota explica que a compra do cartão entra em Despesas e não em Pago nem em A pagar.
+- Novo lançamento lembra o último destino, tem Hoje, Ontem e Outra, “Lançar e novo”, categorias mais usadas, sugestão de descrição e a linha de onde o valor sai ou entra. No parcelado, Cada parcela começa selecionado, à esquerda de Valor total. No celular, Lançar fica em cima e Lançar e novo embaixo.
 - Cartões mostram “vence em N dias”, o melhor dia de compra, alerta de limite, o valor no botão de pagar e o menu em folha.
 - A visão anual abre com um mês no celular e tem “Ver todos os meses”. Editar um lançamento não joga a rolagem de volta para o mês atual.
 - O calendário lista os próximos 7 dias do mês visto e marca o dia atrasado.
