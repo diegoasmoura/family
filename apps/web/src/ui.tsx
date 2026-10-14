@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
 import { useAppState } from './state';
@@ -91,22 +91,73 @@ export function MonthNav({ month, onChange }: { month: string; onChange: (m: str
   );
 }
 
+export function SkeletonCard({ lines = 3 }: { lines?: number }) {
+  return (
+    <section className="card" aria-hidden>
+      <div className="skel" style={{ height: 14, width: '38%' }} />
+      {Array.from({ length: lines }, (_, i) => (
+        <div key={i} className="skel" style={{ height: i === 0 ? 34 : 14, width: i === 0 ? '60%' : `${88 - i * 12}%`, marginTop: 10 }} />
+      ))}
+    </section>
+  );
+}
+
 export function Sheet({ title, onClose, children, full }: { title: string; onClose: () => void; children: ReactNode; full?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
+    const root = ref.current;
+    const focusable = () =>
+      [...(root?.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])].filter(
+        (el) => !el.hasAttribute('disabled'),
+      );
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeRef.current();
+      if (e.key !== 'Tab') return;
+      const list = focusable();
+      if (!list.length) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
-    ref.current?.querySelector<HTMLElement>('input, select, button:not(.ic)')?.focus();
-    return () => window.removeEventListener('keydown', onKey);
+    focusable()[0]?.focus();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
   }, []);
+  const drag = (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    const startY = e.clientY;
+    const sheet = ref.current;
+    const move = (ev: PointerEvent) => {
+      const dy = Math.max(0, ev.clientY - startY);
+      if (sheet) sheet.style.transform = `translateY(${dy}px)`;
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const dy = ev.clientY - startY;
+      if (dy > 90) closeRef.current();
+      else if (sheet) sheet.style.transform = '';
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`sheet${full ? ' full' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
-        <div className="hd">
+        <div className="hd" onPointerDown={drag}>
           <h1>{title}</h1>
           <button className="ic" aria-label="Fechar" onClick={onClose}>
             <Icon.close />
@@ -125,12 +176,14 @@ export function MoneyInput({
   big,
   label = 'Valor',
   allowNegative,
+  autoFocus,
 }: {
   value: number | null;
   onChange: (cents: number | null) => void;
   big?: boolean;
   label?: string;
   allowNegative?: boolean;
+  autoFocus?: boolean;
 }) {
   const [negative, setNegative] = useState(false);
   const display = value == null ? '' : formatBRL(Math.abs(value));
@@ -140,8 +193,14 @@ export function MoneyInput({
       <input
         className={big ? 'money-big num' : 'num'}
         inputMode="numeric"
+        enterKeyHint="done"
+        autoComplete="off"
+        autoCorrect="off"
+        autoFocus={autoFocus}
+        aria-label={label}
         placeholder="R$ 0,00"
         value={allowNegative && negative && value ? `-${display}` : display}
+        onFocus={(e) => e.target.select()}
         onChange={(e) => {
           const neg = allowNegative && e.target.value.includes('-');
           setNegative(Boolean(neg));

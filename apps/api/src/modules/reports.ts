@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { INVOICE_STATE_LABEL, addDays, monthOf, monthRange, yearOf } from '@fin/domain';
+import { INVOICE_STATE_LABEL, addDays, addMonths, daysInMonth, monthOf, monthRange, yearOf } from '@fin/domain';
 import { badRequest, num, parse, zMonth, type Ctx } from '../core';
 import { balances } from './accounts';
 import { cardInvoiceBalances, relevantInvoice, type Card } from './cards';
@@ -416,6 +416,31 @@ export function dashboardRouter(): Router {
       [ctx.householdId],
     );
 
+    const series = async (target: string) => {
+      const params: unknown[] = [ctx.householdId, target];
+      if (personId != null) params.push(personId);
+      const rows = await ctx.db.all(
+        `SELECT t.amount_cents, COALESCE(t.due_on, t.occurred_on) AS date
+           FROM transactions t
+          WHERE t.household_id = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
+            AND substr(COALESCE(t.due_on, t.occurred_on), 1, 7) = ?
+            ${personId == null ? 'AND t.card_id IS NULL' : 'AND t.for_user_id = ?'}`,
+        params,
+      );
+      const byDay = Array.from({ length: daysInMonth(target) }, () => 0);
+      for (const row of rows) {
+        const date = String(row.date ?? '');
+        const index = Number(date.slice(8, 10)) - 1;
+        if (index >= 0 && index < byDay.length) byDay[index] += num(row.amount_cents);
+      }
+      let run = 0;
+      return byDay.map((value) => {
+        run += value;
+        return run;
+      });
+    };
+    const evolution = { current: await series(month), previous: await series(addMonths(month, -1)) };
+
     res.json({
       month,
       today: ctx.today,
@@ -434,6 +459,7 @@ export function dashboardRouter(): Router {
       invoice: personId == null ? invoice : null,
       goals: goals.map((g) => ({ ...g, target_cents: num(g.target_cents), saved_cents: num(g.saved_cents) })),
       upcoming,
+      evolution,
       gamification: await gamificationSummary(ctx),
       members: await householdAvatars(ctx),
       missions: await syncMissions(ctx, month),

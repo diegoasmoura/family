@@ -94,23 +94,33 @@ export function AnoPage() {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [audit, setAudit] = useState<Audit | null>(null);
   const [tx, setTx] = useState<Tx | null>(null);
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
+  const [focus, setFocus] = useState<number | null>(null);
   const who = personParam(person);
   const q = useApi(`/reports/year?year=${year}&mode=${mode}&person=${who}`);
   const d = q.data;
   const scRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const currentIdx = d && yearOf(d.current_month) === year ? Number(d.current_month.slice(5, 7)) - 1 : -1;
+  const loaded = Boolean(d);
+  const focusIdx = focus ?? (currentIdx >= 0 ? currentIdx : 0);
+  const showMonth = (i: number) => !compact || i === focusIdx;
+  const cols = (compact ? 1 : 12) + 2;
+  useEffect(() => {
+    if (compact) return;
+    const el = scRef.current;
+    if (!el) return;
+    const col = el.querySelector<HTMLElement>('thead th.cur');
+    if (!col) return;
+    const stickyW = el.querySelector<HTMLElement>('thead th')?.offsetWidth ?? 0;
+    const edge = col.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
+    const view = el.clientWidth - stickyW;
+    el.scrollLeft = Math.max(0, edge - stickyW - (view - col.offsetWidth) / 2);
+  }, [year, mode, loaded, compact]);
   useEffect(() => {
     const el = scRef.current;
     const wrap = wrapRef.current;
     if (!el || !wrap) return;
-    const col = el.querySelector<HTMLElement>('thead th.cur');
-    if (col) {
-      const stickyW = el.querySelector<HTMLElement>('thead th')?.offsetWidth ?? 0;
-      const edge = col.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
-      const view = el.clientWidth - stickyW;
-      el.scrollLeft = Math.max(0, edge - stickyW - (view - col.offsetWidth) / 2);
-    }
     const sync = () => {
       wrap.classList.toggle('scrolled', el.scrollLeft > 4);
       wrap.classList.toggle('more', el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
@@ -119,11 +129,13 @@ export function AnoPage() {
     el.addEventListener('scroll', sync, { passive: true });
     const ro = new ResizeObserver(sync);
     ro.observe(el);
+    const table = el.querySelector('table');
+    if (table) ro.observe(table);
     return () => {
       el.removeEventListener('scroll', sync);
       ro.disconnect();
     };
-  }, [year, mode, d]);
+  }, [loaded]);
   const isFuture = (i: number) => year > yearOf(today) || (currentIdx >= 0 && i > currentIdx);
   const cls = (i: number) => [i === currentIdx ? 'cur' : '', isFuture(i) ? 'fut' : ''].join(' ').trim() || undefined;
 
@@ -156,11 +168,11 @@ export function AnoPage() {
       [negative ? 'neg' : '', settled(amount, paid) ? 'paid' : ''].filter(Boolean).join(' ') || undefined;
     return (
       <>
-        {months.map((v, i) => (
+        {months.map((v, i) => showMonth(i) ? (
           <td key={i} className={[cls(i), tone(v, paidMonths?.[i], neg && v < 0)].filter(Boolean).join(' ') || undefined}>
             {value(v, filter, i + 1)}
           </td>
-        ))}
+        ) : null)}
         <td className={tone(total, paidTotal, neg && total < 0)}>{value(total, filter)}</td>
       </>
     );
@@ -175,15 +187,14 @@ export function AnoPage() {
       <span className="tag card">{name}</span>
     );
 
-  const label = (r: Row, size: number, bank: boolean) => (
+  const label = (r: Row, size: number) => (
     <span className="lbl">
       <CategoryIcon cat={{ id: r.category_id ?? 0, name: r.name.replace(/ \(geral\)$/, ''), icon: r.icon, color: r.color ?? '#8E9AAF' }} size={size} />
       {r.name}
-      {bank && r.card_name && cardDot(r.card_name, size)}
     </span>
   );
 
-  const row = (r: Row, key: string, depth: number, kind: Kind, rootSingle: boolean): ReactNode => {
+  const row = (r: Row, key: string, depth: number, kind: Kind): ReactNode => {
     const expanded = open.has(key);
     const filter = filterOf(r, kind, depth);
     const items = r.items ?? [];
@@ -198,22 +209,22 @@ export function AnoPage() {
                 <span className={`caret${expanded ? ' open' : ''}`}>
                   <Icon.right />
                 </span>
-                {label(r, bankSize, depth === 0 && rootSingle)}
+                {label(r, bankSize)}
               </button>
             ) : (
-              label(r, bankSize, depth === 0 && rootSingle)
+              label(r, bankSize)
             )}
           </td>
           {cells(r.months, r.total_cents, r.paid_months, false, filter)}
         </tr>
-        {expanded && r.children?.map((c) => row(c, `${key}-${c.category_id}-${c.name}`, depth + 1, kind, rootSingle))}
+        {expanded && r.children?.map((c) => row(c, `${key}-${c.category_id}-${c.name}`, depth + 1, kind))}
         {expanded &&
           items.map((it) => (
             <tr key={`${key}-i-${it.key}`} className={`item${depth ? '' : ' l1'}`}>
               <td>
                 {it.name}
                 {it.fixed && <span className="tag fx">Fixa</span>}
-                {!rootSingle && it.card_name && cardDot(it.card_name, bankSize)}
+                {it.card_name && cardDot(it.card_name, bankSize)}
               </td>
               {cells(it.months, it.total_cents, it.paid_months, false, { ...filter, tree: '0', item: it.key, title: `${r.name.replace(/ \(geral\)$/, '')} · ${it.name}` })}
             </tr>
@@ -231,16 +242,16 @@ export function AnoPage() {
   const allOpen = allKeys.length > 0 && allKeys.every((k) => open.has(k));
 
   const section = (rows: Row[], prefix: 'i' | 'e') =>
-    rows.map((r) => row(r, `${prefix}${r.category_id}`, 0, prefix === 'i' ? 'income' : 'expense', Boolean(r.card_name)));
+    rows.map((r) => row(r, `${prefix}${r.category_id}`, 0, prefix === 'i' ? 'income' : 'expense'));
 
   return (
     <main className="page wide">
       <div className="hd">
-        <button className="ic" aria-label="Ano anterior" onClick={() => setYear(year - 1)}>
+        <button className="ic" aria-label="Ano anterior" onClick={() => { setYear(year - 1); setFocus(null); }}>
           <Icon.left />
         </button>
         <h1>Visão anual · {year}</h1>
-        <button className="ic" aria-label="Próximo ano" onClick={() => setYear(year + 1)}>
+        <button className="ic" aria-label="Próximo ano" onClick={() => { setYear(year + 1); setFocus(null); }}>
           <Icon.right />
         </button>
       </div>
@@ -279,6 +290,18 @@ export function AnoPage() {
               {allOpen ? 'Recolher tudo' : 'Expandir tudo'}
             </button>
           </div>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            {compact && (
+              <div className="row" style={{ gap: 4 }}>
+                <button className="ic" aria-label="Mês anterior" disabled={focusIdx === 0} onClick={() => setFocus(focusIdx - 1)}><Icon.left /></button>
+                <b>{MONTHS_LONG[focusIdx]}</b>
+                <button className="ic" aria-label="Próximo mês" disabled={focusIdx === 11} onClick={() => setFocus(focusIdx + 1)}><Icon.right /></button>
+              </div>
+            )}
+            <button className="btn sm ghost" onClick={() => setCompact((c) => !c)}>
+              {compact ? 'Ver todos os meses' : 'Ver um mês'}
+            </button>
+          </div>
           <div className="sc-wrap" ref={wrapRef}>
           <div className="sc" ref={scRef} tabIndex={0} aria-label="Tabela anual com rolagem horizontal">
             <table className="year">
@@ -287,7 +310,7 @@ export function AnoPage() {
                   <th>
                     <span className="sr-only">Categoria</span>
                   </th>
-                  {MONTHS_SHORT_PT.map((m, i) => (
+                  {MONTHS_SHORT_PT.map((m, i) => showMonth(i) && (
                     <th key={m} className={cls(i)}>
                       {m}
                     </th>
@@ -297,27 +320,27 @@ export function AnoPage() {
               </thead>
               <tbody>
                 <tr className="s">
-                  <th colSpan={14}>
+                  <th colSpan={cols}>
                     <span>Receitas</span>
                   </th>
                 </tr>
                 {section(d.income.rows, 'i')}
                 {d.income.rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="muted">
+                    <td colSpan={cols} className="muted">
                       Sem receitas
                     </td>
                   </tr>
                 )}
                 <tr className="s">
-                  <th colSpan={14}>
+                  <th colSpan={cols}>
                     <span>Despesas</span>
                   </th>
                 </tr>
                 {section(d.expense.rows, 'e')}
                 {d.expense.rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="muted">
+                    <td colSpan={cols} className="muted">
                       Sem despesas
                     </td>
                   </tr>

@@ -15,7 +15,8 @@ import { householdsRouter, usersRouter } from './modules/households';
 import { installmentsRouter } from './modules/installments';
 import { recurrencesRouter } from './modules/recurrences';
 import { dashboardRouter, reportsRouter } from './modules/reports';
-import { transactionsRouter } from './modules/transactions';
+import { exportRouter, transactionsRouter } from './modules/transactions';
+import { pushRouter } from './modules/push';
 
 export function createApp(db: Db, config: Config) {
   const app = express();
@@ -44,6 +45,8 @@ export function createApp(db: Db, config: Config) {
   api.use('/transfers', transfersRouter());
   api.use('/categories', categoriesRouter());
   api.use('/transactions', transactionsRouter());
+  api.use('/export', exportRouter());
+  api.use('/push', pushRouter());
   api.use('/recurrences', recurrencesRouter());
   api.use('/installments', installmentsRouter());
   api.use('/cards', cardsRouter());

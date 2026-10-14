@@ -1,4 +1,4 @@
-import { Component, useState, type ReactNode } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import {
   NavLink,
   Navigate,
@@ -108,6 +108,21 @@ function PasskeyOffer() {
   );
 }
 
+function OfflineBanner() {
+  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+  return online ? null : <p className="offline">Sem conexão. Os dados não atualizam até a rede voltar.</p>;
+}
+
 export function App() {
   const me = useApi<Me>("/auth/me", { retry: false, staleTime: 60_000 });
   const location = useLocation();
@@ -125,6 +140,7 @@ export function App() {
   return (
     <AppStateProvider today={me.data.today}>
       <PasskeyOffer />
+      <OfflineBanner />
       <div className="app">
         <PageBoundary key={location.pathname}>
           <Routes>

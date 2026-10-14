@@ -304,6 +304,23 @@ export function transactionsRouter(): Router {
     res.json(await monthView(req.ctx, month, kind, personId));
   });
 
+  r.get('/suggestions', async (req, res) => {
+    const kind = parse(z.enum(['income', 'expense']), req.query.kind);
+    const rows = await req.ctx.db.all(
+      `SELECT t.description, t.category_id
+         FROM transactions t
+         JOIN (
+           SELECT description, MAX(id) AS last_id
+             FROM transactions
+            WHERE household_id = ? AND kind = ? AND deleted_at IS NULL AND TRIM(COALESCE(description, '')) <> ''
+            GROUP BY description
+         ) s ON s.last_id = t.id
+        ORDER BY t.id DESC LIMIT 30`,
+      [req.ctx.householdId, kind],
+    );
+    res.json(rows);
+  });
+
   r.get('/:id', async (req, res) => {
     res.json(await loadTx(req.ctx, idParam(req.params.id)));
   });
@@ -400,5 +417,33 @@ export function transactionsRouter(): Router {
     res.json(await loadTx(req.ctx, id));
   });
 
+  return r;
+}
+
+export function exportRouter(): Router {
+  const r = Router();
+  r.get('/transactions.csv', async (req, res) => {
+    const rows = await req.ctx.db.all(
+      `SELECT COALESCE(t.due_on, t.occurred_on) AS date, t.description, t.amount_cents, t.kind, t.status,
+              c.name AS category_name, pc.name AS parent_name, a.name AS account_name, cd.name AS card_name, u.name AS who
+         FROM transactions t
+         LEFT JOIN categories c ON c.id = t.category_id
+         LEFT JOIN categories pc ON pc.id = c.parent_id
+         LEFT JOIN accounts a ON a.id = t.account_id
+         LEFT JOIN credit_cards cd ON cd.id = t.card_id
+         LEFT JOIN users u ON u.id = t.for_user_id
+        WHERE t.household_id = ? AND t.deleted_at IS NULL
+        ORDER BY date, t.id`,
+      [req.ctx.householdId],
+    );
+    const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines = rows.map((row) =>
+      [row.date, row.description, (Number(row.amount_cents) / 100).toFixed(2).replace('.', ','), row.kind, row.parent_name, row.category_name, row.account_name || row.card_name, row.status, row.who]
+        .map(cell)
+        .join(';'),
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send(`\uFEFFdata;descrição;valor;tipo;categoria;subcategoria;conta ou cartão;situação;de quem\n${lines.join('\n')}\n`);
+  });
   return r;
 }

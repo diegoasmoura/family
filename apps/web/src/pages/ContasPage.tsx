@@ -3,6 +3,10 @@ import { api, useAction, useApi, type Account, type Me } from '../api';
 import { useAppState } from '../state';
 import { BankMark, BankPicker } from '../banks';
 import { ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
+import { useConfirm } from '../useConfirm';
+import { useSwipe } from '../useSwipe';
+import type { Transfer } from '../types';
+import { addMonths } from '@fin/domain';
 
 const TYPES: [string, string][] = [
   ['checking', 'Conta corrente'],
@@ -38,7 +42,9 @@ function AccountForm({ account, isAdmin, onClose }: { account?: Account; isAdmin
       onClose();
     },
   );
+  const { confirm, dialog } = useConfirm();
   return (
+    <>
     <Sheet title={account ? 'Editar conta' : 'Nova conta'} onClose={onClose}>
       <form
         className="stack"
@@ -72,12 +78,23 @@ function AccountForm({ account, isAdmin, onClose }: { account?: Account; isAdmin
           Salvar
         </button>
         {account && isAdmin && (
-          <button type="button" className="btn danger block" onClick={() => archive.mutate(undefined)}>
+          <button
+            type="button"
+            className="btn danger block"
+            onClick={() =>
+              confirm(
+                `Arquivar ou excluir “${account.name}”? Se a conta já teve movimentos, ela é arquivada e o histórico fica; senão, é apagada.`,
+                () => archive.mutate(undefined),
+              )
+            }
+          >
             Arquivar conta
           </button>
         )}
       </form>
     </Sheet>
+    {dialog}
+    </>
   );
 }
 
@@ -190,14 +207,16 @@ function TransferForm({ accounts, onClose }: { accounts: Account[]; onClose: () 
 export function ContasPage({ me }: { me: Me }) {
   const { month, setMonth, toast } = useAppState();
   const q = useApi<{ accounts: Account[]; current_cents: number; forecast_cents: number }>(`/accounts?month=${month}`);
-  const transfers = useApi<any[]>(`/transfers?month=${month}`);
+  const transfers = useApi<Transfer[]>(`/transfers?month=${month}`);
   const [editing, setEditing] = useState<Account | 'new' | null>(null);
   const [closing, setClosing] = useState<Account | null>(null);
   const [transferring, setTransferring] = useState(false);
   const removeTransfer = useAction((id: number) => api(`/transfers/${id}`, { method: 'DELETE' }), () => toast('Transferência removida'));
+  const { confirm, dialog } = useConfirm();
+  const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
 
   return (
-    <main className="page">
+    <main className="page" {...swipe}>
       <div className="hd">
         <h1>Contas</h1>
         <button className="btn sm" onClick={() => setEditing('new')}>
@@ -259,7 +278,15 @@ export function ContasPage({ me }: { me: Me }) {
                   </span>
                   <span className="row">
                     <b className="num">{brl(t.amount_cents)}</b>
-                    <button className="link" onClick={() => removeTransfer.mutate(t.id)}>
+                    <button
+                      className="link"
+                      onClick={() =>
+                        confirm(
+                          `Remover a transferência de ${brl(t.amount_cents)} (${t.from_account_name} → ${t.to_account_name})? Os saldos das duas contas voltam ao que eram.`,
+                          () => removeTransfer.mutate(t.id),
+                        )
+                      }
+                    >
                       remover
                     </button>
                   </span>
@@ -272,6 +299,7 @@ export function ContasPage({ me }: { me: Me }) {
       {editing && <AccountForm account={editing === 'new' ? undefined : editing} isAdmin={me.role === 'admin'} onClose={() => setEditing(null)} />}
       {closing && <ClosingForm account={closing} month={month} onClose={() => setClosing(null)} />}
       {transferring && q.data && <TransferForm accounts={q.data.accounts} onClose={() => setTransferring(false)} />}
+      {dialog}
     </main>
   );
 }

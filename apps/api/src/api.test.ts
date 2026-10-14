@@ -203,9 +203,36 @@ describe.each(targets)('API (%s)', (dialect, url) => {
         total_without_cards_cents: 10000,
         not_summed_cents: 500,
         total_with_not_summed_cents: 17500,
-        situation: { paid: 1000, overdue: 2000, near: 3000, planned: 4000, unpaid: 9000, cards: 7000 },
+        situation: { paid: 1000, overdue: 9000, near: 3000, planned: 4000, unpaid: 16000, cards: 0 },
         recurrence: { fixed: 0, installment: 0, variable: 17000 },
       });
+    });
+
+    it('sugere descrições e categorias usadas', async () => {
+      await ok(
+        await agent.post('/api/transactions').send({
+          kind: 'expense',
+          description: 'Padaria',
+          amount_cents: 1500,
+          occurred_on: '2026-10-03',
+          account_id: ids.bradesco,
+          category_id: ids.cat['Mercado'],
+        }),
+        201,
+      );
+      const suggestions = await ok(await agent.get('/api/transactions/suggestions?kind=expense'));
+      expect(suggestions.map((row: { description: string }) => row.description)).toContain('Padaria');
+      const frequent = await ok(await agent.get('/api/categories/frequent?kind=expense'));
+      expect(frequent.map((row: { name: string }) => row.name)).toContain('Mercado');
+    });
+
+    it('exporta os lançamentos em CSV', async () => {
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Pão', amount_cents: 800, occurred_on: '2026-10-04', account_id: ids.bradesco }), 201);
+      const res = await agent.get('/api/export/transactions.csv');
+      expect(res.status).toBe(200);
+      expect(res.text.charCodeAt(0)).toBe(0xfeff);
+      expect(res.text).toContain('data;descrição;valor');
+      expect(res.text).toContain('Pão');
     });
 
     it('efetiva, desfaz, exclui e restaura', async () => {
@@ -725,6 +752,32 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(dash.recurrence.map((r: { key: string; total_cents: number }) => r.key)).toEqual(['fixed', 'installment', 'variable']);
       expect(dash.recurrence.reduce((sum: number, r: { total_cents: number }) => sum + r.total_cents, 0)).toBe(dash.expense.total_cents);
     });
+
+    it('o total do orçamento não soma a filha quando o pai também está orçado', async () => {
+      await ok(await agent.put('/api/budgets').send({ category_id: ids.cat['Alimentação'], month: '2026-10', planned_cents: 100000 }));
+      await ok(await agent.put('/api/budgets').send({ category_id: ids.cat['Mercado'], month: '2026-10', planned_cents: 20000 }));
+      const b = await ok(await agent.get('/api/budgets?month=2026-10'));
+      expect(b.planned_cents).toBe(100000);
+    });
+
+    it('a evolução vem no painel e, em Nós, deixa a compra do cartão de fora', async () => {
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 1000, occurred_on: '2026-10-02', account_id: ids.bradesco }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 5000, occurred_on: '2026-10-02', card_id: ids.ultra }), 201);
+      const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
+      expect(dash.evolution.current).toHaveLength(31);
+      expect(dash.evolution.previous).toHaveLength(30);
+      expect(dash.evolution.current[1]).toBe(1000);
+    });
+
+    it('o vencimento de conta devolve o id do lançamento', async () => {
+      const created = await ok(
+        await agent.post('/api/transactions').send({ kind: 'expense', description: 'Luz', amount_cents: 15000, occurred_on: '2026-10-02', account_id: ids.bradesco, paid: false }),
+        201,
+      );
+      const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
+      const row = dash.upcoming.find((u: { type: string; description: string }) => u.type === 'tx' && u.description === 'Luz');
+      expect(row.id).toBe(created.transaction.id);
+    });
   });
 
   describe('metas e gamificação', () => {
@@ -759,6 +812,18 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(done.xp.achievements).toContain('first_goal');
       const again = await ok(await agent.post(`/api/goals/${goal.id}/deposit`).send({ amount_cents: 100 }));
       expect(again.xp.xp).toBe(0);
+    });
+
+    it('editar a meta conclui e reabre com a mesma regra de XP', async () => {
+      const goal = await ok(await agent.post('/api/goals').send({ name: 'Reserva', target_cents: 100000, saved_cents: 40000 }), 201);
+      const done = await ok(await agent.patch(`/api/goals/${goal.id}`).send({ name: 'Reserva', target_cents: 40000 }));
+      expect(done.completed_at).toBeTruthy();
+      expect(done.xp.xp).toBe(100);
+      const reopened = await ok(await agent.patch(`/api/goals/${goal.id}`).send({ name: 'Reserva', target_cents: 100000 }));
+      expect(reopened.completed_at).toBeNull();
+      const second = await ok(await agent.patch(`/api/goals/${goal.id}`).send({ name: 'Reserva', target_cents: 40000 }));
+      expect(second.completed_at).toBeTruthy();
+      expect(second.xp.xp).toBe(0);
     });
   });
 

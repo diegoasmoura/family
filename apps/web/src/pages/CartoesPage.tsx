@@ -8,10 +8,19 @@ import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
 import { BrandMark, BrandPicker } from '../brands';
 import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, Sheet, brl, monthName, shortDate } from '../ui';
+import { useConfirm } from '../useConfirm';
+import { PaySheet } from '../PaySheet';
+import { useSwipe } from '../useSwipe';
 
 const CARD_COLORS = ['#8A05BE', '#EC7000', '#CC092F', '#1E1E1E', '#0070AF', '#00A868', '#FFB800', ...CATEGORY_COLORS.slice(3, 6)];
 const MONTH_UP = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 const dayMonth = (date: string) => `${date.slice(8, 10)}/${MONTH_UP[Number(date.slice(5, 7)) - 1]}.`;
+function daysUntil(iso: string, today: string) {
+  const a = Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10));
+  const b = Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+  return Math.round((b - a) / 86_400_000);
+}
+const when = (n: number) => (n < 0 ? `há ${-n} d` : n === 0 ? 'hoje' : n === 1 ? 'amanhã' : `em ${n} dias`);
 const cardColor = (card: Pick<Card, 'id' | 'color'>) => card.color ?? CARD_COLORS[card.id % CARD_COLORS.length];
 
 type Panel = 'despesas' | 'historico' | 'categorias' | 'evolucao' | 'reajustar' | 'pagar' | 'editar' | 'arquivar' | 'excluir';
@@ -108,67 +117,6 @@ function useInvoiceDetail(card: Card, month: string) {
   return useApi(`/cards/${card.id}/invoices/${month}`);
 }
 
-function PaySheet({ card, month, onClose }: { card: Card; month: string; onClose: () => void }) {
-  const { today, toast } = useAppState();
-  const detail = useInvoiceDetail(card, month);
-  const accounts = useApi<{ accounts: Account[] }>('/accounts');
-  const [amount, setAmount] = useState<number | null>(null);
-  const [accountId, setAccountId] = useState<number | null>(card.default_pay_account_id);
-  const [date, setDate] = useState(today);
-  const inv = detail.data;
-  const value = amount ?? (inv?.remaining_cents || null);
-  const pay = useAction(
-    (account: number | null) => api(`/invoices/${inv.id}/payments`, { body: { amount_cents: value, account_id: account ?? undefined, paid_on: date } }),
-    () => {
-      toast('Pagamento registrado');
-      onClose();
-    },
-  );
-  const chosenAccount = accountId ?? accounts.data?.accounts[0]?.id ?? null;
-  return (
-    <Sheet title={`Pagar fatura de ${monthName(month)}`} onClose={onClose}>
-      {!inv ? (
-        <Loading />
-      ) : (
-        <form
-          className="stack"
-          onSubmit={(e) => {
-            e.preventDefault();
-            pay.mutate(chosenAccount);
-          }}
-        >
-          <MoneyInput big value={value} onChange={setAmount} />
-          <small className="right">Saldo da fatura: {brl(inv.remaining_cents)}</small>
-          <label className="f">
-            <span>Sai da conta</span>
-            <select value={chosenAccount ?? ''} onChange={(e) => setAccountId(Number(e.target.value))} required>
-              {accounts.data?.accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} · {brl(a.current_balance_cents)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="f">
-            <span>Data do pagamento</span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-          </label>
-          {value != null && value > inv.remaining_cents && (
-            <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>
-              {brl(value - inv.remaining_cents)} ficam como crédito e abatem a próxima fatura.
-            </div>
-          )}
-          <small>Pagar a fatura tira da conta, mas não conta como despesa.</small>
-          <ErrorText error={pay.error} />
-          <button className="btn big" disabled={!value || pay.isPending}>
-            Registrar pagamento
-          </button>
-        </form>
-      )}
-    </Sheet>
-  );
-}
-
 function untilLabel(t: Tx) {
   if (!t.installment_label) return '';
   const [current, total] = t.installment_label.split('/').map(Number);
@@ -212,6 +160,7 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
   const { toast } = useAppState();
   const detail = useInvoiceDetail(card, month);
   const removePayment = useAction((id: number) => api(`/invoice-payments/${id}`, { method: 'DELETE' }), () => toast('Pagamento removido'));
+  const { confirm, dialog } = useConfirm();
   const inv = detail.data;
   const txs = (inv?.transactions ?? []) as Purchase[];
   const groups = [
@@ -220,6 +169,7 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
     ['Avulsas', txs.filter((t) => !t.plan_id && !t.recurrence_id)],
   ].filter((entry): entry is [string, Purchase[]] => entry[1].length > 0);
   return (
+    <>
     <Sheet title={`${card.name} · fatura de ${monthName(month)}`} onClose={onClose}>
       {!inv ? (
         <Loading />
@@ -260,7 +210,16 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
                   </span>
                   <span className="row">
                     <b className="num">{brl(p.amount_cents)}</b>
-                    <button className="link" onClick={() => removePayment.mutate(p.id)} aria-label="Remover pagamento">
+                    <button
+                      className="link"
+                      aria-label="Remover pagamento"
+                      onClick={() =>
+                        confirm(
+                          `Remover o pagamento de ${brl(p.amount_cents)} feito em ${shortDate(p.paid_on)}? O valor volta para a conta, mas as compras que ele já efetivou continuam efetivadas.`,
+                          () => removePayment.mutate(p.id),
+                        )
+                      }
+                    >
                       remover
                     </button>
                   </span>
@@ -272,6 +231,8 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
         </>
       )}
     </Sheet>
+    {dialog}
+    </>
   );
 }
 
@@ -551,58 +512,57 @@ function ReajustarSheet({ card, month, onClose }: { card: Card; month: string; o
 
 const stateBadge = (s: Invoice['state']) => (s === 'paid' ? 'green' : s === 'overdue' || s === 'closed' ? 'red' : s === 'future' ? 'gray' : '');
 
-function CardMenu({ onPick }: { onPick: (p: Panel) => void }) {
+const ACTIONS: [Panel, string, boolean?][] = [
+  ['editar', 'Editar cartão'],
+  ['reajustar', 'Reajustar fatura'],
+  ['historico', 'Histórico de faturas'],
+  ['despesas', 'Despesas associadas'],
+  ['categorias', 'Gráfico por categorias'],
+  ['evolucao', 'Evolução mensal'],
+  ['arquivar', 'Arquivar'],
+  ['excluir', 'Excluir', true],
+];
+
+function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open]);
-  const item = (p: Panel, label: string, danger = false) => (
-    <button
-      type="button"
-      role="menuitem"
-      className={danger ? 'danger' : undefined}
-      onClick={() => {
-        setOpen(false);
-        onPick(p);
-      }}
-    >
-      {label}
-    </button>
-  );
   return (
-    <div className="kebab-wrap" ref={ref}>
-      <button type="button" className="kebab" aria-label="Mais ações do cartão" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <>
+      <button type="button" className="kebab" aria-label="Mais ações do cartão" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
         <Icon.kebab />
       </button>
       {open && (
-        <div className="menu" role="menu">
-          {item('editar', 'Editar')}
-          {item('reajustar', 'Reajustar fatura')}
-          {item('historico', 'Histórico de faturas')}
-          {item('despesas', 'Despesas associadas')}
-          {item('categorias', 'Gráfico por categorias')}
-          {item('evolucao', 'Evolução mensal')}
-          {item('arquivar', 'Arquivar')}
-          {item('excluir', 'Excluir', true)}
-        </div>
+        <Sheet title={name} onClose={() => setOpen(false)}>
+          <div className="list">
+            {ACTIONS.map(([panel, label, danger]) => (
+              <button
+                key={panel}
+                type="button"
+                className={`r${danger ? ' danger' : ''}`}
+                style={{ minHeight: 52 }}
+                onClick={() => {
+                  setOpen(false);
+                  onPick(panel);
+                }}
+              >
+                <div className="m"><span className="t">{label}</span></div>
+              </button>
+            ))}
+          </div>
+        </Sheet>
       )}
-    </div>
+    </>
   );
 }
 
 function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoice?: Invoice; accountName?: string; onPanel: (p: Panel) => void }) {
   const location = useLocation();
+  const { today } = useAppState();
   const pct = Math.round(card.used_ratio * 100);
+  const level = pct >= 95 ? 'crit' : pct >= 80 ? 'warn' : 'ok';
+  const barColor = level === 'crit' ? 'var(--neg)' : level === 'warn' ? 'var(--warn-text)' : cardColor(card);
   const closed = invoice && (invoice.state === 'closed' || invoice.state === 'overdue' || invoice.state === 'paid');
+  const closeIn = invoice && invoice.state === 'open' ? daysUntil(invoice.closing_date, today) : null;
+  const dueIn = invoice && invoice.state !== 'paid' && invoice.state !== 'future' ? daysUntil(invoice.due_date, today) : null;
   return (
     <section className="card cc" aria-label={`Cartão ${card.name}`}>
       <div className="hd">
@@ -628,7 +588,7 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           <button type="button" className="kebab" aria-label={`Gráfico do ${card.name}`} onClick={() => onPanel('evolucao')}>
             <Icon.trend />
           </button>
-          <CardMenu onPick={onPanel} />
+          <CardMenu name={card.name} onPick={onPanel} />
         </div>
       </div>
 
@@ -650,12 +610,17 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
       </div>
       <div className="row" style={{ gap: 10 }}>
         <div className="bar grow" style={{ height: 14, borderRadius: 7 }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Limite usado">
-          <i style={{ width: `${Math.min(100, pct)}%`, background: cardColor(card) }} />
+          <i style={{ width: `${Math.min(100, pct)}%`, background: barColor }} />
         </div>
         <b className="num" style={{ fontSize: 13 }}>
           {pct}%
         </b>
       </div>
+      {level !== 'ok' && (
+        <small className={level === 'crit' ? 'late' : 'soon'}>
+          {level === 'crit' ? 'Limite quase no fim' : 'Mais de 80% do limite usado'}
+        </small>
+      )}
 
       <div className="cc-3">
         <div>
@@ -668,12 +633,18 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
         <div style={{ textAlign: 'center' }}>
           <small>Fechamento</small>
           <b className="num">{invoice ? dayMonth(invoice.closing_date) : '–'}</b>
+          {closeIn != null && closeIn >= 0 && <small className={closeIn <= 3 ? 'soon' : undefined}>{when(closeIn)}</small>}
         </div>
         <div className="right">
           <small>Vencimento</small>
           <b className="num">{invoice ? dayMonth(invoice.due_date) : '–'}</b>
+          {dueIn != null && <small className={dueIn < 0 ? 'late' : dueIn <= 3 ? 'soon' : undefined}>{when(dueIn)}</small>}
         </div>
       </div>
+      <small className="best-day">
+        Melhor dia de compra: dia {card.closing_day}
+        {card.closing_day > 28 ? ' (ou o último do mês)' : ''}
+      </small>
 
       {invoice && (
         <button type="button" className="cc-inv" aria-label={`Lançamentos da fatura de ${monthName(invoice.reference_month)}`} onClick={() => onPanel('despesas')}>
@@ -757,13 +728,14 @@ export function CartoesPage() {
   const accountName = (id: number | null) => accounts.data?.accounts.find((a) => a.id === id)?.name;
   const archivedCards = (archived.data ?? []).filter((c) => c.archived);
   const setMonth = (m: string) => setParams({ mes: m });
+  const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
   const p = panel;
   const selected = selectedTx;
 
-  if (cards.isLoading) return <Loading />;
+  if (cards.isLoading) return <main className="page"><Loading /></main>;
 
   return (
-    <main className="page">
+    <main className="page" {...swipe}>
       <div className="hd">
         <div>
           <h1>Cartões de crédito</h1>

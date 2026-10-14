@@ -4,6 +4,7 @@ import { inkOn } from '@fin/domain';
 import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon, IconGlyph, categoryColor, iconKey } from '../categories';
 import { useAppState } from '../state';
 import { ErrorText, Loading, Seg, Sheet, categoryTree } from '../ui';
+import { useConfirm } from '../useConfirm';
 
 function CategoryForm({ kind, category, all, onClose }: { kind: 'income' | 'expense'; category?: Category; all: Category[]; onClose: () => void }) {
   const { toast } = useAppState();
@@ -32,7 +33,9 @@ function CategoryForm({ kind, category, all, onClose }: { kind: 'income' | 'expe
       onClose();
     },
   );
+  const { confirm, dialog } = useConfirm();
   return (
+    <>
     <Sheet title={category ? 'Editar categoria' : 'Nova categoria'} onClose={onClose}>
       <form
         className="stack"
@@ -90,12 +93,23 @@ function CategoryForm({ kind, category, all, onClose }: { kind: 'income' | 'expe
           Salvar
         </button>
         {category && (
-          <button type="button" className="btn danger block" onClick={() => remove.mutate(undefined)}>
+          <button
+            type="button"
+            className="btn danger block"
+            onClick={() =>
+              confirm(
+                `Excluir “${category.name}”? Se ela já tem lançamentos, orçamento, parcelas, fixas ou subcategorias, será arquivada em vez de apagada.`,
+                () => remove.mutate(undefined),
+              )
+            }
+          >
             Excluir ou arquivar
           </button>
         )}
       </form>
     </Sheet>
+    {dialog}
+    </>
   );
 }
 

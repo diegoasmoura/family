@@ -169,6 +169,7 @@ export interface Tx {
   include_in_reports: number;
   overridden: number;
   deleted_at: string | null;
+  /** paid, overdue, near (até 7 dias), planned. `card` permanece no tipo e não volta da API: a compra segue o vencimento da fatura. */
   display_status: 'paid' | 'overdue' | 'near' | 'planned' | 'card';
   status_label: string;
   recurrence_class: 'fixed' | 'installment' | 'variable';

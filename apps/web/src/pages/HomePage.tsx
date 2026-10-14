@@ -16,25 +16,29 @@ import {
   YAxis,
 } from "recharts";
 import { AvatarFigure } from "../Avatar";
+import { TxSheet } from "../TxSheet";
+import { PaySheet } from "../PaySheet";
+import { setHidden, useHidden } from "../privacy";
+import { useInView } from "../useInView";
+import { usePullToRefresh } from "../usePullToRefresh";
+import { Bar, ErrorText, Icon, Loading, MonthNav, Sheet, SkeletonCard, brl, monthName, shortDate } from "../ui";
 import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { BankMark } from "../banks";
 import { CategoryIcon } from "../categories";
 import { PersonFilter, personParam } from "../people";
 import { useAppState, type PersonScope } from "../state";
-import { Bar, ErrorText, Icon, Loading, MonthNav, Sheet, brl, monthName, shortDate } from "../ui";
 
 const HiddenMoney = createContext(false);
 const LAYOUT_KEY = "fin-home-layout";
-const HIDE_KEY = "fin-hide-money";
 
 const BLOCKS = [
   ["summary", "Resumo"],
   ["upcoming", "Próximos vencimentos"],
+  ["invoices", "Faturas dos cartões"],
   ["categories", "Despesas por categoria"],
   ["flow", "Fluxo de caixa"],
   ["evolution", "Evolução das despesas"],
   ["recurrence", "Despesas por recorrência"],
-  ["invoices", "Faturas dos cartões"],
   ["year", "Mês a mês"],
 ] as const;
 
@@ -43,14 +47,19 @@ const DEFAULT_ORDER = BLOCKS.map(([id]) => id);
 
 function loadLayout(): { order: BlockId[]; hidden: BlockId[] } {
   try {
-    const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "");
-    const order = DEFAULT_ORDER.filter((id) => raw.order?.includes(id)).concat(DEFAULT_ORDER.filter((id) => !raw.order?.includes(id)));
-    const hidden = (raw.hidden || []).filter((id: string) => DEFAULT_ORDER.includes(id as BlockId));
+    const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null");
+    const saved: BlockId[] = Array.isArray(raw?.order) ? raw.order : [];
+    const order = saved
+      .filter((id, i) => DEFAULT_ORDER.includes(id) && saved.indexOf(id) === i)
+      .concat(DEFAULT_ORDER.filter((id) => !saved.includes(id)));
+    const hidden = (Array.isArray(raw?.hidden) ? raw.hidden : []).filter((id: string) => DEFAULT_ORDER.includes(id as BlockId));
     return { order, hidden };
   } catch {
     return { order: DEFAULT_ORDER, hidden: [] };
   }
 }
+
+const EMPTY_TXS: Tx[] = [];
 
 function MoneyText({ cents, sign }: { cents: number; sign?: boolean }) {
   const hidden = useContext(HiddenMoney);
@@ -176,16 +185,23 @@ export function HomePage({ me }: { me: Me }) {
   const budgets = useApi(`/budgets?month=${month}`);
   const cards = useApi<Card[]>("/cards");
   const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(`/cards/month/${month}`);
-  const expNow = useApi(`/transactions?month=${month}&kind=expense&person=${personParam(person)}`);
-  const expPrev = useApi(`/transactions?month=${addMonths(month, -1)}&kind=expense&person=${personParam(person)}`);
-  const [hiddenMoney, setHiddenMoney] = useState(() => localStorage.getItem(HIDE_KEY) === "1");
-  const [layout, setLayout] = useState(loadLayout);
-  const [config, setConfig] = useState(false);
-  const [dragId, setDragId] = useState<BlockId | null>(null);
   const [catName, setCatName] = useState<string | null>(null);
   const [classify, setClassify] = useState<string | null>(null);
+  const [evoRef, evoSeen] = useInView<HTMLDivElement>();
+  const [yearRef, yearSeen] = useInView<HTMLDivElement>();
+  const needTxs = catName !== null || classify !== null || evoSeen;
+  const expNow = useApi(needTxs ? `/transactions?month=${month}&kind=expense&person=${personParam(person)}` : null);
+  const expPrev = useApi(evoSeen ? `/transactions?month=${addMonths(month, -1)}&kind=expense&person=${personParam(person)}` : null);
+  const hiddenMoney = useHidden();
+  const toggleHide = () => setHidden(!hiddenMoney);
+  const ptr = usePullToRefresh();
+  const [layout, setLayout] = useState(loadLayout);
+  const [config, setConfig] = useState(false);
   const [showCum, setShowCum] = useState(false);
   const [showTop, setShowTop] = useState(false);
+  const [txId, setTxId] = useState<number | null>(null);
+  const [payInvoice, setPayInvoice] = useState<{ card: Card; month: string } | null>(null);
+  const txQ = useApi<Tx>(txId ? `/transactions/${txId}` : null);
   const yearScroll = useRef<HTMLDivElement>(null);
   const d = q.data;
 
@@ -196,22 +212,29 @@ export function HomePage({ me }: { me: Me }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const toggleHide = () => {
-    const next = !hiddenMoney;
-    setHiddenMoney(next);
-    localStorage.setItem(HIDE_KEY, next ? "1" : "0");
-  };
-
   const saveLayout = (order: BlockId[], hidden: BlockId[]) => {
     const next = { order, hidden };
     setLayout(next);
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify(next));
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(next));
+    } catch {
+      /* sem persistência, mas não quebra */
+    }
   };
 
-  const txs: Tx[] = expNow.data?.items ?? [];
-  const prevTxs: Tx[] = expPrev.data?.items ?? [];
-  const nowSeries = useMemo(() => cumulative(txs, month), [txs, month]);
-  const prevSeries = useMemo(() => cumulative(prevTxs, addMonths(month, -1)), [prevTxs, month]);
+  const moveBlock = (id: BlockId, dir: -1 | 1) => {
+    const order = [...layout.order];
+    const i = order.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    saveLayout(order, layout.hidden);
+  };
+
+  const txs: Tx[] = expNow.data?.items ?? EMPTY_TXS;
+  const prevTxs: Tx[] = expPrev.data?.items ?? EMPTY_TXS;
+  const nowSeries = useMemo((): number[] => (d?.evolution?.current?.length ? d.evolution.current : cumulative(txs, month)), [d, txs, month]);
+  const prevSeries = useMemo((): number[] => (d?.evolution?.previous?.length ? d.evolution.previous : cumulative(prevTxs, addMonths(month, -1))), [d, prevTxs, month]);
   const todayDay = today.startsWith(month) ? Number(today.slice(8, 10)) : daysInMonth(month);
   const evolution = nowSeries.map((total, index) => {
     const day = index + 1;
@@ -228,7 +251,7 @@ export function HomePage({ me }: { me: Me }) {
   const spentPrev = prevSeries[Math.min(todayDay, prevSeries.length) - 1] ?? 0;
 
   const year = Number(month.slice(0, 4));
-  const yearQ = useApi(`/reports/year?year=${year}&mode=planned&person=${personParam(person)}`);
+  const yearQ = useApi(yearSeen ? `/reports/year?year=${year}&mode=planned&person=${personParam(person)}` : null);
   const sel = Number(month.slice(5, 7)) - 1;
 
   if (!d) {
@@ -238,7 +261,7 @@ export function HomePage({ me }: { me: Me }) {
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
         <ErrorText error={q.error} />
-        {!q.error && <Loading />}
+        {!q.error && (<><SkeletonCard lines={4} /><SkeletonCard /><SkeletonCard /></>)}
       </main>
     );
   }
@@ -257,7 +280,7 @@ export function HomePage({ me }: { me: Me }) {
       const parent = tx.parent_category_name || tx.category_name || "Sem categoria";
       if (parent !== name) continue;
       const child = tx.parent_category_name ? tx.category_name || "Geral" : "Geral";
-      const color = tx.parent_category_name ? tx.category_color : tx.category_color;
+      const color = tx.category_color;
       const row = map.get(child) ?? { name: child, total_cents: 0, color };
       row.total_cents += tx.amount_cents;
       map.set(child, row);
@@ -283,7 +306,7 @@ export function HomePage({ me }: { me: Me }) {
 
   const blocks: Record<BlockId, ReactNode> = {
     summary: (
-      <section className="card" aria-label="Resumo">
+      <section className="card soft" aria-label="Resumo">
         <small>Saldo atual nas contas</small>
         <div className="home-balance">
           <MoneyText cents={d.balance.current_cents} />
@@ -308,7 +331,7 @@ export function HomePage({ me }: { me: Me }) {
             <b className="sum-val exp">
               <MoneyText cents={expenseTotal} />
             </b>
-            <Bar ratio={expenseTotal ? d.expense.realized_cents / expenseTotal : 0} kind={d.expense.to_pay_cents > 0 ? undefined : undefined} />
+            <Bar ratio={expenseTotal ? d.expense.realized_cents / expenseTotal : 0} />
             <small>{d.expense.to_pay_cents > 0 ? <><MoneyText cents={d.expense.to_pay_cents} /> a pagar</> : "pagas"}</small>
           </Link>
         </div>
@@ -333,46 +356,63 @@ export function HomePage({ me }: { me: Me }) {
                   <MoneyText cents={subtotal} sign />
                 </small>
               </div>
-              {items.map((item) => (
-                <Link
-                  key={`${item.type}-${item.id}`}
-                  to={item.type === "invoice" ? `/cartoes?card=${item.card_id}&mes=${item.reference_month}` : item.kind === "income" ? "/lancamentos?tipo=receitas" : "/lancamentos"}
-                  className="due-row"
-                  onClick={() => item.type === "tx" && setMonth(item.due_on.slice(0, 7))}
-                >
-                  {item.type === "invoice" ? (
-                    <BankMark name={item.card_name || item.description} size={40} fallback />
-                  ) : (
-                    <CategoryIcon cat={{ id: item.id, name: item.category_name || item.description, color: item.category_color, icon: item.category_icon, parent_id: item.category_parent_id }} size={40} />
-                  )}
-                  <span className="due-main">
-                    <span className="due-title">
-                      <span>{item.description}</span>
-                      {item.installment_label && <span className="tx-parcel">{item.installment_label}</span>}
+              {items.map((item) => {
+                const isInvoice = item.type === "invoice";
+                const card = isInvoice ? cards.data?.find((c) => c.id === item.card_id) : undefined;
+                const body = (
+                  <>
+                    {isInvoice ? (
+                      <BankMark name={item.card_name || item.description} size={40} fallback />
+                    ) : (
+                      <CategoryIcon cat={{ id: item.id, name: item.category_name || item.description, color: item.category_color, icon: item.category_icon, parent_id: item.category_parent_id }} size={40} />
+                    )}
+                    <span className="due-main">
+                      <span className="due-title">
+                        <span>{item.description}</span>
+                        {item.installment_label && <span className="tx-parcel">{item.installment_label}</span>}
+                      </span>
+                      <small className={item.overdue ? "late" : item.due_on === today ? "soon" : undefined}>
+                        {isInvoice
+                          ? item.overdue
+                            ? "Atrasada"
+                            : item.due_on === today
+                              ? "Vence hoje"
+                              : "A pagar"
+                          : item.overdue
+                            ? "Atrasado"
+                            : item.due_on === today
+                              ? item.kind === "income"
+                                ? "Recebe hoje"
+                                : "Vence hoje"
+                              : item.kind === "income"
+                                ? "A receber"
+                                : "Previsto"}
+                      </small>
                     </span>
-                    <small className={item.overdue ? "late" : item.due_on === today ? "soon" : undefined}>
-                      {item.type === "invoice"
-                        ? item.overdue
-                          ? "Atrasada"
-                          : item.due_on === today
-                            ? "Vence hoje"
-                            : "A pagar"
-                        : item.overdue
-                          ? "Atrasado"
-                          : item.due_on === today
-                            ? item.kind === "income"
-                              ? "Recebe hoje"
-                              : "Vence hoje"
-                            : item.kind === "income"
-                              ? "A receber"
-                              : "Previsto"}
-                    </small>
-                  </span>
-                  <b className={`num due-amt${item.kind === "income" ? " pos" : ""}`}>
-                    <MoneyText cents={item.amount_cents} sign={item.kind === "income"} />
-                  </b>
-                </Link>
-              ))}
+                    <b className={`num due-amt${item.kind === "income" ? " pos" : ""}`}>
+                      <MoneyText cents={item.amount_cents} sign={item.kind === "income"} />
+                    </b>
+                  </>
+                );
+                return (
+                  <div key={`${item.type}-${item.id}`} className="due-row">
+                    {isInvoice ? (
+                      <Link className="due-hit" to={`/cartoes?card=${item.card_id}&mes=${item.reference_month}`}>
+                        {body}
+                      </Link>
+                    ) : (
+                      <button type="button" className="due-hit" onClick={() => setTxId(item.id)}>
+                        {body}
+                      </button>
+                    )}
+                    {isInvoice && card && item.reference_month && (
+                      <button type="button" className="btn sm" onClick={() => item.reference_month && setPayInvoice({ card, month: item.reference_month })}>
+                        Pagar
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -593,10 +633,13 @@ export function HomePage({ me }: { me: Me }) {
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
+        <div className={`ptr${ptr.busy ? " busy" : ""}`} style={{ height: ptr.busy ? 36 : ptr.pull / 2 }} aria-hidden>
+          {ptr.busy ? "Atualizando…" : ptr.ready ? "Solte para atualizar" : ptr.pull > 8 ? "Puxe para atualizar" : ""}
+        </div>
         <ErrorText error={q.error} />
         <div className="home-stack">
           {layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => (
-            <div key={id}>{blocks[id]}</div>
+            <div key={id} ref={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined}>{blocks[id]}</div>
           ))}
         </div>
         <button type="button" className="config-home" onClick={() => setConfig(true)}>
@@ -604,43 +647,45 @@ export function HomePage({ me }: { me: Me }) {
         </button>
         {showTop && (
           <button type="button" className="to-top" aria-label="Voltar ao topo" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-            <Icon.trend />
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
           </button>
         )}
       </main>
       {config && (
         <Sheet title="Configurar resumo" onClose={() => setConfig(false)}>
-          <p className="empty">Arraste para reordenar. O olho oculta o card.</p>
+          <p className="empty">Use as setas para reordenar. “Ocultar” esconde o card da tela inicial.</p>
           <div className="layout-list">
-            {layout.order.map((id) => {
+            {layout.order.map((id, index) => {
               const label = BLOCKS.find(([key]) => key === id)?.[1];
               const off = layout.hidden.includes(id);
               return (
-                <div
-                  key={id}
-                  className="layout-row"
-                  draggable
-                  onDragStart={() => setDragId(id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => {
-                    if (!dragId || dragId === id) return;
-                    const order = layout.order.filter((item) => item !== dragId);
-                    order.splice(order.indexOf(id), 0, dragId);
-                    saveLayout(order, layout.hidden);
-                    setDragId(null);
-                  }}
-                >
-                  <span>{label}</span>
-                  <button type="button" className="link" onClick={() => saveLayout(layout.order, off ? layout.hidden.filter((item) => item !== id) : [...layout.hidden, id])}>
-                    {off ? "Mostrar" : "Ocultar"}
-                  </button>
+                <div key={id} className={`layout-row${off ? " off" : ""}`}>
+                  <span className="layout-name">{label}</span>
+                  <span className="layout-tools">
+                    <button type="button" className="mv" aria-label={`Subir ${label}`} disabled={index === 0} onClick={() => moveBlock(id, -1)}>↑</button>
+                    <button type="button" className="mv" aria-label={`Descer ${label}`} disabled={index === layout.order.length - 1} onClick={() => moveBlock(id, 1)}>↓</button>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => saveLayout(layout.order, off ? layout.hidden.filter((item) => item !== id) : [...layout.hidden, id])}
+                    >
+                      {off ? "Mostrar" : "Ocultar"}
+                    </button>
+                  </span>
                 </div>
               );
             })}
           </div>
+          <button type="button" className="btn ghost block" onClick={() => saveLayout(DEFAULT_ORDER, [])}>
+            Restaurar padrão
+          </button>
         </Sheet>
       )}
       {classify && <ClassifySheet name={classify} items={bucketTxs(txs, classify)} onClose={() => setClassify(null)} />}
+      {txQ.data && <TxSheet key={`${txQ.data.id}-${txQ.data.status}`} tx={txQ.data} onClose={() => setTxId(null)} />}
+      {payInvoice && <PaySheet card={payInvoice.card} month={payInvoice.month} onClose={() => setPayInvoice(null)} />}
       {selectedCat && (
         <Sheet title={selectedCat.name} onClose={() => setCatName(null)}>
           <button type="button" className="home-jump" onClick={() => setCatName(null)}>
@@ -764,20 +809,22 @@ function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members
   const shown = person === "all" ? members : members.filter((member) => member.me);
   return (
     <div className="hd home-top">
-      <div>
+      <div className="home-greet">
         <small className="home-kicker">{me.household_name}</small>
         <h1>Olá, {me.name.split(" ")[0]}</h1>
       </div>
-      <button type="button" className="ic eye" aria-pressed={hidden} aria-label={hidden ? "Mostrar valores" : "Ocultar valores"} onClick={onToggle}>
-        {hidden ? <Icon.eyeOff /> : <Icon.eye />}
-      </button>
-      {shown.length > 0 && (
-        <Link to="/progresso" className="avatars" aria-label="Ver avatares">
-          {shown.map((member) => (
-            <AvatarFigure key={member.id} avatar={member.avatar} size={40} level={member.level} label={`${member.name}, nível ${member.level}`} />
-          ))}
-        </Link>
-      )}
+      <div className="home-tools">
+        {shown.length > 0 && (
+          <Link to="/progresso" className="avatars" aria-label="Ver avatares">
+            {shown.map((member) => (
+              <AvatarFigure key={member.id} avatar={member.avatar} size={40} level={member.level} label={`${member.name}, nível ${member.level}`} />
+            ))}
+          </Link>
+        )}
+        <button type="button" className="ic eye" aria-pressed={hidden} aria-label={hidden ? "Mostrar valores" : "Ocultar valores"} onClick={onToggle}>
+          {hidden ? <Icon.eyeOff /> : <Icon.eye />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -873,12 +920,12 @@ function YearBlock({
               <YAxis width={42} tick={tick} axisLine={false} tickLine={false} tickFormatter={(value) => compactAxis(Number(value))} />
               <MonthBar dataKey="inc" fill="#6fbf8a" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400} onClick={(_entry, index) => onPick(index)}>
                 {rows.map((row) => (
-                  <Cell key={row.name} fill={row.inc ? "#6fbf8a" : "#3a3d42"} />
+                  <Cell key={row.name} fill={row.inc ? "#6fbf8a" : "var(--bar-empty)"} />
                 ))}
               </MonthBar>
               <MonthBar dataKey="exp" fill="#e08b84" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400} onClick={(_entry, index) => onPick(index)}>
                 {rows.map((row) => (
-                  <Cell key={row.name} fill={row.exp ? "#e08b84" : "#3a3d42"} />
+                  <Cell key={row.name} fill={row.exp ? "#e08b84" : "var(--bar-empty)"} />
                 ))}
               </MonthBar>
               {showCum && <Line dataKey="cum" stroke="var(--chart-cum)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive animationDuration={400} />}

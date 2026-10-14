@@ -1,19 +1,24 @@
 import { useState } from 'react';
-import { addMonths } from '@fin/domain';
+import { addMonths, daysInMonth } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
 import { useAppState } from '../state';
+import { useSwipe } from '../useSwipe';
 import { Bar, ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, categoryTree } from '../ui';
+import type { BudgetItem } from '../types';
 
 export function OrcamentoPage() {
-  const { month, setMonth, toast } = useAppState();
-  const q = useApi(`/budgets?month=${month}`);
-  const [editing, setEditing] = useState<any>(null);
+  const { month, setMonth, toast, today } = useAppState();
+  const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
+  const q = useApi<{ items: BudgetItem[]; planned_cents: number; spent_cents: number }>(`/budgets?month=${month}`);
+  const [editing, setEditing] = useState<(BudgetItem & { id: number }) | null>(null);
   const [value, setValue] = useState<number | null>(null);
   const save = useAction(
-    () =>
-      value == null && editing.budget_id
+    () => {
+      if (!editing) return Promise.reject(new Error('Nada para salvar'));
+      return value == null && editing.budget_id
         ? api(`/budgets/${editing.budget_id}`, { method: 'DELETE' })
-        : api('/budgets', { method: 'PUT', body: { category_id: editing.category_id, month, planned_cents: value ?? 0 } }),
+        : api('/budgets', { method: 'PUT', body: { category_id: editing.category_id, month, planned_cents: value ?? 0 } });
+    },
     () => {
       toast('Orçamento salvo');
       setEditing(null);
@@ -24,10 +29,10 @@ export function OrcamentoPage() {
     (r: any) => toast(r.copied ? `${r.copied} categorias copiadas` : 'Nada novo para copiar'),
   );
 
-  const items = categoryTree((q.data?.items ?? []).map((i: any) => ({ ...i, id: i.category_id })));
+  const items = categoryTree((q.data?.items ?? []).map((i) => ({ ...i, id: i.category_id })));
 
   return (
-    <main className="page">
+    <main className="page" {...swipe}>
       <h1>Orçamento</h1>
       <MonthNav month={month} onChange={setMonth} />
       <ErrorText error={q.error ?? copy.error} />
@@ -44,13 +49,20 @@ export function OrcamentoPage() {
             </div>
             <Bar ratio={q.data.planned_cents ? q.data.spent_cents / q.data.planned_cents : 0} kind={q.data.spent_cents > q.data.planned_cents && q.data.planned_cents ? 'over' : undefined} />
             <small>A missão "ficar abaixo do orçamento" usa esse total.</small>
+            {month === today.slice(0, 7) && Number(today.slice(8, 10)) > 0 && q.data.planned_cents > 0 && (
+              <small className={Math.round((q.data.spent_cents / Number(today.slice(8, 10))) * daysInMonth(month)) > q.data.planned_cents ? 'late' : undefined}>
+                No ritmo atual, fecha em {brl(Math.round((q.data.spent_cents / Number(today.slice(8, 10))) * daysInMonth(month)))} (orçado {brl(q.data.planned_cents)}). Estimativa simples.
+              </small>
+            )}
           </section>
           <button className="btn ghost block" onClick={() => copy.mutate(undefined)}>
             Copiar do mês anterior
           </button>
           <div className="list">
-            {items.map((i: any) => {
+            {items.map((i) => {
               const ratio = i.planned_cents ? i.spent_cents / i.planned_cents : 0;
+              const remaining = i.planned_cents != null ? i.planned_cents - i.spent_cents : null;
+              const tone = ratio >= 1 ? 'var(--neg)' : ratio >= 0.8 ? 'var(--warn-text)' : undefined;
               return (
                 <button
                   key={i.category_id}
@@ -65,11 +77,13 @@ export function OrcamentoPage() {
                     <span className="t" style={{ fontWeight: i.depth ? 700 : 800 }}>
                       {i.name}
                     </span>
-                    {i.planned_cents != null && <Bar ratio={ratio} kind={ratio > 1 ? 'over' : undefined} />}
+                    {i.planned_cents != null && <Bar ratio={ratio} kind={ratio >= 1 ? 'over' : undefined} />}
                   </div>
-                  <div className="v num">
+                  <div className="v num" style={tone ? { color: tone } : undefined}>
                     {brl(i.spent_cents)}
-                    <small>{i.planned_cents != null ? `de ${brl(i.planned_cents)}` : 'sem orçamento'}</small>
+                    <small>
+                      {remaining == null ? 'sem orçamento' : remaining >= 0 ? `restam ${brl(remaining)}` : `estourou ${brl(-remaining)}`}
+                    </small>
                   </div>
                 </button>
               );

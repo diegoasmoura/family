@@ -1,6 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { dayOf, invoiceForPurchase, monthOf, splitInstallments } from '@fin/domain';
+import { addDays, dayOf, invoiceForPurchase, monthOf, splitInstallments } from '@fin/domain';
 import { api, clientUuid, useAction, useApi, type Account, type Card, type Category } from '../api';
 import { CategoryPicker } from '../categories';
 import { useAppState } from '../state';
@@ -13,6 +13,23 @@ type Mode = 'single' | 'fixed' | 'installment';
 type Target = { type: 'account' | 'card'; id: number } | null;
 
 const PARCELA_ATALHOS = [2, 3, 6, 12, 24, 36, 48, 60];
+const LAST_TARGET_KEY = 'fin-last-target';
+
+function readLastTarget(): Target {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_TARGET_KEY) || 'null');
+    return v && (v.type === 'card' || v.type === 'account') && Number.isInteger(v.id) ? v : null;
+  } catch {
+    return null;
+  }
+}
+function rememberTarget(t: NonNullable<Target>) {
+  try {
+    localStorage.setItem(LAST_TARGET_KEY, JSON.stringify(t));
+  } catch {
+    /* ignora */
+  }
+}
 
 export function LancarPage() {
   const navigate = useNavigate();
@@ -34,10 +51,13 @@ export function LancarPage() {
   const [description, setDescription] = useState('');
   const [paidOverride, setPaidOverride] = useState<boolean | null>(null);
   const [forUser, setForUser] = useForWhom();
-  // Mesmo id em reenvios do mesmo formulário: a API não duplica o lançamento.
-  const [uuid] = useState(clientUuid);
+  const [uuid, setUuid] = useState(clientUuid);
+  const again = useRef(false);
+  const dateRef = useRef<HTMLInputElement>(null);
 
   const cats = useApi<Category[]>(`/categories?kind=${kind}`);
+  const frequent = useApi<Category[]>(`/categories/frequent?kind=${kind}`);
+  const sugg = useApi<{ description: string; category_id: number | null }[]>(`/transactions/suggestions?kind=${kind}`);
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
   const cards = useApi<Card[]>('/cards');
 
@@ -45,6 +65,9 @@ export function LancarPage() {
   const effectiveMode: Mode = kind === 'income' && mode === 'installment' ? 'single' : mode;
 
   const defaultTarget: Target = useMemo(() => {
+    const last = readLastTarget();
+    if (last?.type === 'card' && kind === 'expense' && cards.data?.some((c) => c.id === last.id)) return last;
+    if (last?.type === 'account' && accounts.data?.accounts.some((a) => a.id === last.id)) return last;
     if (kind === 'expense' && cards.data?.length) return { type: 'card', id: cards.data[0].id };
     if (accounts.data?.accounts.length) return { type: 'account', id: accounts.data.accounts[0].id };
     return null;
@@ -94,15 +117,38 @@ export function LancarPage() {
       return (await api('/transactions', { body: { ...base, kind, amount_cents: amount, occurred_on: date, paid: chosen.type === 'account' ? paid : undefined, client_uuid: uuid } })).xp;
     },
     (xp) => {
+      if (chosen) rememberTarget(chosen);
       celebrate(xp, kind === 'income' ? 'Receita lançada' : 'Despesa lançada');
-      back();
+      if (again.current) {
+        again.current = false;
+        setAmount(null);
+        setDescription('');
+        setCategoryId(null);
+        setUuid(clientUuid());
+      } else {
+        back();
+      }
     },
   );
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
+    again.current = false;
     submit.mutate(undefined);
   };
+
+  const canSubmit = !!totalCents && !!chosen && !(effectiveMode === 'installment' && (!countOk || installments == null || totalCents < installments)) && !submit.isPending;
+  const yesterday = addDays(today, -1);
+  const openPicker = () => {
+    const el = dateRef.current;
+    if (!el) return;
+    try {
+      el.showPicker();
+    } catch {
+      el.focus();
+    }
+  };
+  const targetName = chosen?.type === 'card' ? cards.data?.find((c) => c.id === chosen.id)?.name : chosen?.type === 'account' ? accounts.data?.accounts.find((a) => a.id === chosen.id)?.name : undefined;
 
   const noTargets = accounts.data && cards.data && !accounts.data.accounts.length && !(kind === 'expense' && cards.data.length);
 
@@ -128,7 +174,7 @@ export function LancarPage() {
             ['income', 'Receita'],
           ]}
         />
-        <MoneyInput big value={amount} onChange={setAmount} label={effectiveMode === 'installment' ? (perInstallment ? 'Cada parcela' : 'Valor total') : 'Valor'} />
+        <MoneyInput big autoFocus value={amount} onChange={setAmount} label={effectiveMode === 'installment' ? (perInstallment ? 'Cada parcela' : 'Valor total') : 'Valor'} />
 
         <div className="chips" role="radiogroup" aria-label="Tipo">
           {(
@@ -189,6 +235,18 @@ export function LancarPage() {
           </section>
         )}
 
+        {frequent.data && frequent.data.length > 0 && (
+          <>
+            <small>Mais usadas</small>
+            <div className="chips" role="radiogroup" aria-label="Categorias mais usadas">
+              {frequent.data.slice(0, 5).map((c) => (
+                <button key={c.id} type="button" role="radio" aria-checked={categoryId === c.id} className={`chip sm${categoryId === c.id ? ' on' : ''}`} onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <CategoryPicker
           categories={cats.data}
           value={categoryId}
@@ -218,13 +276,32 @@ export function LancarPage() {
         </div>
         {noTargets && <p className="err">Cadastre uma conta em Mais → Contas antes de lançar.</p>}
 
+        <div className="chips" role="radiogroup" aria-label="Data rápida">
+          <button type="button" role="radio" aria-checked={date === today} className={`chip sm${date === today ? ' on' : ''}`} onClick={() => setDate(today)}>Hoje</button>
+          <button type="button" role="radio" aria-checked={date === yesterday} className={`chip sm${date === yesterday ? ' on' : ''}`} onClick={() => setDate(yesterday)}>Ontem</button>
+          <button type="button" role="radio" aria-checked={date !== today && date !== yesterday} className={`chip sm${date !== today && date !== yesterday ? ' on' : ''}`} onClick={openPicker}>Outra</button>
+        </div>
         <label className="f" style={{ flex: 'none' }}>
           <span>{effectiveMode === 'fixed' ? 'Primeira data' : effectiveMode === 'installment' ? 'Data da compra' : 'Data'}</span>
-          <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} required />
+          <input ref={dateRef} type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} required />
         </label>
         <label className="f" style={{ flex: 'none' }}>
           <span>Descrição</span>
-          <input placeholder="Opcional" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} />
+          <input
+            list="desc-sugg"
+            placeholder="Opcional"
+            value={description}
+            maxLength={120}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDescription(value);
+              const match = sugg.data?.find((s) => s.description === value);
+              if (match && categoryId == null && match.category_id != null) setCategoryId(match.category_id);
+            }}
+          />
+          <datalist id="desc-sugg">
+            {sugg.data?.map((s) => <option key={s.description} value={s.description} />)}
+          </datalist>
         </label>
         {chosen?.type === 'account' && (
           <label className="toggle">
@@ -240,9 +317,30 @@ export function LancarPage() {
           </div>
         )}
         <ErrorText error={submit.error ?? createCategory.error} />
-        <button className="btn big" style={{ marginTop: 'auto' }} disabled={!totalCents || !chosen || (effectiveMode === 'installment' && (!countOk || installments == null || totalCents < installments)) || submit.isPending}>
-          Lançar
-        </button>
+        {chosen && targetName && (
+          <div className="dest-line">
+            <BankMark name={targetName} size={20} />
+            <span>
+              {kind === 'income' ? 'Entra em ' : 'Sai de '}
+              <b>{targetName}</b>
+              {chosen.type === 'card' ? ' (cartão)' : ''}
+            </span>
+          </div>
+        )}
+        <div className="row" style={{ gap: 8, marginTop: 'auto' }}>
+          <button type="submit" className="btn big grow" disabled={!canSubmit}>Lançar</button>
+          <button
+            type="button"
+            className="btn big ghost"
+            disabled={!canSubmit}
+            onClick={() => {
+              again.current = true;
+              submit.mutate(undefined, { onError: () => { again.current = false; } });
+            }}
+          >
+            Lançar e novo
+          </button>
+        </div>
       </form>
     </div>
   );

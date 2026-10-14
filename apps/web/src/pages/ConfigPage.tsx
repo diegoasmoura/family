@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { api, useAction, useApi, type Me } from '../api';
 import { canUsePasskey, forgetLocalPasskey, registerPasskey, savedPasskeyId } from '../passkey';
 import { useAppState } from '../state';
-import { ErrorText, Loading, Sheet } from '../ui';
+import { ErrorText, Icon, Loading, Sheet } from '../ui';
+import type { HouseUser } from '../types';
 
 const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Rio_Branco', 'America/Noronha'];
 
@@ -44,12 +45,14 @@ export function ConfigPage({ me }: { me: Me }) {
   const { toast } = useAppState();
   const admin = me.role === 'admin';
   const household = useApi('/households/me');
-  const users = useApi<any[]>('/users');
+  const users = useApi<HouseUser[]>('/users');
   const [name, setName] = useState<string | null>(null);
   const [tz, setTz] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'member' });
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '' });
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [resetFor, setResetFor] = useState<{ id: number; name: string } | null>(null);
   const [resetPassword, setResetPassword] = useState('');
 
@@ -115,15 +118,25 @@ export function ConfigPage({ me }: { me: Me }) {
         <b>Trocar senha</b>
         <label className="f">
           <span>Senha atual</span>
-          <input type="password" autoComplete="current-password" value={passwordForm.current_password} onChange={(e) => setPasswordForm((f) => ({ ...f, current_password: e.target.value }))} />
+          <span className="pw">
+            <input type={showPw ? 'text' : 'password'} autoComplete="current-password" value={passwordForm.current_password} onChange={(e) => setPasswordForm((f) => ({ ...f, current_password: e.target.value }))} />
+            <button type="button" className="ic" aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'} onClick={() => setShowPw((s) => !s)}>
+              {showPw ? <Icon.eyeOff /> : <Icon.eye />}
+            </button>
+          </span>
         </label>
         <label className="f">
           <span>Nova senha</span>
-          <input type="password" minLength={8} autoComplete="new-password" value={passwordForm.new_password} onChange={(e) => setPasswordForm((f) => ({ ...f, new_password: e.target.value }))} />
+          <input type={showPw ? 'text' : 'password'} minLength={8} autoComplete="new-password" value={passwordForm.new_password} onChange={(e) => setPasswordForm((f) => ({ ...f, new_password: e.target.value }))} />
         </label>
+        <label className="f">
+          <span>Repita a nova senha</span>
+          <input type={showPw ? 'text' : 'password'} value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
+        </label>
+        {confirmPw !== '' && confirmPw !== passwordForm.new_password && <p className="err">As senhas não conferem.</p>}
         <button
           className="btn block"
-          disabled={changePassword.isPending || passwordForm.new_password.length < 8 || !passwordForm.current_password}
+          disabled={changePassword.isPending || passwordForm.new_password.length < 8 || !passwordForm.current_password || confirmPw !== passwordForm.new_password}
           onClick={() => changePassword.mutate(undefined)}
         >
           Salvar senha
@@ -216,7 +229,12 @@ export function ConfigPage({ me }: { me: Me }) {
             </label>
             <label className="f">
               <span>Senha inicial</span>
-              <input name="member-password" type="password" minLength={8} enterKeyHint="done" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required autoComplete="new-password" />
+              <span className="pw">
+                <input name="member-password" type={showPw ? 'text' : 'password'} minLength={8} enterKeyHint="done" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required autoComplete="new-password" />
+                <button type="button" className="ic" aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'} onClick={() => setShowPw((s) => !s)}>
+                  {showPw ? <Icon.eyeOff /> : <Icon.eye />}
+                </button>
+              </span>
             </label>
             <label className="f">
               <span>Permissão</span>

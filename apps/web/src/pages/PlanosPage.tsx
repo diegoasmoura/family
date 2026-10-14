@@ -4,8 +4,10 @@ import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
 import { useAppState } from '../state';
 import { Bar, Confirm, ErrorText, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
+import { useConfirm } from '../useConfirm';
+import type { InstallmentPlan, Recurrence } from '../types';
 
-function RecurrenceForm({ rec, onClose }: { rec: any; onClose: () => void }) {
+function RecurrenceForm({ rec, onClose }: { rec: Recurrence; onClose: () => void }) {
   const { today, toast } = useAppState();
   const [form, setForm] = useState({ description: rec.description, amount_cents: rec.amount_cents as number | null, day_of_month: rec.day_of_month });
   const [endMonth, setEndMonth] = useState(monthOf(today));
@@ -30,7 +32,9 @@ function RecurrenceForm({ rec, onClose }: { rec: any; onClose: () => void }) {
       onClose();
     },
   );
+  const { confirm, dialog } = useConfirm();
   return (
+    <>
     <Sheet title={rec.description} onClose={onClose}>
       <form
         className="stack"
@@ -60,22 +64,42 @@ function RecurrenceForm({ rec, onClose }: { rec: any; onClose: () => void }) {
             <span>Último mês</span>
             <input type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} />
           </label>
-          <button className="btn ghost" onClick={() => end.mutate(undefined)} disabled={!endMonth}>
+          <button
+            className="btn ghost"
+            onClick={() =>
+              confirm(
+                `Encerrar “${rec.description}” em ${monthLabel(endMonth).toLowerCase()}? Os previstos depois disso que você não editou à mão serão apagados.`,
+                () => end.mutate(undefined),
+                false,
+              )
+            }
+            disabled={!endMonth}
+          >
             Encerrar
           </button>
         </div>
       </section>
-      <button className="btn danger block" onClick={() => remove.mutate(undefined)}>
+      <button
+        className="btn danger block"
+        onClick={() =>
+          confirm(
+            `Excluir a fixa “${rec.description}”? Os previstos a partir deste mês somem; o que já aconteceu fica.`,
+            () => remove.mutate(undefined),
+          )
+        }
+      >
         Excluir fixa
       </button>
       <ErrorText error={save.error ?? end.error ?? remove.error} />
     </Sheet>
+    {dialog}
+    </>
   );
 }
 
 export function RecorrenciasPage() {
-  const q = useApi<any[]>('/recurrences');
-  const [editing, setEditing] = useState<any>(null);
+  const q = useApi<Recurrence[]>('/recurrences');
+  const [editing, setEditing] = useState<Recurrence | null>(null);
   const group = (kind: string) => (q.data ?? []).filter((r) => r.kind === kind);
   return (
     <main className="page">
@@ -114,10 +138,10 @@ export function RecorrenciasPage() {
 
 export function ParcelamentosPage() {
   const { toast } = useAppState();
-  const q = useApi<any[]>('/installments');
-  const [confirm, setConfirm] = useState<{ plan: any; action: 'cancel' | 'delete' } | null>(null);
+  const q = useApi<InstallmentPlan[]>('/installments');
+  const [confirm, setConfirm] = useState<{ plan: InstallmentPlan; action: 'cancel' | 'delete' } | null>(null);
   const act = useAction(
-    ({ plan, action }: { plan: any; action: 'cancel' | 'delete' }) =>
+    ({ plan, action }: { plan: InstallmentPlan; action: 'cancel' | 'delete' }) =>
       action === 'cancel' ? api(`/installments/${plan.id}/cancel`, { body: {} }) : api(`/installments/${plan.id}`, { method: 'DELETE' }),
     (_r, v) => {
       toast(v.action === 'cancel' ? 'Parcelas restantes canceladas' : 'Parcelamento excluído');

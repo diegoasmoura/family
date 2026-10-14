@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { monthLabel } from '@fin/domain';
+import { addMonths, monthLabel } from '@fin/domain';
+import { useSwipe } from '../useSwipe';
 import { useApi, type Tx } from '../api';
 import { BankMark, bankByName } from '../banks';
 import { paintColor } from '../categories';
@@ -62,7 +63,6 @@ function SummarySheet({ kind, summary, month, onClose }: { kind: Kind; summary: 
         {row('Vencidas', s.overdue)}
         {row(income ? 'Distantes do recebimento' : 'Distantes do vencimento', s.planned)}
         {row(income ? 'Não recebidas' : 'Não pagas', s.unpaid)}
-        {!income && row('Cartões de crédito', s.cards)}
       </section>
       <section className="card">
         <h2>Recorrência</h2>
@@ -250,22 +250,35 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
   );
 }
 
+type Situation = 'all' | 'pending' | 'overdue' | 'paid';
+
 export function LancamentosPage() {
   const { month, setMonth, person } = useAppState();
   const [params, setParams] = useSearchParams();
   const kind: Kind = params.get('tipo') === 'receitas' ? 'income' : 'expense';
   const [search, setSearch] = useState<string | null>(null);
+  const [situation, setSituation] = useState<Situation>('all');
   const [selected, setSelected] = useState<{ id: number; mode: TxSheetMode } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const q = useApi(`/transactions?month=${month}&kind=${kind}&person=${personParam(person)}`);
   const income = kind === 'income';
+  const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
+
+  const matchTx = (t: Tx) =>
+    situation === 'all' ||
+    (situation === 'paid' ? t.display_status === 'paid' : situation === 'overdue' ? t.display_status === 'overdue' : t.display_status !== 'paid');
+  const matchInvoice = (inv: InvoiceRow) =>
+    situation === 'all' ||
+    (situation === 'paid' ? inv.state === 'paid' : situation === 'overdue' ? inv.state === 'overdue' : inv.state !== 'paid');
 
   const items: Tx[] = useMemo(() => {
     const list: Tx[] = q.data?.items ?? [];
-    if (!search) return list;
-    const s = search.toLowerCase();
-    return list.filter((t) => [t.description, t.category_name, t.parent_category_name, t.account_name, t.card_name].some((v) => v?.toLowerCase().includes(s)));
-  }, [q.data, search]);
+    const searched = !search ? list : list.filter((t) => {
+      const s = search.toLowerCase();
+      return [t.description, t.category_name, t.parent_category_name, t.account_name, t.card_name].some((v) => v?.toLowerCase().includes(s));
+    });
+    return searched.filter(matchTx);
+  }, [q.data, search, situation]);
   const groups = useMemo(() => {
     const order: string[] = [];
     const map = new Map<string, Tx[]>();
@@ -280,13 +293,13 @@ export function LancamentosPage() {
     for (const list of map.values()) list.sort(byDue);
     return order.map((name) => ({ name, items: map.get(name)! }));
   }, [items]);
-  const invoices: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
+  const invoices: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []).filter(matchInvoice);
   const current =
     selected &&
     [...items, ...invoices.flatMap((inv) => (inv.lines ?? []).flatMap((l) => (l.kind === 'other' ? [] : [l.tx])))].find((t) => t.id === selected.id);
 
   return (
-    <main className="page lanc">
+    <main className="page lanc" {...swipe}>
       <div className="hd">
         <h1>Lançamentos</h1>
         <div className="row">
@@ -302,10 +315,24 @@ export function LancamentosPage() {
       <Seg
         label="Tipo de lançamento"
         value={kind}
-        onChange={(k) => setParams(k === 'income' ? { tipo: 'receitas' } : {})}
+        onChange={(k) => {
+          setSituation('all');
+          setParams(k === 'income' ? { tipo: 'receitas' } : {});
+        }}
         options={[
           ['expense', 'Despesas'],
           ['income', 'Receitas'],
+        ]}
+      />
+      <Seg
+        label="Situação"
+        value={situation}
+        onChange={setSituation}
+        options={[
+          ['all', 'Todos'],
+          ['pending', income ? 'A receber' : 'A pagar'],
+          ['overdue', 'Vencidos'],
+          ['paid', income ? 'Recebidos' : 'Pagos'],
         ]}
       />
       {search !== null && (
@@ -331,6 +358,9 @@ export function LancamentosPage() {
               <b className="num">{brl(q.data.pending_cents + (income ? 0 : q.data.invoices.reduce((a: number, i: any) => a + i.remaining_cents, 0)))}</b>
             </div>
           </div>
+          {!income && person !== 'all' && (
+            <small>No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga (veja em Cartões).</small>
+          )}
 
           <div className="ledger">
             {invoices.map((inv) => (
@@ -366,7 +396,7 @@ export function LancamentosPage() {
               </section>
             ))}
             {items.length === 0 && invoices.length === 0 && (
-              <p className="empty">{search ? 'Nada encontrado.' : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
+              <p className="empty">{situation !== 'all' ? 'Nada nesta situação.' : search ? 'Nada encontrado.' : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
             )}
           </div>
         </>

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Db } from '@fin/db';
-import { relatedColor } from '@fin/domain';
+import { addDays, relatedColor } from '@fin/domain';
 import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, owned, parse, update, zFlag, zId, zUuid, type Ctx } from '../core';
 
 type Kind = 'income' | 'expense';
@@ -81,6 +81,20 @@ export function categoriesRouter(): Router {
     }
     if (req.query.archived !== '1') where += ' AND archived = 0';
     res.json(await req.ctx.db.all(`SELECT * FROM categories WHERE ${where} ORDER BY sort_order, name`, params));
+  });
+
+  r.get('/frequent', async (req, res) => {
+    const kind = parse(z.enum(['income', 'expense']), req.query.kind);
+    const since = addDays(req.ctx.today, -90);
+    const rows = await req.ctx.db.all(
+      `SELECT c.id, c.name, c.parent_id, c.color, c.icon, COUNT(*) AS uses
+         FROM transactions t JOIN categories c ON c.id = t.category_id
+        WHERE t.household_id = ? AND t.kind = ? AND t.deleted_at IS NULL AND c.archived = 0 AND c.deleted_at IS NULL
+          AND t.occurred_on >= ?
+        GROUP BY c.id, c.name, c.parent_id, c.color, c.icon ORDER BY uses DESC, c.name LIMIT 5`,
+      [req.ctx.householdId, kind, since],
+    );
+    res.json(rows);
   });
 
   r.post('/', async (req, res) => {

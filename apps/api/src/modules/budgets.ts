@@ -48,11 +48,13 @@ export function budgetsRouter(): Router {
       spent_cents: spent.get(c.id) ?? 0,
     }));
     const budgeted = items.filter((i) => i.planned_cents != null);
+    const budgetedIds = new Set(budgeted.map((i) => i.category_id));
+    const top = budgeted.filter((i) => i.parent_id == null || !budgetedIds.has(i.parent_id));
     res.json({
       month,
       items,
-      planned_cents: budgeted.reduce((a, i) => a + (i.planned_cents ?? 0), 0),
-      spent_cents: budgeted.reduce((a, i) => a + i.spent_cents, 0),
+      planned_cents: top.reduce((a, i) => a + (i.planned_cents ?? 0), 0),
+      spent_cents: top.reduce((a, i) => a + i.spent_cents, 0),
     });
   });
 
@@ -156,10 +158,22 @@ export function goalsRouter(): Router {
 
   r.patch('/:id', async (req, res) => {
     const id = idParam(req.params.id);
-    await owned(req.ctx, 'goals', id, 'Meta');
-    const body = parse(goalBody.partial().omit({ client_uuid: true }), req.body);
-    await update(req.ctx.db, 'goals', id, { ...body, updated_at: nowIso() });
-    res.json(decorate(await req.ctx.db.get('SELECT * FROM goals WHERE id = ?', [id])));
+    const goal = await owned<any>(req.ctx, 'goals', id, 'Meta');
+    const body = parse(goalBody.partial().omit({ client_uuid: true, saved_cents: true }), req.body);
+    const target = body.target_cents ?? num(goal.target_cents);
+    const saved = num(goal.saved_cents);
+    const reached = saved >= target;
+    const result = await req.ctx.db.tx(async (db) => {
+      const ctx = { ...req.ctx, db };
+      await update(db, 'goals', id, {
+        ...body,
+        completed_at: reached ? (goal.completed_at ?? nowIso()) : null,
+        updated_at: nowIso(),
+      });
+      const xp = reached && !goal.completed_at ? await awardXp(ctx, 'goal_done', XP_VALUES.goal_done, { refId: id, refKey: `goal:${id}` }) : null;
+      return { xp };
+    });
+    res.json({ ...decorate(await req.ctx.db.get('SELECT * FROM goals WHERE id = ?', [id])), xp: result.xp });
   });
 
   /** Guardar (valor positivo) ou retirar (negativo). Bater a meta dá XP uma vez. */

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { daysInMonth } from '@fin/domain';
+import { addDays, addMonths, daysInMonth } from '@fin/domain';
+import { useSwipe } from '../useSwipe';
 import { useApi, type Tx } from '../api';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
@@ -44,6 +45,7 @@ export function CalendarioPage() {
   const [txId, setTxId] = useState<number | null>(null);
   const cal = useApi<Calendar>(`/calendar?month=${month}&person=${personParam(person)}`);
   const tx = useApi<Tx>(txId ? `/transactions/${txId}` : null);
+  const swipe = useSwipe(() => { setMonth(addMonths(month, -1)); setDay(null); }, () => { setMonth(addMonths(month, 1)); setDay(null); });
   const data = cal.data;
   const days = data ? daysInMonth(month) : 0;
   const lead = data ? mondayIndex(`${month}-01`) : 0;
@@ -64,9 +66,14 @@ export function CalendarioPage() {
     const name = data?.people.find((p) => p.id === item.for_user_id)?.name;
     return name ? firstName(name) : 'Outra pessoa';
   };
+  const items = data?.items ?? [];
+  const late = new Set(items.filter((i) => i.status === 'planned' && i.day < today).map((i) => i.day));
+  const soon = month === today.slice(0, 7)
+    ? items.filter((i) => i.status === 'planned' && i.day >= today && i.day <= addDays(today, 7)).sort((a, b) => a.day.localeCompare(b.day) || a.key.localeCompare(b.key))
+    : [];
 
   return (
-    <main className="page">
+    <main className="page" {...swipe}>
       <div className="hd">
         <div>
           <h1>Calendário</h1>
@@ -94,7 +101,7 @@ export function CalendarioPage() {
               <button
                 key={date}
                 type="button"
-                className={`cal-day${date === today ? ' today' : ''}`}
+                className={`cal-day${date === today ? ' today' : ''}${late.has(date) ? ' late' : ''}`}
                 onClick={() => setDay(date)}
               >
                 <span>{i + 1}</span>
@@ -107,6 +114,23 @@ export function CalendarioPage() {
             );
           })}
         </div>
+      )}
+      {soon.length > 0 && (
+        <section className="card">
+          <h2>Próximos 7 dias</h2>
+          <div className="list">
+            {soon.map((item) => (
+              <button key={item.key} type="button" className="r" style={{ minHeight: 52 }} onClick={() => setDay(item.day)}>
+                <i className="cal-who" style={{ background: colorOf(item) }} />
+                <div className="m">
+                  <span className="t">{item.description}</span>
+                  <small>{dayLabel(item.day)} · {labelOf(item)}</small>
+                </div>
+                <b className={`num${item.kind === 'income' ? ' pos' : ''}`}>{brl(item.amount_cents)}</b>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {day && (
