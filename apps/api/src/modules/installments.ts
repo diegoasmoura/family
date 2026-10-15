@@ -169,6 +169,8 @@ export function installmentsRouter(): Router {
         from_installment: z.number().int().min(1).max(480),
         amount_cents: zCents.optional(),
         day_of_month: z.number().int().min(1).max(31).optional(),
+        /** O dia novo entra também nas parcelas seguintes já pagas. O valor delas fica. */
+        include_settled: z.boolean().optional(),
       }),
       req.body,
     );
@@ -196,13 +198,16 @@ export function installmentsRouter(): Router {
         const current = row.installment_no === body.from_installment;
         const paidAccount = row.account_id != null && row.paid_on != null;
         const pastCard = row.card_id != null && row.competence_month < currentMonth;
-        if (!current && (paidAccount || pastCard)) continue;
+        const skipAmount = !current && (paidAccount || pastCard);
+        const moveDay = body.day_of_month !== undefined && !row.card_id && (!skipAmount || body.include_settled);
+        if (skipAmount && !moveDay) continue;
         const patch: Record<string, unknown> = { updated_at: now, overridden: 1 };
-        if (body.amount_cents !== undefined) patch.amount_cents = body.amount_cents;
-        if (body.day_of_month !== undefined) {
+        if (body.amount_cents !== undefined && !skipAmount) patch.amount_cents = body.amount_cents;
+        if (moveDay && body.day_of_month !== undefined) {
           const date = dateInMonth(row.competence_month, body.day_of_month);
           patch.occurred_on = date;
           patch.due_on = date;
+          if (row.paid_on) patch.paid_on = date;
         }
         await update(db, 'transactions', row.id, patch);
         count += 1;

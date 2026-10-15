@@ -294,6 +294,43 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(oct).toBeTruthy();
     });
 
+    it('o dia de pagamento desta ocorrência e das seguintes muda, inclusive nas já pagas', async () => {
+      const { recurrence } = await ok(
+        await agent.post('/api/recurrences').send({ kind: 'income', description: 'Salário', amount_cents: 100000, account_id: ids.bradesco, day_of_month: 15, start_month: '2026-09' }),
+        201,
+      );
+      const rows = await db.all<{ id: number; competence_month: string }>('SELECT id, competence_month FROM transactions WHERE recurrence_id = ? ORDER BY competence_month', [
+        recurrence.id,
+      ]);
+      const september = rows.find((row) => row.competence_month === '2026-09');
+      const october = rows.find((row) => row.competence_month === '2026-10');
+      await ok(await agent.post(`/api/transactions/${september!.id}/pay`).send({ paid_on: '2026-09-15' }));
+      await ok(await agent.post(`/api/transactions/${october!.id}/pay`).send({ paid_on: '2026-10-15' }));
+      await ok(await agent.patch(`/api/recurrences/${recurrence.id}`).send({ day_of_month: 20, from_month: '2026-10', include_settled: true }));
+      const after = await db.all('SELECT competence_month, due_on, paid_on FROM transactions WHERE recurrence_id = ? AND deleted_at IS NULL ORDER BY competence_month', [
+        recurrence.id,
+      ]);
+      expect(after.map((row) => [row.competence_month, row.due_on, row.paid_on])).toEqual([
+        ['2026-09', '2026-09-15', '2026-09-15'],
+        ['2026-10', '2026-10-20', '2026-10-20'],
+        ['2026-11', '2026-11-20', null],
+        ['2026-12', '2026-12-20', null],
+      ]);
+    });
+
+    it('excluir este mês da fixa e os seguintes preserva os anteriores e para de gerar', async () => {
+      const { recurrence } = await ok(
+        await agent.post('/api/recurrences').send({ kind: 'expense', description: 'Academia', amount_cents: 9000, account_id: ids.bradesco, day_of_month: 5, start_month: '2026-09' }),
+        201,
+      );
+      const removed = await ok(await agent.post(`/api/recurrences/${recurrence.id}/delete-from`).send({ from_month: '2026-10' }));
+      expect(removed.deleted).toBeGreaterThan(0);
+      expect(removed.recurrence.end_month).toBe('2026-09');
+      await agent.get('/api/transactions?month=2027-01&kind=expense');
+      const rows = await db.all('SELECT competence_month FROM transactions WHERE recurrence_id = ? AND deleted_at IS NULL ORDER BY competence_month', [recurrence.id]);
+      expect(rows.map((row) => row.competence_month)).toEqual(['2026-09']);
+    });
+
     it('editar a data de uma ocorrência muda o vencimento só no mesmo mês', async () => {
       const { recurrence } = await ok(
         await agent.post('/api/recurrences').send({ kind: 'income', description: 'Salário', amount_cents: 100000, account_id: ids.bradesco, day_of_month: 30, start_month: '2026-10' }),
@@ -445,6 +482,14 @@ describe.each(targets)('API (%s)', (dialect, url) => {
         [1, 7000, '2026-10-15'],
         [2, 8000, '2026-11-15'],
         [3, 7000, '2026-12-15'],
+      ]);
+
+      await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, day_of_month: 20, include_settled: true }));
+      const moved = await db.all('SELECT installment_no, amount_cents, due_on, paid_on FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
+      expect(moved.map((r) => [r.installment_no, Number(r.amount_cents), r.due_on, r.paid_on])).toEqual([
+        [1, 7000, '2026-10-20', '2026-10-20'],
+        [2, 8000, '2026-11-20', '2026-11-20'],
+        [3, 7000, '2026-12-20', null],
       ]);
     });
 

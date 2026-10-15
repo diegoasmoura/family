@@ -178,8 +178,9 @@ export function recurrencesRouter(): Router {
   });
 
   /**
-   * Mudanças valem para as ocorrências futuras ainda não efetivadas e não
-   * editadas à mão. O que já aconteceu não muda.
+   * Valor, nome e categoria seguem para as ocorrências ainda não efetivadas.
+   * Com `include_settled`, o dia de pagamento também entra nas que já foram pagas:
+   * muda o dia dentro de cada mês, sem trocar o mês.
    */
   r.patch('/:id', async (req, res) => {
     const id = idParam(req.params.id);
@@ -192,17 +193,19 @@ export function recurrencesRouter(): Router {
         day_of_month: z.number().int().min(1).max(31).optional(),
         end_month: zMonth.nullable().optional(),
         for_user_id: zId.nullable().optional(),
-        /** Aplica a mudança às ocorrências a partir deste mês (nunca antes do mês atual). */
+        /** Aplica a mudança a partir deste mês. Sem isso, vale do mês de hoje em diante. */
         from_month: zMonth.optional(),
+        /** O dia novo entra também nas ocorrências já pagas ou recebidas. */
+        include_settled: z.boolean().optional(),
       }),
       req.body,
     );
-    const { from_month, ...changes } = body;
+    const { from_month, include_settled, ...changes } = body;
     if (changes.category_id !== undefined) await assertCategory(req.ctx, changes.category_id, rec.kind);
     if (changes.for_user_id !== undefined) changes.for_user_id = await assertHouseholdUser(req.ctx, changes.for_user_id);
     if (changes.end_month && changes.end_month < rec.start_month) throw badRequest('O fim precisa ser depois do início');
     const currentMonth = monthOf(req.ctx.today);
-    const fromMonth = from_month && from_month > currentMonth ? from_month : currentMonth;
+    const fromMonth = from_month ?? currentMonth;
 
     await req.ctx.db.tx(async (db) => {
       const ctx = { ...req.ctx, db };
@@ -228,6 +231,22 @@ export function recurrencesRouter(): Router {
           updated_at: nowIso(),
         });
       }
+      if (include_settled && changes.day_of_month && !next.card_id) {
+        const settled = await db.all<{ id: number; competence_month: string; paid_on: string | null }>(
+          `SELECT id, competence_month, paid_on FROM transactions
+            WHERE recurrence_id = ? AND deleted_at IS NULL AND competence_month >= ?`,
+          [id, fromMonth],
+        );
+        for (const occ of settled) {
+          const date = dateInMonth(occ.competence_month, changes.day_of_month);
+          await update(db, 'transactions', occ.id, {
+            occurred_on: date,
+            due_on: date,
+            ...(occ.paid_on ? { paid_on: date } : {}),
+            updated_at: nowIso(),
+          });
+        }
+      }
       await ensureRecurrences(ctx, fromMonth, id);
     });
     res.json(await req.ctx.db.get(`${SELECT} WHERE r.id = ?`, [id]));
@@ -250,6 +269,31 @@ export function recurrencesRouter(): Router {
       );
     });
     res.json(await req.ctx.db.get(`${SELECT} WHERE r.id = ?`, [id]));
+  });
+
+  /** Apaga esta ocorrência e as seguintes, pagas ou não, e para de gerar. As anteriores ficam. */
+  r.post('/:id/delete-from', async (req, res) => {
+    const id = idParam(req.params.id);
+    const rec = await owned<Recurrence>(req.ctx, 'recurrences', id, 'Recorrência');
+    const body = parse(z.object({ from_month: zMonth }), req.body);
+    if (body.from_month < rec.start_month) throw badRequest('Esse mês é anterior ao início da fixa');
+    const now = nowIso();
+    const previous = addMonths(body.from_month, -1);
+    const removed = await req.ctx.db.tx(async (db) => {
+      const result = await db.run(
+        `UPDATE transactions SET deleted_at = ?, updated_at = ?
+          WHERE recurrence_id = ? AND deleted_at IS NULL AND competence_month >= ?`,
+        [now, now, id, body.from_month],
+      );
+      if (previous < rec.start_month) {
+        await update(db, 'recurrences', id, { deleted_at: now, active: 0, updated_at: now });
+      } else {
+        const currentMonth = monthOf(req.ctx.today);
+        await update(db, 'recurrences', id, { end_month: previous, active: previous < currentMonth ? 0 : 1, updated_at: now });
+      }
+      return result.changes;
+    });
+    res.json({ deleted: num(removed), recurrence: await req.ctx.db.get(`${SELECT} WHERE r.id = ?`, [id]) });
   });
 
   r.delete('/:id', async (req, res) => {

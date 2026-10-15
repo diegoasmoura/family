@@ -216,9 +216,9 @@ Dá para editar descrição, valor, categoria e de quem. Dá para mudar a data d
 
 Não dá para trocar o cartão, nem levar uma compra do cartão para uma conta, nem o contrário. A tela não oferece esses campos. Mudar a data de uma compra avulsa no cartão muda a fatura.
 
-Na fixa e no parcelamento, mudar o valor ou a data pergunta se vale só para esta ou também para as seguintes, quando ainda existem outras. Só esta muda a ocorrência aberta e a série continua igual. Esta e as seguintes atualiza a fixa dali em diante, nunca antes do mês de hoje, e no parcelamento as parcelas seguintes que ainda não foram pagas. As anteriores ficam. O que já foi pago fica. Se a ocorrência aberta já tinha sido editada à mão, a ficha grava essa de novo. Descrição, categoria e de quem mudam só a ocorrência aberta. Excluir uma ocorrência de fixa tira só aquele mês.
+Na fixa e no parcelamento em conta, mudar o valor ou o dia pergunta se vale só para esta ou também para as seguintes, quando ainda existem outras. O campo é o dia de pagamento ou de recebimento, dentro do mês daquela ocorrência: o mês não muda. Só esta muda a ocorrência aberta e a série continua igual. Esta e as seguintes leva o dia para todas as que vêm depois, inclusive as que já foram pagas, e o valor só para as que ainda não foram pagas. As anteriores ficam. Descrição, categoria e de quem mudam só a ocorrência aberta. No cartão a data continua seguindo a fatura.
 
-“Contar na soma” desligado deixa o lançamento na lista e na fatura, e tira do total do mês e do ano. Excluir é lógico: o registro some, o histórico de exclusão fica no banco. Numa parcela, dá para apagar só ela ou ela e as seguintes.
+“Contar na soma” desligado deixa o lançamento na lista e na fatura, e tira do total do mês e do ano. Excluir é lógico: o registro some, o histórico de exclusão fica no banco. Na ficha e no menu de três pontos, fixa e parcela perguntam a mesma coisa: **Só esta** ou **Esta e as seguintes**. Esta e as seguintes apaga a aberta e as posteriores, mesmo as já pagas, e as anteriores ficam. Na fixa, a série para de gerar a partir desse mês. A última parcela, ou o último mês da fixa, só oferece apagar essa.
 
 Marcar pago vale para conta. No cartão ainda previsto, o menu oferece **Confirmada**, não “pago”. Compra de cartão já efetivada não oferece essa marca. A tela não desmarca compra de cartão.
 
@@ -256,7 +256,7 @@ Cada fixa gera um lançamento previsto por mês, até pelo menos dois meses à f
 
 Em conta, a data é o dia escolhido naquele mês. No cartão, a competência é o mês da fatura e a data cai dentro do ciclo.
 
-Nesta tela, editar mexe em valor, descrição e dia. Categoria e “de quem” mudam pela ficha do lançamento. Prevista já editada à mão não é reescrita. Encerrar pede o último mês (padrão o mês de hoje), para de gerar e apaga o previsto futuro que ninguém editou à mão. A fixa encerrada continua na lista, esmaecida. Excluir a fixa apaga o previsto a partir deste mês; o que já aconteceu fica. Não dá para trocar a conta ou o cartão da fixa por esta tela.
+Nesta tela, editar mexe em valor, descrição e dia. Categoria e “de quem” mudam pela ficha do lançamento. Prevista já editada à mão não é reescrita. Encerrar pede o último mês (padrão o mês de hoje), para de gerar e apaga o previsto futuro que ninguém editou à mão. A fixa encerrada continua na lista, esmaecida. Excluir a fixa apaga o previsto a partir deste mês; o que já aconteceu fica. Pela ficha ou pelo menu do lançamento, “Esta e as seguintes” é outra ação: apaga esse mês e os posteriores, pagos ou não, e a série para ali. Não dá para trocar a conta ou o cartão da fixa por esta tela.
 
 ## Parcelamentos
 
@@ -314,7 +314,7 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - No celular os nomes da barra dividem a largura, ficam numa linha em 10px, e o item ativo só muda de cor. No computador o item ativo continua com fundo verde claro.
 - Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, os quatro na mesma linha. A linha “Cartões de crédito” saiu da folha de resumo. No modo Eu, uma nota explica que a compra do cartão entra em Despesas e não em Pago nem em A pagar.
 - Novo lançamento lembra o último destino, tem Hoje, Ontem e Outra, “Lançar e novo”, categorias mais usadas, sugestão de descrição e a linha de onde o valor sai ou entra. No parcelado, Cada parcela começa selecionado, à esquerda de Valor total. No celular, Lançar fica em cima e Lançar e novo embaixo.
-- Na fixa e no parcelamento, mudar valor ou data pergunta “Só esta” ou “Esta e as seguintes” quando ainda há outras. O que já foi pago e as anteriores ficam. Descrição, categoria e de quem mudam só a ocorrência aberta.
+- Na fixa e no parcelamento em conta, mudar o dia pergunta “Só esta” ou “Esta e as seguintes”. O mês fica; o dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Excluir na ficha e no menu usa as mesmas duas opções para a fixa e para a parcela.
 - Cartões mostram “vence em N dias”, o melhor dia de compra, alerta de limite, o valor no botão de pagar e o menu em folha.
 - A visão anual abre com um mês no celular e tem “Ver todos os meses”. Editar um lançamento não joga a rolagem de volta para o mês atual.
 - O calendário lista os próximos 7 dias do mês visto e marca o dia atrasado.

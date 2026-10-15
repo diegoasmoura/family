@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { daysInMonth } from '@fin/domain';
 import { api, useAction, useApi, type Category, type Tx } from './api';
 import { useAppState } from './state';
-import { InstallmentDeleteChoices, type TxSheetMode } from './TxMenu';
+import { FollowingDeleteChoices, deleteChoicesFor, type TxSheetMode } from './TxMenu';
 import { CategoryPicker } from './categories';
 import { ForWhom } from './people';
 import { CategoryTags, ErrorText, MoneyInput, Sheet, brl, shortDate } from './ui';
@@ -48,12 +48,12 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
   const localChanged =
     !amountOnly &&
     ((form.description ?? '') !== (tx.description ?? '') || form.category_id !== tx.category_id || (form.for_user_id ?? null) !== (tx.for_user_id ?? null));
-  const question =
-    amountChanged && dateChanged
-      ? 'O valor e a data podem valer só para esta, ou também para as que vêm depois.'
-      : dateChanged
-        ? 'A data pode valer só para esta, ou também para as que vêm depois.'
-        : 'O valor pode valer só para esta, ou também para as que vêm depois.';
+  const dayName = income ? 'dia de recebimento' : 'dia de pagamento';
+  const question = dateChanged
+    ? amountChanged
+      ? `O ${dayName} pode ir para as seguintes, mesmo as já pagas. O valor novo não mexe no que já foi pago. O mês de cada uma fica.`
+      : `O ${dayName} pode valer só para esta, ou também para as que vêm depois, mesmo as já pagas. O mês de cada uma fica.`
+    : 'O valor pode valer só para esta, ou também para as que vêm depois. O que já foi pago fica.';
 
   const save = (scope: 'one' | 'following') => {
     const body = amountOnly ? { amount_cents: form.amount_cents } : { ...form };
@@ -65,7 +65,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
             method: 'PATCH',
             body: {
               ...(amountChanged ? { amount_cents: form.amount_cents } : {}),
-              ...(dateChanged ? { day_of_month: Number(form.occurred_on.slice(8, 10)) } : {}),
+              ...(dateChanged ? { day_of_month: Number(form.occurred_on.slice(8, 10)), include_settled: true } : {}),
               from_month: tx.competence_month,
             },
           });
@@ -78,7 +78,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
             body: {
               from_installment: tx.installment_no,
               ...(amountChanged ? { amount_cents: form.amount_cents } : {}),
-              ...(dateChanged ? { day_of_month: Number(form.occurred_on.slice(8, 10)) } : {}),
+              ...(dateChanged ? { day_of_month: Number(form.occurred_on.slice(8, 10)), include_settled: true } : {}),
             },
           });
           if (localChanged) {
@@ -143,18 +143,23 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
         )}
       </div>
 
-      {confirmDelete && tx.plan_id ? (
-        <InstallmentDeleteChoices
-          label={tx.installment_label}
+      {confirmDelete && (tx.plan_id || tx.recurrence_id) ? (
+        <FollowingDeleteChoices
+          {...deleteChoicesFor(tx)}
           onClose={() => setConfirmDelete(false)}
           onChoose={(scope) => {
-            if (scope === 'following' && tx.installment_no) {
+            if (scope === 'following' && tx.plan_id && tx.installment_no) {
               run(
                 () => api(`/installments/${tx.plan_id}/delete-from`, { body: { from_installment: tx.installment_no } }),
-                'Esta parcela e as seguintes foram excluídas',
+                'Esta e as seguintes foram excluídas',
+              );
+            } else if (scope === 'following' && tx.recurrence_id) {
+              run(
+                () => api(`/recurrences/${tx.recurrence_id}/delete-from`, { body: { from_month: tx.competence_month } }),
+                'Este mês e os seguintes foram excluídos',
               );
             } else {
-              run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Parcela excluída');
+              run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), tx.plan_id ? 'Parcela excluída' : 'Lançamento excluído');
             }
           }}
         />
@@ -199,7 +204,9 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
           </label>
           <button
             className="btn danger block"
-            onClick={() => (tx.plan_id ? setConfirmDelete(true) : run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Lançamento excluído'))}
+            onClick={() =>
+              tx.plan_id || tx.recurrence_id ? setConfirmDelete(true) : run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Lançamento excluído')
+            }
           >
             Excluir
           </button>
@@ -207,7 +214,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
       ) : ask ? (
         <div className="stack">
           <p style={{ margin: 0, fontWeight: 700 }}>{question}</p>
-          <small>As anteriores ficam. O que já foi pago também fica.</small>
+          <small>{dateChanged ? 'As anteriores ficam. O mês de cada uma continua o mesmo.' : 'As anteriores ficam. O que já foi pago também fica.'}</small>
           <button type="button" className="btn ghost block" disabled={act.isPending} onClick={() => save('one')}>
             Só esta
           </button>
@@ -249,7 +256,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
           )}
           {!amountOnly && !(generated && tx.card_id) && (
             <label className="f">
-              <span>Data</span>
+              <span>{income ? 'Data de recebimento' : 'Data de pagamento'}</span>
               <input
                 type="date"
                 value={form.occurred_on}
@@ -260,7 +267,13 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
               />
             </label>
           )}
-          {Boolean(tx.has_following) && <small>Se o valor ou a data mudar, a tela pergunta se vale só para esta ou também para as seguintes.</small>}
+          {Boolean(tx.has_following) && (
+            <small>
+              {generated && !tx.card_id
+                ? 'Mudar o dia pergunta se vale só para esta ou também para as seguintes. O mês de cada uma fica.'
+                : 'Se o valor ou a data mudar, a tela pergunta se vale só para esta ou também para as seguintes.'}
+            </small>
+          )}
           <div className="row">
             <button type="button" className="btn ghost grow" onClick={() => (mode === 'view' ? setEditing(false) : onClose())}>
               Cancelar

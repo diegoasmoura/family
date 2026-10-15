@@ -12,32 +12,29 @@ function isLastInstallment(label: string | null) {
   return Boolean(current && total && current === total);
 }
 
-/** Pergunta se a exclusão vale só para a parcela aberta ou também para as seguintes. */
-export function InstallmentDeleteChoices({
-  label,
+/** A mesma pergunta na fixa e no parcelamento: só esta, ou esta e as seguintes. */
+export function FollowingDeleteChoices({
+  following,
+  text,
+  lastText,
   onChoose,
   onClose,
 }: {
-  label: string | null;
+  following: boolean;
+  text: string;
+  lastText: string;
   onChoose: (scope: 'one' | 'following') => void;
   onClose: () => void;
 }) {
-  const last = isLastInstallment(label);
   return (
     <>
-      <p style={{ margin: 0, fontWeight: 700 }}>
-        {last
-          ? `Esta é a última parcela${label ? ` (${label})` : ''}. Apagar só ela?`
-          : label
-            ? `A parcela ${label} pode sair sozinha, ou junto com as que vêm depois.`
-            : 'Esta parcela pode sair sozinha, ou junto com as que vêm depois.'}
-      </p>
-      {!last && <small>As parcelas anteriores continuam.</small>}
+      <p style={{ margin: 0, fontWeight: 700 }}>{following ? text : lastText}</p>
+      {following && <small>As anteriores ficam. As seguintes saem, mesmo as que já foram pagas.</small>}
       <div className="stack">
         <button type="button" className="btn ghost block" onClick={() => onChoose('one')}>
-          Só esta parcela
+          Só esta
         </button>
-        {!last && (
+        {following && (
           <button type="button" className="btn danger block" onClick={() => onChoose('following')}>
             Esta e as seguintes
           </button>
@@ -48,6 +45,24 @@ export function InstallmentDeleteChoices({
       </div>
     </>
   );
+}
+
+export function deleteChoicesFor(tx: Tx) {
+  if (tx.plan_id) {
+    const last = isLastInstallment(tx.installment_label);
+    return {
+      following: !last,
+      text: tx.installment_label
+        ? `A parcela ${tx.installment_label} pode sair sozinha, ou junto com as que vêm depois.`
+        : 'Esta parcela pode sair sozinha, ou junto com as que vêm depois.',
+      lastText: `Esta é a última parcela${tx.installment_label ? ` (${tx.installment_label})` : ''}. Apagar só ela?`,
+    };
+  }
+  return {
+    following: Boolean(tx.has_following),
+    text: 'Este mês pode sair sozinho, ou junto com os que vêm depois.',
+    lastText: 'Não há outros meses depois deste. Apagar só este?',
+  };
 }
 
 /** Menu de três pontos de uma linha de lançamento. */
@@ -167,20 +182,25 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
         </div>
       )}
       {confirmDelete &&
-        (tx.plan_id ? (
-          <Sheet title="Excluir parcela" onClose={() => setConfirmDelete(false)}>
-            <InstallmentDeleteChoices
-              label={tx.installment_label}
+        (tx.plan_id || tx.recurrence_id ? (
+          <Sheet title={tx.plan_id ? 'Excluir parcela' : 'Excluir mês da fixa'} onClose={() => setConfirmDelete(false)}>
+            <FollowingDeleteChoices
+              {...deleteChoicesFor(tx)}
               onClose={() => setConfirmDelete(false)}
               onChoose={(scope) => {
                 setConfirmDelete(false);
-                if (scope === 'following' && tx.installment_no) {
+                if (scope === 'following' && tx.plan_id && tx.installment_no) {
                   run(
                     () => api(`/installments/${tx.plan_id}/delete-from`, { body: { from_installment: tx.installment_no } }),
-                    'Esta parcela e as seguintes foram excluídas',
+                    'Esta e as seguintes foram excluídas',
+                  );
+                } else if (scope === 'following' && tx.recurrence_id) {
+                  run(
+                    () => api(`/recurrences/${tx.recurrence_id}/delete-from`, { body: { from_month: tx.competence_month } }),
+                    'Este mês e os seguintes foram excluídos',
                   );
                 } else {
-                  run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), 'Parcela excluída');
+                  run(() => api(`/transactions/${tx.id}`, { method: 'DELETE' }), tx.plan_id ? 'Parcela excluída' : 'Lançamento excluído');
                 }
               }}
             />
@@ -188,11 +208,7 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
         ) : (
           <Confirm
             danger
-            text={
-              tx.recurrence_id
-                ? 'Excluir só este mês? A fixa continua nos outros meses.'
-                : `Excluir ${tx.description || (income ? 'esta receita' : 'esta despesa')}?`
-            }
+            text={`Excluir ${tx.description || (income ? 'esta receita' : 'esta despesa')}?`}
             onClose={() => setConfirmDelete(false)}
             onConfirm={() => {
               setConfirmDelete(false);
