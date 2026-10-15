@@ -816,6 +816,9 @@ function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members
         <button type="button" className="ic eye" aria-pressed={hidden} aria-label={hidden ? "Mostrar valores" : "Ocultar valores"} onClick={onToggle}>
           {hidden ? <Icon.eyeOff /> : <Icon.eye />}
         </button>
+        <Link to="/mais" className="ic" aria-label="Mais">
+          <Icon.more />
+        </Link>
       </div>
     </div>
   );

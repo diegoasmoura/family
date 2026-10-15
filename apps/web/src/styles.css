@@ -283,7 +283,8 @@ nav.tabbar .fab-wrap {
   display: flex;
   justify-content: center;
 }
-nav.tabbar .tab-long {
+nav.tabbar .tab-long,
+nav.tabbar a.desk-only {
   display: none;
 }
 nav.tabbar a.active {
@@ -347,6 +348,9 @@ nav.tabbar svg {
   }
   nav.tabbar .tab-long {
     display: inline;
+  }
+  nav.tabbar a.desk-only {
+    display: flex;
   }
   nav.tabbar a.active {
     background: var(--green-soft);

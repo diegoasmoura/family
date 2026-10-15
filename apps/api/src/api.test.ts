@@ -169,6 +169,33 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(invoice.lines.reduce((a: number, l: any) => a + l.amount_cents, 0)).toBe(invoice.total_cents);
     });
 
+    it('outras compras só diz de quem quando todas são da mesma pessoa', async () => {
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka Silva', email: 'jhersyka@x.com', password: 'senha-segura' }), 201);
+      const users = await ok(await agent.get('/api/users'));
+      const hers = users.find((u: { email: string }) => u.email === 'jhersyka@x.com');
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'A', amount_cents: 100, occurred_on: '2026-09-05', card_id: ids.ultra, for_user_id: me.id }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'B', amount_cents: 200, occurred_on: '2026-09-05', card_id: ids.ultra, for_user_id: hers.id }), 201);
+      const mixed = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense'));
+      expect(mixed.invoices[0].lines.find((l: { kind: string }) => l.kind === 'other')).toEqual({
+        kind: 'other',
+        description: 'Outras compras',
+        count: 2,
+        amount_cents: 300,
+      });
+
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'C', amount_cents: 300, occurred_on: '2026-10-01', card_id: ids.ultra, for_user_id: hers.id }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'D', amount_cents: 400, occurred_on: '2026-10-01', card_id: ids.ultra, for_user_id: hers.id }), 201);
+      const same = await ok(await agent.get('/api/transactions?month=2026-11&kind=expense'));
+      expect(same.invoices[0].lines.find((l: { kind: string }) => l.kind === 'other')).toEqual({
+        kind: 'other',
+        description: 'Outras compras',
+        count: 2,
+        amount_cents: 700,
+        for_user_name: 'Jhersyka',
+      });
+    });
+
     it('é idempotente por client_uuid', async () => {
       const body = { client_uuid: 'offline-123456', kind: 'expense', amount_cents: 500, account_id: ids.bradesco };
       const a = await ok(await agent.post('/api/transactions').send(body), 201);
@@ -196,7 +223,7 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       ]);
       expect(view.invoices).toHaveLength(1);
       expect(view.invoices[0]).toMatchObject({ card_name: 'Ultra', total_cents: 7000, reference_month: '2026-10' });
-      expect(view.invoices[0].lines).toEqual([{ kind: 'other', description: 'Outras compras', count: 1, amount_cents: 7000 }]);
+      expect(view.invoices[0].lines).toEqual([{ kind: 'other', description: 'Outras compras', count: 1, amount_cents: 7000, for_user_name: null }]);
       expect(view.summary).toMatchObject({
         records: 6,
         total_cents: 17000,

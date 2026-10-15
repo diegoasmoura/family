@@ -219,11 +219,17 @@ function summarize(items: any[], kind: Kind) {
  * Compras da fatura: cada parcelamento e cada cobrança fixa numa linha;
  * as avulsas somam em "Outras compras".
  */
+function firstName(name: string | null | undefined): string | null {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return null;
+  return trimmed.split(/\s+/)[0] || null;
+}
+
 export function invoiceLines(txs: any[]) {
   type Tracked = { kind: 'installment' | 'fixed'; tx: any; description: string; label: string; amount_cents: number };
+  type Other = { kind: 'other'; description: string; count: number; amount_cents: number; for_user_name?: string | null };
   const tracked = new Map<string, Tracked>();
-  let otherCount = 0;
-  let otherCents = 0;
+  const loose: any[] = [];
   for (const t of txs) {
     const amount = num(t.amount_cents);
     const description = String(t.description ?? '').trim() || 'Sem descrição';
@@ -238,14 +244,24 @@ export function invoiceLines(txs: any[]) {
       if (prev) prev.amount_cents += amount;
       else tracked.set(key, { kind: 'fixed', tx: t, description, label: 'Fixa', amount_cents: amount });
     } else {
-      otherCount += 1;
-      otherCents += amount;
+      loose.push(t);
     }
   }
-  const lines: (Tracked | { kind: 'other'; description: string; count: number; amount_cents: number })[] = [...tracked.values()].sort(
+  const lines: (Tracked | Other)[] = [...tracked.values()].sort(
     (a, b) => (a.kind === b.kind ? 0 : a.kind === 'installment' ? -1 : 1) || b.amount_cents - a.amount_cents || a.description.localeCompare(b.description),
   );
-  if (otherCount) lines.push({ kind: 'other', description: 'Outras compras', count: otherCount, amount_cents: otherCents });
+  if (loose.length) {
+    const names = loose.map((t) => firstName(t.for_user_name));
+    const same = names.every((name) => name === names[0]);
+    const other: Other = {
+      kind: 'other',
+      description: 'Outras compras',
+      count: loose.length,
+      amount_cents: loose.reduce((sum, t) => sum + num(t.amount_cents), 0),
+    };
+    if (same) other.for_user_name = names[0];
+    lines.push(other);
+  }
   return lines;
 }
 

@@ -15,7 +15,7 @@ type Kind = 'expense' | 'income';
 
 type InvoiceLine =
   | { kind: 'installment' | 'fixed'; tx: Tx; description: string; label: string; amount_cents: number }
-  | { kind: 'other'; description: string; count: number; amount_cents: number };
+  | { kind: 'other'; description: string; count: number; amount_cents: number; for_user_name?: string | null };
 
 interface InvoiceRow {
   id: number;
@@ -87,21 +87,37 @@ function byDue(a: Tx, b: Tx) {
 
 const CHIP_FALLBACK = '#8E9AAF';
 
-function CategoryChips({ tx }: { tx: Pick<Tx, 'parent_category_name' | 'category_name' | 'parent_category_color' | 'category_color'> }) {
+function whoLabel(name: string | null | undefined) {
+  const first = name?.trim().split(/\s+/)[0];
+  return first || 'Da casa';
+}
+
+function WhoChip({ name }: { name: string | null | undefined }) {
+  return (
+    <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
+      {whoLabel(name)}
+    </span>
+  );
+}
+
+function CategoryChips({ tx, who }: { tx: Pick<Tx, 'parent_category_name' | 'category_name' | 'parent_category_color' | 'category_color' | 'for_user_name'>; who?: boolean }) {
   const cols = categoryCols(tx.parent_category_name, tx.category_name);
-  if (!cols.group) return null;
+  if (!cols.group && !who) return null;
   const groupColor = tx.parent_category_color || tx.category_color || CHIP_FALLBACK;
   const subColor = cols.sub ? paintColor(tx.category_color, groupColor, cols.sub) : groupColor;
   return (
     <span className="tx-chips">
-      <span className="tx-chip" style={{ '--chip': groupColor } as CSSProperties}>
-        {cols.group}
-      </span>
+      {cols.group && (
+        <span className="tx-chip" style={{ '--chip': groupColor } as CSSProperties}>
+          {cols.group}
+        </span>
+      )}
       {cols.sub && (
         <span className="tx-chip sub" style={{ '--chip': subColor } as CSSProperties}>
           {cols.sub}
         </span>
       )}
+      {who && <WhoChip name={tx.for_user_name} />}
     </span>
   );
 }
@@ -215,11 +231,14 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
                 <span className="tx-title">
                   <span className="name">{l.description}</span>
                 </span>
-                {l.count > 1 && (
+                {(l.count > 1 || 'for_user_name' in l) && (
                   <span className="tx-chips">
-                    <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
-                      {l.count} compras
-                    </span>
+                    {l.count > 1 && (
+                      <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
+                        {l.count} compras
+                      </span>
+                    )}
+                    {'for_user_name' in l && <WhoChip name={l.for_user_name} />}
                   </span>
                 )}
               </span>
@@ -237,7 +256,7 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
             kicker={l.tx.account_name || inv.card_name}
             title={l.description}
             parcel={l.label}
-            chips={<CategoryChips tx={l.tx} />}
+            chips={<CategoryChips tx={l.tx} who />}
             date={dayLabel(l.tx.due_on ?? l.tx.occurred_on)}
             amount={l.amount_cents}
             dim={!l.tx.include_in_reports}
@@ -371,6 +390,7 @@ export function LancamentosPage() {
                 <PlaceRow
                   name={g.name}
                   detail={(() => {
+                    if (g.items.length && g.items.every((t) => t.card_id)) return `${g.items.length} no cartão`;
                     const pending = g.items.filter((t) => t.include_in_reports && !t.paid_on).length;
                     if (!pending) return income ? 'Recebidas' : 'Pagas';
                     return `${pending} ${income ? 'a receber' : 'a pagar'}`;
@@ -384,8 +404,8 @@ export function LancamentosPage() {
                     statusLabel={t.status_label}
                     kicker={t.account_name || t.card_name || t.parent_category_name || t.category_name || g.name}
                     title={t.description || t.category_name || (income ? 'Receita' : 'Despesa')}
-                    parcel={t.installment_label}
-                    chips={<CategoryChips tx={t} />}
+                    parcel={t.installment_label ?? (t.card_id && t.recurrence_class === 'fixed' ? 'Fixa' : null)}
+                    chips={<CategoryChips tx={t} who={person === 'all'} />}
                     date={dayLabel(t.due_on ?? t.occurred_on)}
                     amount={t.amount_cents}
                     dim={!t.include_in_reports}

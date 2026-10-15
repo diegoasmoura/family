@@ -10,7 +10,7 @@ O corte é **960px** de largura da janela.
 
 ### Celular (até 959px)
 
-A barra fica fixa embaixo, com altura **76px** (`--nav-h`). A ordem é Início, Lançamentos, botão **+** (56×56), Cartões, Ano e Mais. Os cinco itens dividem a largura que sobra depois do **+**. No celular o nome fica curto, em 10px e numa linha: Início, Lançar, Cartão, Ano e Mais. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`.
+A barra fica fixa embaixo, com altura **76px** (`--nav-h`). São cinco itens: Início, Lançamentos, botão **+** (56×56), Cartões e Ano. Os quatro nomes dividem a largura que sobra depois do **+**. No celular o nome fica curto, em 10px e numa linha: Início, Lançar, Cartão e Ano. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`. Mais não entra nessa barra: no Início, o ícone de três pontos fica à direita do olho e abre `/mais`.
 
 O conteúdo fica centralizado.
 
@@ -22,7 +22,7 @@ O conteúdo fica centralizado.
 | Contas, Cartões, Calendário, Mais e as telas de dentro de Mais (`.page`) | 560px | 20px | **520px** | 104px |
 | Novo lançamento | folha em tela cheia, sem coluna `.page` | | | |
 
-No celular, o bloco do Início (saudação, Eu/Nós, saldo, receitas e despesas) tem a **mesma largura útil** que Lançamentos: 528px. O que muda é o miolo. No Início a saudação ocupa a esquerda e o olho fica na direita. Em Lançamentos o título “Lançamentos” fica sozinho na primeira linha, e Eu/Nós é a faixa de baixo, também com 100% da coluna.
+No celular, o bloco do Início (saudação, Eu/Nós, saldo, receitas e despesas) tem a **mesma largura útil** que Lançamentos: 528px. O que muda é o miolo. No Início a saudação ocupa a esquerda; à direita ficam o olho e, ao lado dele, os três pontos de Mais. Em Lançamentos o título “Lançamentos” fica sozinho na primeira linha, e Eu/Nós é a faixa de baixo, também com 100% da coluna.
 
 ### Computador (a partir de 960px)
 
@@ -147,9 +147,9 @@ Os três números:
 - Pago ou Recebido: o que já tem data de pagamento na conta. Compra de cartão não tem essa data, então não entra, mesmo com a fatura paga.
 - A pagar ou A receber: o que ainda não foi pago na conta. Em Nós, nas despesas, soma também o restante das faturas. Em Eu a compra do cartão não entra neste terceiro número: os três podem não fechar.
 
-**Nós, em despesas:** as compras do cartão saem da lista solta e viram um bloco por fatura do mês, antes dos grupos de conta. O cabeçalho é o banco, o estado (Aberta, Fechada, Atrasada, Paga ou Futura) e o total da fatura. Se o pagamento foi parcial, o detalhe acrescenta “falta” e o valor que resta. Dentro, cada parcelamento é uma linha com `2/2`, `1/60` e assim por diante. Cada cobrança fixa do cartão é uma linha com a etiqueta **Fixa**. Compras avulsas do mesmo cartão somam numa linha “Outras compras”, com “N compras” quando há mais de uma; o toque abre o cartão, sem menu. O ajuste da fatura entra nessa linha ou numa linha “Ajuste”. Se a fatura só tem avulsas, a tela mostra só o cabeçalho. A busca não esconde esses blocos: ela só filtra as linhas soltas.
+**Nós, em despesas:** as compras do cartão saem da lista solta e viram um bloco por fatura do mês, antes dos grupos de conta. O cabeçalho é o banco, o estado (Aberta, Fechada, Atrasada, Paga ou Futura) e o total da fatura. Se o pagamento foi parcial, o detalhe acrescenta “falta” e o valor que resta. Dentro, cada parcelamento é uma linha com `2/2`, `1/60` e assim por diante. Cada cobrança fixa do cartão é uma linha com a etiqueta **Fixa**. Compras avulsas do mesmo cartão somam numa linha “Outras compras”, com “N compras” quando há mais de uma; o toque abre o cartão, sem menu. O ajuste da fatura entra nessa linha ou numa linha “Ajuste”. Se a fatura só tem avulsas, a tela mostra só o cabeçalho. A busca não esconde esses blocos: ela só filtra as linhas soltas. Cada linha de conta e cada linha da fatura mostra um chip com o primeiro nome ou **Da casa**. Em “Outras compras”, esse chip só aparece se todas as avulsas daquela fatura forem da mesma pessoa.
 
-**Eu:** não há bloco de fatura. A compra do cartão da pessoa aparece na lista, no grupo com o nome do cartão.
+**Eu:** não há bloco de fatura. A compra do cartão da pessoa aparece na lista, no grupo com o nome do cartão. O cabeçalho desse grupo diz “N no cartão”. A cobrança fixa do cartão leva a etiqueta **Fixa**. O chip de quem é a linha não aparece, porque a lista já é só de quem está logado.
 
 **Conta (Bradesco, por exemplo):** um grupo por conta, com “N a pagar” e o total. Cada lançamento é uma linha: nome, parcela se houver, categoria e subcategoria, dia da semana e valor. A etiqueta Fixa **não** é escrita nessa linha de conta; a cobrança fixa da conta aparece como um lançamento normal. A etiqueta Fixa da conta aparece na visão anual, na linha do registro.
 
@@ -311,7 +311,7 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Configurar resumo usa as setas ↑ e ↓. A ordem fica em `fin-home-layout`. Há “Restaurar padrão”. A ordem padrão coloca Faturas dos cartões logo depois de Próximos vencimentos.
 - Tocar numa conta em Próximos vencimentos abre a ficha na própria tela. A fatura abre o cartão, sem botão de pagar nessa lista.
 - O olho oculta valores em todo o app. Em Mais há “Ocultar valores” e “Ocultar ao sair do app”.
-- No celular os nomes da barra dividem a largura, ficam numa linha em 10px, e o item ativo só muda de cor. No computador o item ativo continua com fundo verde claro.
+- No celular a barra tem cinco itens: Início, Lançar, o botão +, Cartão e Ano. Mais fica no Início, à direita do olho. No computador Mais continua na coluna da esquerda, e o item ativo tem fundo verde claro.
 - Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, os quatro na mesma linha. A linha “Cartões de crédito” saiu da folha de resumo. No modo Eu, uma nota explica que a compra do cartão entra em Despesas e não em Pago nem em A pagar.
 - Novo lançamento lembra o último destino, tem Hoje, Ontem e Outra, “Lançar e novo”, categorias mais usadas, sugestão de descrição e a linha de onde o valor sai ou entra. No parcelado, Cada parcela começa selecionado, à esquerda de Valor total. No celular, Lançar fica em cima e Lançar e novo embaixo.
 - Na fixa e no parcelamento em conta, mudar o dia pergunta “Só esta” ou “Esta e as seguintes”. O mês fica; o dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Excluir na ficha e no menu usa as mesmas duas opções para a fixa e para a parcela.

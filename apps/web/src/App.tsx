@@ -30,12 +30,12 @@ import { CalendarioPage } from "./pages/CalendarioPage";
 function TabBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const tab = (to: string, label: string, short: string, icon: JSX.Element, end = false) => (
+  const tab = (to: string, label: string, short: string, icon: JSX.Element, end = false, extra = "") => (
     <NavLink
       to={to}
       end={end}
       aria-label={label}
-      className={({ isActive }) => (isActive ? "active" : "")}
+      className={({ isActive }) => [extra, isActive ? "active" : ""].filter(Boolean).join(" ")}
     >
       {icon}
       <span className="tab-short">{short}</span>
@@ -62,7 +62,7 @@ function TabBar() {
       </span>
       {tab("/cartoes", "Cartões", "Cartão", <Icon.card />)}
       {tab("/ano", "Ano", "Ano", <Icon.year />)}
-      {tab("/mais", "Mais", "Mais", <Icon.more />)}
+      {tab("/mais", "Mais", "Mais", <Icon.more />, false, "desk-only")}
     </nav>
   );
 }
