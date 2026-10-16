@@ -6,7 +6,7 @@ import { useApi, type Tx } from '../api';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
-import { ErrorText, Loading, MonthNav, Sheet, brl, dayLabel } from '../ui';
+import { BackButton, ErrorText, Loading, MonthNav, Sheet, brl, dayLabel } from '../ui';
 
 interface CalItem {
   key: string;
@@ -73,13 +73,14 @@ export function CalendarioPage() {
     : [];
 
   return (
-    <main className="page" {...swipe}>
+    <main className="page calendar" {...swipe}>
       <div className="hd">
-        <div>
+        <div className="title-row">
+          <BackButton fallback="/" />
           <h1>Calendário</h1>
-          <PersonFilter />
         </div>
       </div>
+      <PersonFilter />
       <MonthNav month={month} onChange={(m) => { setMonth(m); setDay(null); }} />
       <ErrorText error={cal.error} />
       {!data ? (

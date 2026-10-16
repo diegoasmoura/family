@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi } from '../api';
 import type { Goal } from '../types';
 import { useAppState } from '../state';
-import { Bar, ErrorText, Loading, MoneyInput, Sheet, brl } from '../ui';
+import { BackButton, Bar, ErrorText, Loading, MoneyInput, Sheet, brl } from '../ui';
 import { useConfirm } from '../useConfirm';
 
 const fullDate = (iso: string) => iso.split('-').reverse().join('/');
@@ -135,7 +135,10 @@ export function MetasPage() {
   return (
     <main className="page">
       <div className="hd">
-        <h1>Metas</h1>
+        <div className="title-row">
+          <BackButton />
+          <h1>Metas</h1>
+        </div>
         <button className="btn sm" onClick={() => setCreating(true)}>
           + Meta
         </button>
@@ -152,7 +155,7 @@ export function MetasPage() {
                 {g.completed_at ? <span className="badge green">Concluída</span> : <span className="badge">{Math.round(g.progress * 100)}%</span>}
               </div>
               <Bar ratio={g.progress} kind="xp" />
-              <div className="hd">
+              <div className="goal-foot">
                 <small className="num">
                   {brl(g.saved_cents)} de {brl(g.target_cents)}
                 </small>

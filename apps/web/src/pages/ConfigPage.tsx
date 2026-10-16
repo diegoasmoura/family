@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi, type Me } from '../api';
 import { canUsePasskey, forgetLocalPasskey, registerPasskey, savedPasskeyId } from '../passkey';
 import { useAppState } from '../state';
-import { ErrorText, Icon, Loading, Sheet } from '../ui';
+import { BackButton, ErrorText, Icon, Loading, Sheet } from '../ui';
 import type { HouseUser } from '../types';
 
 const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Rio_Branco', 'America/Noronha'];
@@ -87,7 +87,10 @@ export function ConfigPage({ me }: { me: Me }) {
 
   return (
     <main className="page">
-      <h1>Casa e usuários</h1>
+      <div className="title-row">
+        <BackButton />
+        <h1>Casa e usuários</h1>
+      </div>
       {!household.data ? (
         <Loading />
       ) : (
@@ -156,17 +159,17 @@ export function ConfigPage({ me }: { me: Me }) {
       </div>
       <div className="list">
         {users.data?.map((u) => (
-          <div key={u.id} className="r">
+          <div key={u.id} className="r member">
             <div className="m">
               <span className="t">{u.name}</span>
               <small>{u.email}</small>
             </div>
             {admin && u.id !== me.id ? (
-              <span className="row" style={{ gap: 8 }}>
+              <span className="member-acts">
                 <button className="btn sm ghost" type="button" onClick={() => { setResetFor({ id: u.id, name: u.name }); setResetPassword(''); }}>
                   Nova senha
                 </button>
-                <select className="inp" style={{ width: 150 }} value={u.role} onChange={(e) => setRole.mutate({ id: u.id, role: e.target.value })} aria-label={`Permissão de ${u.name}`}>
+                <select className="inp" value={u.role} onChange={(e) => setRole.mutate({ id: u.id, role: e.target.value })} aria-label={`Permissão de ${u.name}`}>
                   <option value="admin">Administrador</option>
                   <option value="member">Membro</option>
                 </select>

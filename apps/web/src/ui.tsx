@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
 import { useAppState } from './state';
@@ -17,6 +18,25 @@ const svg = (children: ReactNode) => (
     {children}
   </svg>
 );
+
+/** Volta à tela anterior. No computador a coluna já tem Mais, então o botão some. */
+export function BackButton({ fallback = '/mais' }: { fallback?: string }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      className="ic back"
+      aria-label="Voltar"
+      onClick={() => {
+        const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+        if (idx > 0) navigate(-1);
+        else navigate(fallback);
+      }}
+    >
+      <Icon.left />
+    </button>
+  );
+}
 
 export const Icon = {
   home: () => svg(path('M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z')),

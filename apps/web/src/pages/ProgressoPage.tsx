@@ -3,7 +3,7 @@ import { AVATAR_COLORS, AVATAR_ITEMS, AVATAR_SKINS, XP_VALUES, avatarTitle, type
 import { AvatarFigure } from '../Avatar';
 import { api, useAction, useApi, type Member } from '../api';
 import { useAppState } from '../state';
-import { Bar, ErrorText, Loading } from '../ui';
+import { BackButton, Bar, ErrorText, Loading } from '../ui';
 
 const SLOTS: [AvatarSlot, string][] = [
   ['hat', 'Na cabeça'],
@@ -96,7 +96,10 @@ export function ProgressoPage() {
 
   return (
     <main className="page">
-      <h1>Avatar</h1>
+      <div className="title-row">
+        <BackButton />
+        <h1>Avatar</h1>
+      </div>
       <ErrorText error={q.error} />
       {!me ? (
         <Loading />

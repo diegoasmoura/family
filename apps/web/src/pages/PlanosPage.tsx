@@ -4,7 +4,7 @@ import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
 import { useAppState } from '../state';
 import { HistoryChart, historyFromInstallments } from '../HistoryChart';
-import { Bar, Confirm, ErrorText, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
+import { BackButton, Bar, Confirm, ErrorText, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import type { InstallmentPlan, Recurrence } from '../types';
 
@@ -106,7 +106,10 @@ export function RecorrenciasPage() {
   const group = (kind: string) => (q.data ?? []).filter((r) => r.kind === kind);
   return (
     <main className="page">
-      <h1>Fixas</h1>
+      <div className="title-row">
+        <BackButton />
+        <h1>Fixas</h1>
+      </div>
       <small>Cada fixa gera um lançamento previsto por mês. Crie novas pelo botão + escolhendo "Fixa".</small>
       <ErrorText error={q.error} />
       {!q.data ? (
@@ -156,7 +159,10 @@ export function ParcelamentosPage() {
   );
   return (
     <main className="page">
-      <h1>Parcelamentos</h1>
+      <div className="title-row">
+        <BackButton />
+        <h1>Parcelamentos</h1>
+      </div>
       <small>Em conta, cada parcela vira um lançamento a pagar. No cartão, cada parcela cai numa fatura seguinte.</small>
       <ErrorText error={q.error ?? act.error} />
       {!q.data ? (

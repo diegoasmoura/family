@@ -3,7 +3,7 @@ import { addMonths, daysInMonth } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
 import { useAppState } from '../state';
 import { useSwipe } from '../useSwipe';
-import { Bar, ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, categoryTree } from '../ui';
+import { BackButton, Bar, ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, categoryTree } from '../ui';
 import type { BudgetItem } from '../types';
 
 export function OrcamentoPage() {
@@ -33,7 +33,10 @@ export function OrcamentoPage() {
 
   return (
     <main className="page" {...swipe}>
-      <h1>Orçamento</h1>
+      <div className="title-row">
+        <BackButton />
+        <h1>Orçamento</h1>
+      </div>
       <MonthNav month={month} onChange={setMonth} />
       <ErrorText error={q.error ?? copy.error} />
       {!q.data ? (

@@ -12,14 +12,14 @@ O corte é **960px** de largura da janela.
 
 A barra fica fixa embaixo, com altura **76px** (`--nav-h`). São cinco itens: Início, Lançamentos, botão **+** (56×56), Cartões e Ano. Os quatro nomes dividem a largura que sobra depois do **+**. No celular o nome fica curto, em 10px e numa linha: Início, Lançar, Cartão e Ano. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. O botão **+** abre `/lancar`. Mais não entra nessa barra: no Início, o ícone de três pontos fica à direita do olho e abre `/mais`.
 
-O conteúdo fica centralizado.
+O conteúdo fica centralizado. As telas que não estão na barra (Calendário e tudo o que abre a partir de Mais) têm um botão Voltar à esquerda do título. Ele volta para a tela anterior; se a pessoa abriu o endereço direto, Calendário cai no Início e as outras caem em Mais. No computador esse botão some, porque a coluna da esquerda já leva a Mais.
 
 | Tela | Teto da coluna | Padding lateral | Largura útil no teto | Fundo extra |
 |---|---|---|---|---|
 | Início (`.page.home`) | 560px | 16px de cada lado | **528px** | 148px, por causa da barra |
 | Lançamentos (`.page.lanc`) | 560px | 16px | **528px** | 148px |
-| Ano (`.page.wide`) | 1440px | 20px | a janela menos 40px | 104px |
-| Contas, Cartões, Calendário, Mais e as telas de dentro de Mais (`.page`) | 560px | 20px | **520px** | 104px |
+| Ano (`.page.wide`) | 1440px | 16px | a janela menos 32px | 104px |
+| Contas, Cartões, Calendário, Mais e as telas de dentro de Mais (`.page`) | 560px | 16px | **528px** | 104px |
 | Novo lançamento | folha em tela cheia, sem coluna `.page` | | | |
 
 No celular, o bloco do Início (saudação, Eu/Nós, saldo, receitas e despesas) tem a **mesma largura útil** que Lançamentos: 528px. O que muda é o miolo. No Início a saudação ocupa a esquerda; à direita ficam o olho e, ao lado dele, os três pontos de Mais. Em Lançamentos o título “Lançamentos” fica sozinho na primeira linha, e Eu/Nós é a faixa de baixo, também com 100% da coluna.
@@ -33,7 +33,7 @@ A barra vira coluna fixa à esquerda, com **220px** de largura. O aplicativo gan
 | Início | **980px** | 16px | **948px** |
 | Lançamentos | **760px** | 16px | **728px** |
 | Ano | **1440px** | 32px nos quatro lados | **1376px** |
-| Demais telas `.page` | **760px** | 20px | **720px** |
+| Demais telas `.page` | **760px** | 16px | **728px** |
 
 É por isso que, no computador, o bloco que começa em “Family / Olá, Diego”, passa por Eu/Nós e chega em saldo, receitas e despesas fica **mais largo** que o bloco de Lançamentos (948px contra 728px). Só o Início sobe o teto para 980px. Lançamentos herda os 760px das outras páginas. A faixa Eu/Nós, nos dois, ocupa 100% da coluna da própria página: ela é larga no Início e mais estreita em Lançamentos. O Ano é a tela larga de verdade, para a tabela dos doze meses.
 
@@ -49,7 +49,7 @@ O tema claro, escuro ou automático fica neste aparelho, na chave `fin-theme`. A
 
 ## Eu, Nós e da casa
 
-A escolha começa em **Eu** e vale a sessão inteira: Início, Lançamentos, Calendário e Ano. Não fica gravada no aparelho. Recarregar a página volta para Eu.
+A escolha começa em **Eu** e vale a sessão inteira: Início, Lançamentos, Calendário e Ano. Não fica gravada no aparelho. Recarregar a página volta para Eu. Nas quatro telas a faixa é a mesma: Eu e Nós dividem a largura da coluna, com o lado escolhido em destaque.
 
 - **Eu** mostra só lançamentos com `for_user_id` igual a quem está logado. O que está marcado “Da casa” (`for_user_id` vazio) fica de fora.
 - **Nós** não filtra. Entram as duas pessoas e o que é da casa.

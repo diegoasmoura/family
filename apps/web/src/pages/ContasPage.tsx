@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi, type Account, type Me } from '../api';
 import { useAppState } from '../state';
 import { BankMark, BankPicker } from '../banks';
-import { ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
+import { BackButton, ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { useSwipe } from '../useSwipe';
 import type { Transfer } from '../types';
@@ -218,7 +218,10 @@ export function ContasPage({ me }: { me: Me }) {
   return (
     <main className="page" {...swipe}>
       <div className="hd">
-        <h1>Contas</h1>
+        <div className="title-row">
+          <BackButton />
+          <h1>Contas</h1>
+        </div>
         <button className="btn sm" onClick={() => setEditing('new')}>
           + Conta
         </button>

@@ -3,7 +3,7 @@ import { api, useAction, useApi, type Category } from '../api';
 import { inkOn } from '@fin/domain';
 import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon, IconGlyph, categoryColor, iconKey } from '../categories';
 import { useAppState } from '../state';
-import { ErrorText, Loading, Seg, Sheet, categoryTree } from '../ui';
+import { BackButton, ErrorText, Loading, Seg, Sheet, categoryTree } from '../ui';
 import { useConfirm } from '../useConfirm';
 
 function CategoryForm({ kind, category, all, onClose }: { kind: 'income' | 'expense'; category?: Category; all: Category[]; onClose: () => void }) {
@@ -121,7 +121,10 @@ export function CategoriasPage() {
   return (
     <main className="page">
       <div className="hd">
-        <h1>Categorias</h1>
+        <div className="title-row">
+          <BackButton />
+          <h1>Categorias</h1>
+        </div>
         <button className="btn sm" onClick={() => setEditing('new')}>
           + Categoria
         </button>
