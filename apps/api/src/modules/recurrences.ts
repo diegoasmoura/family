@@ -135,6 +135,32 @@ export function recurrencesRouter(): Router {
     res.json(await req.ctx.db.all(`${SELECT} WHERE r.household_id = ? AND r.deleted_at IS NULL ORDER BY r.active DESC, r.kind, r.day_of_month`, [req.ctx.householdId]));
   });
 
+  /** Últimos 6 meses, do mais antigo ao atual. Mês sem ocorrência volta zerado. */
+  r.get('/:id/history', async (req, res) => {
+    const id = idParam(req.params.id);
+    await owned(req.ctx, 'recurrences', id, 'Recorrência');
+    const end = monthOf(req.ctx.today);
+    await ensureRecurrences(req.ctx, end, id);
+    const start = addMonths(end, -5);
+    const rows = await req.ctx.db.all<{ competence_month: string; amount_cents: number; paid_on: string | null; card_id: number | null; status: string }>(
+      `SELECT competence_month, amount_cents, paid_on, card_id, status FROM transactions
+        WHERE recurrence_id = ? AND household_id = ? AND deleted_at IS NULL
+          AND competence_month >= ? AND competence_month <= ?`,
+      [id, req.ctx.householdId, start, end],
+    );
+    const buckets = new Map<string, { planned_cents: number; paid_cents: number }>();
+    for (let month = start; month <= end; month = addMonths(month, 1)) buckets.set(month, { planned_cents: 0, paid_cents: 0 });
+    for (const row of rows) {
+      const bucket = buckets.get(row.competence_month);
+      if (!bucket) continue;
+      const amount = num(row.amount_cents);
+      bucket.planned_cents += amount;
+      const paid = row.card_id ? row.status === 'posted' : row.paid_on != null;
+      if (paid) bucket.paid_cents += amount;
+    }
+    res.json([...buckets.entries()].map(([month, cents]) => ({ month, ...cents })));
+  });
+
   r.post('/', async (req, res) => {
     const body = parse(recBody, req.body);
     const existing = await findByUuid(req.ctx, 'recurrences', body.client_uuid);

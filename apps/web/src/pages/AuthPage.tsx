@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, useAction, useApi } from '../api';
-import { canUsePasskey, loginWithPasskey } from '../passkey';
 import { ErrorText, Icon, Seg } from '../ui';
 
 export function AuthPage() {
@@ -20,8 +19,6 @@ export function AuthPage() {
       ? api('/auth/login', { body: { email: form.email, password: form.password } })
       : api('/auth/register', { body: { ...form, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }),
   );
-  const passkey = useAction(loginWithPasskey);
-  const showPasskey = mode === 'login' && canUsePasskey();
   const submit = (e: FormEvent) => {
     e.preventDefault();
     action.mutate(undefined);
@@ -46,17 +43,6 @@ export function AuthPage() {
             ['register', 'Criar casa'],
           ]}
         />
-      )}
-      {showPasskey && (
-        <>
-          <button className="btn big" type="button" disabled={passkey.isPending} onClick={() => passkey.mutate(undefined)}>
-            Entrar com digital ou Face ID
-          </button>
-          <ErrorText error={passkey.error} />
-          <p className="muted" style={{ margin: 0, textAlign: 'center' }}>
-            ou com e-mail e senha
-          </p>
-        </>
       )}
       <form className="stack" onSubmit={submit}>
         {mode === 'register' && (

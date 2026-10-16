@@ -157,7 +157,7 @@ A busca olha descrição, categoria, conta e cartão, só na lista já carregada
 
 O resumo abre uma folha: registros, totais, total sem cartões, o que não entra na soma, total com essas linhas, situação (pagas, próximas, vencidas, distantes, não pagas) e a divisão fixas / parceladas / variáveis. A linha “Cartões de crédito” dessa folha fica zerada: nenhum lançamento recebe o status “cartão”.
 
-Toque na linha abre a ficha. O menu da linha permite editar, mudar o valor, duplicar neste mês ou no próximo, ver a fixa ou as parcelas, marcar pago quando for conta, e excluir.
+Toque na linha abre a ficha. O menu da linha permite editar, mudar o valor, duplicar neste mês ou no próximo, ver a fixa ou as parcelas, e excluir. Em conta ainda não paga, **Pagar** ou **Receber** abre a folha Efetivar por cima da lista: nome, valor, data de pagamento, cápsula Vencimento (usa o vencimento, ou a data da linha) e a conta. Cancelar fecha sem gravar. Efetivar grava valor ou conta só nesta ocorrência, quando mudaram, e registra a data de pagamento. Desfazer o pagamento continua na ficha e no menu. Compra de cartão não usa essa folha: a quitação é a fatura, e o menu só confirma a compra.
 
 Linha esmaecida é lançamento que não entra na soma.
 
@@ -256,13 +256,13 @@ Cada fixa gera um lançamento previsto por mês, até pelo menos dois meses à f
 
 Em conta, a data é o dia escolhido naquele mês. No cartão, a competência é o mês da fatura e a data cai dentro do ciclo.
 
-Nesta tela, editar mexe em valor, descrição e dia. Categoria e “de quem” mudam pela ficha do lançamento. Prevista já editada à mão não é reescrita. Encerrar pede o último mês (padrão o mês de hoje), para de gerar e apaga o previsto futuro que ninguém editou à mão. A fixa encerrada continua na lista, esmaecida. Excluir a fixa apaga o previsto a partir deste mês; o que já aconteceu fica. Pela ficha ou pelo menu do lançamento, “Esta e as seguintes” é outra ação: apaga esse mês e os posteriores, pagos ou não, e a série para ali. Não dá para trocar a conta ou o cartão da fixa por esta tela.
+Nesta tela, tocar a fixa abre a folha. No topo, o quadro Histórico mostra os últimos 6 meses, do mais antigo ao atual: a parte paga na cor de pago e o que ainda está em aberto mais claro. Mês sem ocorrência fica vazio. Em conta, pago é quem tem data de pagamento. No cartão, pago é a ocorrência já efetivada. Abaixo, editar mexe em valor, descrição e dia. Categoria e “de quem” mudam pela ficha do lançamento. Prevista já editada à mão não é reescrita. Encerrar pede o último mês (padrão o mês de hoje), para de gerar e apaga o previsto futuro que ninguém editou à mão. A fixa encerrada continua na lista, esmaecida. Excluir a fixa apaga o previsto a partir deste mês; o que já aconteceu fica. Pela ficha ou pelo menu do lançamento, “Esta e as seguintes” é outra ação: apaga esse mês e os posteriores, pagos ou não, e a série para ali. Não dá para trocar a conta ou o cartão da fixa por esta tela.
 
 ## Parcelamentos
 
 Na criação, todas as parcelas nascem juntas. Em conta, a primeira cai no mês da compra e as outras avançam um mês; a primeira pode nascer paga. No cartão, todas nascem efetivadas, uma fatura por mês a partir da fatura da compra. A lista só conta como “faturada” e tira do “Falta” quando o mês da fatura já chegou.
 
-Cancelar o restante apaga, na conta, o que ainda não foi pago e, no cartão, o que ainda está em fatura que não fechou. Excluir o plano apaga todas as parcelas.
+Tocar o card abre a folha. O quadro Histórico soma as parcelas de cada um dos últimos 6 meses. A parte paga fica na cor de pago; no cartão, mês já chegado conta como pago. Cancelar o restante e Excluir ficam nessa folha. Cancelar o restante apaga, na conta, o que ainda não foi pago e, no cartão, o que ainda está em fatura que não fechou. Excluir o plano apaga todas as parcelas.
 
 ## Orçamento
 
@@ -298,7 +298,7 @@ Digital ou Face ID só aparece em HTTPS com nome, em localhost ou em 127.0.0.1, 
 
 ## Entrar e criar casa
 
-Criar casa só aparece enquanto o cadastro está aberto (`ALLOW_REGISTER=true`). Pede nome da casa, seu nome, e-mail e senha. O botão é “Criar e entrar”. O fuso do navegador vai no pedido, sem campo na tela. Se não vier, a API usa São Paulo. O primeiro usuário vira administrador e já entra. A senha nova tem no mínimo 8 caracteres. Não há “esqueci a senha” por e-mail. No modo Entrar, se a digital estiver disponível, o primeiro botão é “Entrar com digital ou Face ID”, e em seguida o e-mail e a senha.
+Criar casa só aparece enquanto o cadastro está aberto (`ALLOW_REGISTER=true`). Pede nome da casa, seu nome, e-mail e senha. O botão é “Criar e entrar”. O fuso do navegador vai no pedido, sem campo na tela. Se não vier, a API usa São Paulo. O primeiro usuário vira administrador e já entra. A senha nova tem no mínimo 8 caracteres. Não há “esqueci a senha” por e-mail. O modo Entrar pede e-mail e senha.
 
 A sessão é um cookie `fin_session`, por 30 dias, só pelo servidor, caminho `/`. Em HTTP no endereço de casa, o compose deixa `COOKIE_SECURE=false`, então o cookie funciona. Atrás de um endereço HTTPS, `COOKIE_SECURE` precisa ser `true`. Fora de casa, o túnel também precisa de `WEBAUTHN_RP_ID` (o nome, sem https) e `WEBAUTHN_ORIGIN` (a página inteira, com https).
 

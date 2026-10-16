@@ -177,6 +177,7 @@ export function MoneyInput({
   label = 'Valor',
   allowNegative,
   autoFocus,
+  bare,
 }: {
   value: number | null;
   onChange: (cents: number | null) => void;
@@ -184,9 +185,11 @@ export function MoneyInput({
   label?: string;
   allowNegative?: boolean;
   autoFocus?: boolean;
+  bare?: boolean;
 }) {
   const [negative, setNegative] = useState(false);
-  const display = value == null ? '' : formatBRL(Math.abs(value));
+  const formatted = value == null ? '' : formatBRL(Math.abs(value));
+  const display = bare ? formatted.replace(/^R\$\s*/, '') : formatted;
   return (
     <label className="f" style={big ? { flex: 'none', alignItems: 'center', padding: '8px 0' } : undefined}>
       <span>{label}</span>
@@ -198,7 +201,7 @@ export function MoneyInput({
         autoCorrect="off"
         autoFocus={autoFocus}
         aria-label={label}
-        placeholder="R$ 0,00"
+        placeholder={bare ? '0,00' : 'R$ 0,00'}
         value={allowNegative && negative && value ? `-${display}` : display}
         onFocus={(e) => e.target.select()}
         onChange={(e) => {

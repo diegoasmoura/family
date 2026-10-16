@@ -4,6 +4,7 @@ import { addMonthsToDate } from '@fin/domain';
 import { ApiError, api, clientUuid, useAction, type Tx } from './api';
 import { useAppState } from './state';
 import { Confirm, Icon, Sheet } from './ui';
+import { SettleSheet } from './SettleSheet';
 
 export type TxSheetMode = 'view' | 'edit' | 'amount';
 
@@ -73,6 +74,7 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
   const [up, setUp] = useState(false);
   const [dupOpen, setDupOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [paying, setPaying] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const income = tx.kind === 'income';
 
@@ -118,8 +120,8 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
   const settled = tx.card_id ? tx.status === 'posted' : Boolean(tx.paid_on);
   const toggleSettled = () =>
     run(
-      () => api(`/transactions/${tx.id}/${settled ? 'unpay' : 'pay'}`, { body: {} }),
-      settled ? 'Voltou para previsto' : tx.card_id ? 'Compra confirmada' : income ? 'Recebimento registrado' : 'Pagamento registrado',
+      () => api(`/transactions/${tx.id}/unpay`, { body: {} }),
+      'Voltou para previsto',
     );
 
   const item = (label: string, onClick: () => void, className = '') => (
@@ -172,10 +174,15 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
           )}
           {tx.plan_id && item('Ver parcelas', () => navigate('/parcelamentos'))}
           {tx.recurrence_id && item(income ? 'Ver receita fixa' : 'Ver despesa fixa', () => navigate('/recorrencias'))}
-          {!(tx.card_id && settled) && (
+          {!tx.card_id && !settled && item(income ? 'Receber' : 'Pagar', () => setPaying(true))}
+          {tx.card_id && !settled &&
+            item('Confirmar compra', () =>
+              run(() => api(`/transactions/${tx.id}/pay`, { body: {} }), 'Compra confirmada'),
+            )}
+          {!tx.card_id && settled && (
             <label className="menu-check">
-              <span>{tx.card_id ? 'Confirmada' : income ? 'Recebida' : 'Paga'}</span>
-              <input type="checkbox" checked={settled} onChange={toggleSettled} />
+              <span>{income ? 'Recebida' : 'Paga'}</span>
+              <input type="checkbox" checked onChange={toggleSettled} />
             </label>
           )}
           {item('Excluir', () => setConfirmDelete(true), 'danger')}
@@ -216,6 +223,7 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
             }}
           />
         ))}
+      {paying && <SettleSheet tx={tx} onClose={() => setPaying(false)} />}
     </div>
   );
 }

@@ -281,6 +281,25 @@ describe.each(targets)('API (%s)', (dialect, url) => {
   });
 
   describe('recorrências', () => {
+    it('o histórico da fixa cobre os últimos 6 meses e separa o pago', async () => {
+      const { recurrence } = await ok(
+        await agent.post('/api/recurrences').send({ kind: 'expense', description: 'Internet', amount_cents: 12000, account_id: ids.bradesco, day_of_month: 10, start_month: '2026-09' }),
+        201,
+      );
+      const occ = await db.all('SELECT id, competence_month FROM transactions WHERE recurrence_id = ? ORDER BY competence_month', [recurrence.id]);
+      const september = occ.find((row) => row.competence_month === '2026-09');
+      await ok(await agent.post(`/api/transactions/${september.id}/pay`).send({ paid_on: '2026-09-10' }));
+      const history = await ok(await agent.get(`/api/recurrences/${recurrence.id}/history`));
+      expect(history.map((row: { month: string; planned_cents: number; paid_cents: number }) => [row.month, row.planned_cents, row.paid_cents])).toEqual([
+        ['2026-05', 0, 0],
+        ['2026-06', 0, 0],
+        ['2026-07', 0, 0],
+        ['2026-08', 0, 0],
+        ['2026-09', 12000, 12000],
+        ['2026-10', 12000, 0],
+      ]);
+    });
+
     it('gera uma ocorrência por competência, de forma idempotente', async () => {
       const { recurrence } = await ok(
         await agent.post('/api/recurrences').send({ kind: 'expense', description: 'Internet', amount_cents: 12000, account_id: ids.bradesco, day_of_month: 10, start_month: '2026-10' }),

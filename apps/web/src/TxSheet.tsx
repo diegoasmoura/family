@@ -3,6 +3,7 @@ import { daysInMonth } from '@fin/domain';
 import { api, useAction, useApi, type Category, type Tx } from './api';
 import { useAppState } from './state';
 import { FollowingDeleteChoices, deleteChoicesFor, type TxSheetMode } from './TxMenu';
+import { SettleSheet } from './SettleSheet';
 import { CategoryPicker } from './categories';
 import { ForWhom } from './people';
 import { CategoryTags, ErrorText, MoneyInput, Sheet, brl, shortDate } from './ui';
@@ -28,6 +29,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
   const income = tx.kind === 'income';
   const [counted, setCounted] = useState(Boolean(tx.include_in_reports));
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [paying, setPaying] = useState(false);
   useEffect(() => setCounted(Boolean(tx.include_in_reports)), [tx.id, tx.include_in_reports]);
 
   const act = useAction(
@@ -94,6 +96,8 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
       series ? 'Esta e as seguintes foram atualizadas' : amountOnly ? 'Valor alterado' : 'Lançamento atualizado',
     );
   };
+
+  if (paying) return <SettleSheet tx={tx} onClose={onClose} />;
 
   return (
     <Sheet title={tx.description || (income ? 'Receita' : 'Despesa')} onClose={onClose}>
@@ -166,8 +170,8 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
       ) : !editing ? (
         <div className="stack">
           {!tx.card_id && !tx.paid_on && (
-            <button className="btn block" onClick={() => run(() => api(`/transactions/${tx.id}/pay`, { body: {} }), income ? 'Recebimento registrado' : 'Pagamento registrado')}>
-              {income ? 'Marcar como recebido' : 'Marcar como pago'}
+            <button className="btn block" onClick={() => setPaying(true)}>
+              {income ? 'Receber' : 'Pagar'}
             </button>
           )}
           {tx.card_id && tx.status === 'planned' && (

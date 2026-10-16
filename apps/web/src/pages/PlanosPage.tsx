@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
 import { useAppState } from '../state';
+import { HistoryChart, historyFromInstallments } from '../HistoryChart';
 import { Bar, Confirm, ErrorText, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import type { InstallmentPlan, Recurrence } from '../types';
@@ -33,9 +34,11 @@ function RecurrenceForm({ rec, onClose }: { rec: Recurrence; onClose: () => void
     },
   );
   const { confirm, dialog } = useConfirm();
+  const history = useApi<{ month: string; planned_cents: number; paid_cents: number }[]>(`/recurrences/${rec.id}/history`);
   return (
     <>
     <Sheet title={rec.description} onClose={onClose}>
+      {history.data ? <HistoryChart points={history.data} /> : <Loading />}
       <form
         className="stack"
         onSubmit={(e) => {
@@ -137,8 +140,11 @@ export function RecorrenciasPage() {
 }
 
 export function ParcelamentosPage() {
-  const { toast } = useAppState();
+  const { today, toast } = useAppState();
   const q = useApi<InstallmentPlan[]>('/installments');
+  const [openId, setOpenId] = useState<number | null>(null);
+  const detail = useApi<{ items: Parameters<typeof historyFromInstallments>[0] }>(openId ? `/installments/${openId}` : null);
+  const openPlan = q.data?.find((plan) => plan.id === openId) ?? null;
   const [confirm, setConfirm] = useState<{ plan: InstallmentPlan; action: 'cancel' | 'delete' } | null>(null);
   const act = useAction(
     ({ plan, action }: { plan: InstallmentPlan; action: 'cancel' | 'delete' }) =>
@@ -158,7 +164,7 @@ export function ParcelamentosPage() {
       ) : (
         <div className="stack">
           {q.data.map((p) => (
-            <section key={p.id} className="card">
+            <button key={p.id} type="button" className="card plan-open" onClick={() => setOpenId(p.id)}>
               <div className="hd">
                 <div>
                   <b>{p.description}</b>
@@ -177,17 +183,7 @@ export function ParcelamentosPage() {
                 </small>
                 <small className="num">Falta {brl(p.remaining_cents)}</small>
               </div>
-              <div className="row">
-                {p.remaining_cents > 0 && (
-                  <button className="btn ghost sm" onClick={() => setConfirm({ plan: p, action: 'cancel' })}>
-                    Cancelar restante
-                  </button>
-                )}
-                <button className="btn danger sm" onClick={() => setConfirm({ plan: p, action: 'delete' })}>
-                  Excluir
-                </button>
-              </div>
-            </section>
+            </button>
           ))}
           {q.data.length === 0 && (
             <p className="empty">
@@ -195,6 +191,21 @@ export function ParcelamentosPage() {
             </p>
           )}
         </div>
+      )}
+      {openPlan && (
+        <Sheet title={openPlan.description} onClose={() => setOpenId(null)}>
+          {!detail.data ? <Loading /> : <HistoryChart points={historyFromInstallments(detail.data.items, today)} />}
+          <div className="row">
+            {openPlan.remaining_cents > 0 && (
+              <button className="btn ghost sm" onClick={() => setConfirm({ plan: openPlan, action: 'cancel' })}>
+                Cancelar restante
+              </button>
+            )}
+            <button className="btn danger sm" onClick={() => setConfirm({ plan: openPlan, action: 'delete' })}>
+              Excluir
+            </button>
+          </div>
+        </Sheet>
       )}
       {confirm && (
         <Confirm
