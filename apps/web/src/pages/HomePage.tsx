@@ -260,7 +260,12 @@ export function HomePage({ me }: { me: Me }) {
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
         <ErrorText error={q.error} />
-        {!q.error && (<><SkeletonCard lines={4} /><SkeletonCard /><SkeletonCard /></>)}
+        {!q.error && (
+        <div className="home-empty" style={{ padding: '24px 0', textAlign: 'center', color: '#5e6b5a' }}>
+          <Icon.alert style={{ width: 48, height: 48, margin: '0 auto 12px' }} />
+          <p style={{ margin: 0 }}>Carregando seus dados financeiros...</p>
+        </div>
+      )}
       </main>
     );
   }
@@ -334,12 +339,40 @@ export function HomePage({ me }: { me: Me }) {
             <small>{d.expense.to_pay_cents > 0 ? <><MoneyText cents={d.expense.to_pay_cents} /> a pagar</> : "pagas"}</small>
           </Link>
         </div>
+        {/* Nova seção: progresso meta e comparação */}
+        <div className="sum-progress" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--line-soft)' }}>
+          {d.expense.planned_cents > 0 && (
+            <div className="row" style={{ fontSize: 12, color: 'var(--muted)' }}>
+              <span>Orçamento: </span>
+              <span style={{ color: 'var(--ink)', fontWeight: 600 }}>
+                <MoneyText cents={d.expense.realized_cents} /> de <MoneyText cents={d.expense.planned_cents} />
+              </span>
+              <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>
+                {d.expense.realized_cents / d.expense.planned_cents * 100 >= 100 ? '⟡ Meta ultrapassada' : d.expense.realized_cents / d.expense.planned_cents * 100 >= 80 ? '⟡ Próximo da meta' : ''}
+              </span>
+            </div>
+          )}
+          {month !== today.slice(0, 7) && (
+            <div className="row" style={{ fontSize: 12, color: 'var(--muted)', marginTop: '4px' }}>
+              <span>Vs mês passado: </span>
+              <span style={{ color: spentPrev > 0 ? 'var(--pos)' : 'var(--neg)', fontWeight: 600, marginLeft: '8px' }}>
+                {Math.abs(Math.round(((spentToday - spentPrev) / spentPrev) * 100))}% {spentToday <= spentPrev ? 'a menos' : 'a mais'}
+              </span>
+            </div>
+          )}
+        </div>
+        <p className="sum-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+          Saldo atual + previsão + orçamento + comparação mensal
+        </p>
       </section>
     ),
     upcoming: (
       <section className="card" aria-label="Próximos vencimentos">
         <div className="hd">
           <h2>Próximos vencimentos</h2>
+          <p className="up-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+            Contas e faturas que vencem nos próximos 30 dias
+          </p>
           <Link className="home-jump" to="/calendario">
             Calendário <Icon.right />
           </Link>
@@ -420,6 +453,9 @@ export function HomePage({ me }: { me: Me }) {
       <section className="card" aria-label="Despesas por categoria">
         <div className="hd">
           <h2>Despesas por categoria</h2>
+          <p className="cat-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+            Como suas despesas estão distribuídas por categoria este mês
+          </p>
           <Link className="home-jump" to="/orcamento">
             Orçamento <Icon.right />
           </Link>
@@ -498,6 +534,9 @@ export function HomePage({ me }: { me: Me }) {
     flow: (
       <section className="card" aria-label="Fluxo de caixa">
         <h2>Fluxo de caixa</h2>
+        <p className="flow-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+          Entradas, saídas e saldo previsto para o mês
+        </p>
         <HBar label="Entradas" total={d.income.total_cents} done={d.income.realized_cents} color="#6fbf8a" max={Math.max(d.income.total_cents, expenseTotal, Math.abs(d.balance.forecast_cents), 1)} />
         <HBar label="Saídas" total={expenseTotal} done={d.expense.realized_cents} color="#e08b84" max={Math.max(d.income.total_cents, expenseTotal, Math.abs(d.balance.forecast_cents), 1)} />
         <HBar label="Saldo previsto" total={d.balance.forecast_cents} done={d.balance.forecast_cents} color={d.balance.forecast_cents < 0 ? "#e08b84" : "#6aa4e0"} max={Math.max(d.income.total_cents, expenseTotal, Math.abs(d.balance.forecast_cents), 1)} signed />
@@ -506,8 +545,14 @@ export function HomePage({ me }: { me: Me }) {
     evolution: (
       <section className="card" aria-label="Evolução das despesas">
         <h2>Evolução das despesas</h2>
+        <p className="evo-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+          Como suas despesas evoluem ao longo do mês comparado ao anterior
+        </p>
         {spentToday === 0 ? (
-          <p className="empty">Nenhuma despesa neste mês.</p>
+          <div className="home-empty" style={{ padding: '20px 0', textAlign: 'center' }}>
+            <Icon.alert style={{ width: 40, height: 40, margin: '0 auto 8px' }} />
+            <p style={{ color: '#5e6b5a', fontSize: 14, margin: 0 }}>Nenhuma despesa neste mês.<br/>Use o botão "+" para registrar seus lançamentos.</p>
+          </div>
         ) : (
           <>
             <div className="chart-fit">
@@ -542,8 +587,14 @@ export function HomePage({ me }: { me: Me }) {
     recurrence: (
       <section className="card" aria-label="Despesas por recorrência">
         <h2>Despesas por recorrência</h2>
+        <p className="rec-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+          Despesas que se repetem mensalmente e comprometem seu orçamento futuro
+        </p>
         {expenseTotal === 0 ? (
-          <p className="empty">Nenhuma despesa neste mês.</p>
+          <div className="home-empty" style={{ padding: '20px 0', textAlign: 'center' }}>
+            <Icon.alert style={{ width: 40, height: 40, margin: '0 auto 8px' }} />
+            <p style={{ color: '#5e6b5a', fontSize: 14, margin: 0 }}>Nenhuma despesa recorrente neste mês.<br/>Use o botão "+" para criar suas primeiras parcelamentos.</p>
+          </div>
         ) : (
           <>
             <Donut
@@ -579,6 +630,9 @@ export function HomePage({ me }: { me: Me }) {
       <section className="card" aria-label="Faturas dos cartões">
         <div className="hd">
           <h2>Faturas dos cartões</h2>
+          <p className="inv-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
+            Status das faturas dos seus cartões de crédito este mês
+          </p>
           <Link className="home-jump" to="/cartoes">
             Cartões <Icon.right />
           </Link>
@@ -622,7 +676,7 @@ export function HomePage({ me }: { me: Me }) {
 
   return (
     <HiddenMoney.Provider value={hiddenMoney}>
-      <main className="page home">
+      <main className="page home" style={{ borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
@@ -631,11 +685,27 @@ export function HomePage({ me }: { me: Me }) {
         </div>
         <ErrorText error={q.error} />
         <div className="home-stack">
-          {layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => (
-            <div key={id} ref={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined}>{blocks[id]}</div>
-          ))}
+          {layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => {
+            const block = blocks[id];
+            // Só renderiza o bloco se tiver conteúdo relevante
+            const hasData = 
+              id === 'summary' ? true : // Resumo sempre mostra algo
+              id === 'upcoming' ? upcoming.length > 0 : 
+              id === 'invoices' ? invoiceRows.length > 0 : 
+              id === 'categories' ? cats.length > 0 : 
+              id === 'flow' ? true : 
+              id === 'evolution' ? spentToday !== 0 : 
+              id === 'recurrence' ? expenseTotal !== 0 : 
+              id === 'year' ? yearQ.data ? true : false : false;
+            
+            return hasData ? (
+              <div key={id} ref={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined} style={{ background: 'var(--surface)', borderRadius: '16px', padding: '12px', marginBottom: 8, border: '1px solid var(--line)', transition: 'border-color 0.2s' }}>
+                {block}
+              </div>
+            ) : null;
+          })}
         </div>
-        <button type="button" className="config-home" onClick={() => setConfig(true)}>
+        <button type="button" className="config-home" style={{ color: 'var(--green)', borderColor: 'var(--green)' }} onClick={() => setConfig(true)}>
           <Icon.grid /> Configurar resumo
         </button>
         {showTop && (
@@ -802,24 +872,21 @@ function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members
   return (
     <div className="hd home-top">
       <div className="home-greet">
-        <small className="home-kicker">{me.household_name}</small>
+        <small className="home-kicker" style={{ color: '#22c55e' }}>{me.household_name}</small>
         <h1>Olá, {me.name.split(" ")[0]}</h1>
       </div>
-      <div className="home-tools">
+      <nav className="home-actions" style={{ borderColor: '#22c55e', color: '#22c55e' }} aria-label="Ferramentas rápidas">
         {shown.length > 0 && (
-          <Link to="/progresso" className="avatars" aria-label="Ver avatares">
+          <Link to="/progresso" className="avatars" aria-label="Ver progresso dos membros">
             {shown.map((member) => (
-              <AvatarFigure key={member.id} avatar={member.avatar} size={40} level={member.level} label={`${member.name}, nível ${member.level}`} />
+              <AvatarFigure key={member.id} avatar={member.avatar} size={32} level={member.level} label={`${member.name}, nível ${member.level}`} />
             ))}
           </Link>
         )}
         <button type="button" className="ic eye" aria-pressed={hidden} aria-label={hidden ? "Mostrar valores" : "Ocultar valores"} onClick={onToggle}>
           {hidden ? <Icon.eyeOff /> : <Icon.eye />}
         </button>
-        <Link to="/mais" className="ic" aria-label="Mais">
-          <Icon.more />
-        </Link>
-      </div>
+      </nav>
     </div>
   );
 }
