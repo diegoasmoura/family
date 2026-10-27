@@ -1,26 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, createContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { addDays, addMonths, daysInMonth, formatBRL, inkOn, weekdayShort } from "@fin/domain";
-import {
-  Area,
-  Bar as MonthBar,
-  Cell,
-  ComposedChart,
-  Label,
-  Line,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { addDays, addMonths, daysInMonth, formatBRL, weekdayShort } from "@fin/domain";
+import { Donut, EvolutionChart, YearBarChart, type YearRow } from "../charts";
 import { AvatarFigure } from "../Avatar";
 import { TxSheet } from "../TxSheet";
 import { setHidden, useHidden } from "../privacy";
 import { useInView } from "../useInView";
 import { usePullToRefresh } from "../usePullToRefresh";
-import { Bar, ErrorText, Icon, Loading, MonthNav, Sheet, SkeletonCard, brl, monthName, shortDate } from "../ui";
+import { Bar, ErrorText, Icon, Loading, MonthNav, Sheet, brl, shortDate } from "../ui";
 import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { BankMark } from "../banks";
 import { CategoryIcon } from "../categories";
@@ -32,10 +19,10 @@ const LAYOUT_KEY = "fin-home-layout";
 
 const BLOCKS = [
   ["summary", "Resumo"],
+  ["goal", "Meta: gastar menos que recebe"],
   ["upcoming", "Próximos vencimentos"],
   ["invoices", "Faturas dos cartões"],
   ["categories", "Despesas por categoria"],
-  ["flow", "Fluxo de caixa"],
   ["evolution", "Evolução das despesas"],
   ["recurrence", "Despesas por recorrência"],
   ["year", "Mês a mês"],
@@ -75,76 +62,6 @@ function MoneyText({ cents, sign }: { cents: number; sign?: boolean }) {
   );
 }
 
-function slicePercent(props: {
-  cx?: number;
-  cy?: number;
-  midAngle?: number;
-  innerRadius?: number;
-  outerRadius?: number;
-  percent?: number;
-  payload?: { color?: string | null };
-}) {
-  const { cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, percent = 0, payload } = props;
-  if (percent < 0.08 || !Number.isFinite(innerRadius) || !Number.isFinite(outerRadius)) return null;
-  const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.55;
-  const rad = (-midAngle * Math.PI) / 180;
-  const color = payload?.color || "#8E9AAF";
-  return (
-    <text x={cx + radius * Math.cos(rad)} y={cy + radius * Math.sin(rad)} textAnchor="middle" dominantBaseline="central" fill={inkOn(color)} fontSize={12} fontWeight={600}>
-      {`${Math.round(percent * 100)}%`}
-    </text>
-  );
-}
-
-function Donut({ items, total, caption, onPick }: { items: { name: string; total_cents: number; color: string | null }[]; total: number; caption: string; onPick?: (name: string) => void }) {
-  const parts = items.filter((item) => item.total_cents > 0);
-  const hidden = useContext(HiddenMoney);
-  const box = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(320);
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const measure = () => setWidth(el.clientWidth || 320);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  const outer = Math.max(78, Math.min(104, Math.round(width * 0.3)));
-  const inner = Math.round(outer * 0.68);
-  return (
-    <div ref={box} className={`chart-fit${onPick ? " chart-pick" : ""}`} role="img" aria-label={`${caption}, ${brl(total)}`}>
-      <ResponsiveContainer width="100%" height={outer * 2 + 12}>
-        <PieChart>
-          <Pie
-            data={parts}
-            dataKey="total_cents"
-            nameKey="name"
-            innerRadius={inner}
-            outerRadius={outer}
-            rootTabIndex={-1}
-            paddingAngle={parts.length > 1 ? 2 : 0}
-            stroke="none"
-            labelLine={false}
-            label={slicePercent}
-            animationDuration={400}
-            onClick={onPick ? (data) => {
-              const name = String(data.name ?? "");
-              if (name) onPick(name);
-            } : undefined}
-          >
-            {parts.map((part) => (
-              <Cell key={part.name} fill={part.color || "#8E9AAF"} />
-            ))}
-            <Label value={hidden ? "R$ ••••" : brl(total)} position="center" fill="var(--ink)" fontSize={18} fontWeight={700} dy={-8} />
-            <Label value={caption} position="center" fill="var(--muted)" fontSize={12} fontWeight={500} dy={12} />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 function cumulative(items: Tx[], month: string) {
   const days = daysInMonth(month);
   const byDay = Array.from({ length: days }, () => 0);
@@ -170,12 +87,6 @@ function dayTitle(date: string, today: string) {
   if (date === today) return `Hoje · ${label}`;
   if (date === addDays(today, 1)) return `Amanhã · ${label}`;
   return label;
-}
-
-function compactAxis(cents: number) {
-  const v = Math.abs(cents) / 100;
-  const text = v >= 1000 ? `${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : Math.round(v).toLocaleString("pt-BR");
-  return cents < 0 ? `-${text}` : text;
 }
 
 export function HomePage({ me }: { me: Me }) {
@@ -261,8 +172,8 @@ export function HomePage({ me }: { me: Me }) {
         <PersonFilter />
         <ErrorText error={q.error} />
         {!q.error && (
-        <div className="home-empty" style={{ padding: '24px 0', textAlign: 'center', color: '#5e6b5a' }}>
-          <Icon.alert style={{ width: 48, height: 48, margin: '0 auto 12px' }} />
+        <div className="home-empty" style={{ padding: '24px 0', textAlign: 'center', color: 'var(--muted)' }}>
+          <Icon.alert />
           <p style={{ margin: 0 }}>Carregando seus dados financeiros...</p>
         </div>
       )}
@@ -273,10 +184,6 @@ export function HomePage({ me }: { me: Me }) {
   const expenseTotal = d.expense.total_cents;
   const incomeTotal = d.income.total_cents;
   const resultCents = incomeTotal - expenseTotal;
-  // Progresso: % das despesas coberto pelas receitas
-  // Quando income >= expenses: 100% (meta cumprida)
-  // Quando income < expenses: % de cobertura (ex: 85 = receitas cobrem 85% das despesas)
-  const progressPercent = expenseTotal > 0 ? Math.min(100, (incomeTotal / expenseTotal) * 100) : 100;
   const cats: { category_id: number | null; name: string; color: string | null; total_cents: number }[] = d.categories;
   const top = cats.slice(0, 5);
   const restCents = cats.slice(5).reduce((sum, item) => sum + item.total_cents, 0);
@@ -344,56 +251,40 @@ export function HomePage({ me }: { me: Me }) {
             <Bar ratio={expenseTotal ? d.expense.realized_cents / expenseTotal : 0} />
             <small>{d.expense.to_pay_cents > 0 ? <><MoneyText cents={d.expense.to_pay_cents} /> a pagar</> : "pagas"}</small>
           </Link>
-          <div className="sum-col" style={{ textAlign: 'right', paddingLeft: 16 }}>
-            <small className="goal-label">Meta: Receitas e Despesas</small>
-            <MoneyText cents={resultCents} className="goal-value-large"/>
-            {resultCents >= 0 ? (
-              <div className="goal-status positive">
-                <span>✅ Em dia</span>
-              </div>
-            ) : (
-              <div className="goal-status negative">
-                <span>⟡ Rebalance</span>
-              </div>
-            )}
-            <div className="goal-progress-bar">
-              <div 
-                style={{
-                  width: `${progressPercent}%`,
-                  background: resultCents >= 0 ? 'var(--pos)' : 'var(--neg)'
-                }}
-              />
-            </div>
-            <small style={{ fontSize: 10, color: 'var(--muted)', marginTop: '4px' }}>
-              {progressPercent.toFixed(0)}% de cobertura
-            </small>
+        </div>
+        {d.expense.planned_cents > 0 && (
+          <p className="sum-desc">
+            Orçamento: <MoneyText cents={d.expense.realized_cents} /> de <MoneyText cents={d.expense.planned_cents} />
+            {d.expense.realized_cents / d.expense.planned_cents >= 1 ? " · meta ultrapassada" : d.expense.realized_cents / d.expense.planned_cents >= 0.8 ? " · perto da meta" : ""}
+          </p>
+        )}
+      </section>
+    ),
+    goal: (
+      <section className="card goal-card" aria-label="Meta: gastar menos que recebe">
+        <h2>Meta: gastar menos que recebe</h2>
+        <div className={`goal-head${resultCents >= 0 ? " pos" : " neg"}`}>
+          {resultCents >= 0 ? <Icon.check /> : <Icon.alert />}
+          <span>
+            {resultCents >= 0 ? "Sobra" : "Falta"} <MoneyText cents={Math.abs(resultCents)} /> {resultCents >= 0 ? "neste mês" : "pra fechar o mês no azul"}
+          </span>
+        </div>
+        <div className="cmp-bars">
+          <div className="cmp-row">
+            <span className="cmp-label">Receitas</span>
+            <span className="cmp-track">
+              <i style={{ width: `${Math.min(100, (incomeTotal / Math.max(incomeTotal, expenseTotal, 1)) * 100)}%`, background: "var(--pos)" }} />
+            </span>
+            <b className="num"><MoneyText cents={incomeTotal} /></b>
+          </div>
+          <div className="cmp-row">
+            <span className="cmp-label">Despesas</span>
+            <span className="cmp-track">
+              <i style={{ width: `${Math.min(100, (expenseTotal / Math.max(incomeTotal, expenseTotal, 1)) * 100)}%`, background: "var(--exp)" }} />
+            </span>
+            <b className="num"><MoneyText cents={expenseTotal} /></b>
           </div>
         </div>
-        {/* Nova seção: progresso meta e comparação */}
-        <div className="sum-progress" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--line-soft)' }}>
-          {d.expense.planned_cents > 0 && (
-            <div className="row" style={{ fontSize: 12, color: 'var(--muted)' }}>
-              <span>Orçamento: </span>
-              <span style={{ color: 'var(--ink)', fontWeight: 600 }}>
-                <MoneyText cents={d.expense.realized_cents} /> de <MoneyText cents={d.expense.planned_cents} />
-              </span>
-              <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>
-                {d.expense.realized_cents / d.expense.planned_cents * 100 >= 100 ? '⟡ Meta ultrapassada' : d.expense.realized_cents / d.expense.planned_cents * 100 >= 80 ? '⟡ Próximo da meta' : ''}
-              </span>
-            </div>
-          )}
-          {month !== today.slice(0, 7) && (
-            <div className="row" style={{ fontSize: 12, color: 'var(--muted)', marginTop: '4px' }}>
-              <span>Vs mês passado: </span>
-              <span style={{ color: spentPrev > 0 ? 'var(--pos)' : 'var(--neg)', fontWeight: 600, marginLeft: '8px' }}>
-                {Math.abs(Math.round(((spentToday - spentPrev) / spentPrev) * 100))}% {spentToday <= spentPrev ? 'a menos' : 'a mais'}
-              </span>
-            </div>
-          )}
-        </div>
-        <p className="sum-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-          Saldo atual + previsão + orçamento + comparação mensal
-        </p>
       </section>
     ),
     upcoming: (
@@ -495,9 +386,10 @@ export function HomePage({ me }: { me: Me }) {
         ) : (
           <>
             <Donut
-              items={restCents > 0 ? [...top, { name: "Demais categorias", total_cents: restCents, color: "#8E9AAF" }] : top}
-              total={expenseTotal}
-              caption="Despesas"
+              slices={(restCents > 0 ? [...top, { name: "Demais categorias", total_cents: restCents, color: "#8E9AAF" }] : top).map((item) => ({ name: item.name, value: item.total_cents, color: item.color }))}
+              centerValue={hiddenMoney ? "R$ ••••" : brl(expenseTotal)}
+              centerCaption="Despesas"
+              ariaLabel={`Despesas, ${brl(expenseTotal)}`}
               onPick={(name) => {
                 if (name === "Demais categorias") return;
                 if (isCatchAll(name)) setClassify(name);
@@ -561,17 +453,6 @@ export function HomePage({ me }: { me: Me }) {
         )}
       </section>
     ),
-    flow: (
-      <section className="card" aria-label="Fluxo de caixa">
-        <h2>Fluxo de caixa</h2>
-        <p className="flow-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-          Entradas, saídas e saldo previsto para o mês
-        </p>
-        <HBar label="Entradas" total={d.income.total_cents} done={d.income.realized_cents} color="#6fbf8a" max={Math.max(d.income.total_cents, expenseTotal, Math.abs(d.balance.forecast_cents), 1)} />
-        <HBar label="Saídas" total={expenseTotal} done={d.expense.realized_cents} color="#e08b84" max={Math.max(d.income.total_cents, expenseTotal, Math.abs(d.balance.forecast_cents), 1)} />
-        <HBar label="Saldo previsto" total={d.balance.forecast_cents} done={d.balance.forecast_cents} color={d.balance.forecast_cents < 0 ? "#e08b84" : "#6aa4e0"} max={Math.max(d.income.total_cents, expenseTotal, Math.abs(d.balance.forecast_cents), 1)} signed />
-      </section>
-    ),
     evolution: (
       <section className="card" aria-label="Evolução das despesas">
         <h2>Evolução das despesas</h2>
@@ -579,25 +460,13 @@ export function HomePage({ me }: { me: Me }) {
           Como suas despesas evoluem ao longo do mês comparado ao anterior
         </p>
         {spentToday === 0 ? (
-          <div className="home-empty" style={{ padding: '20px 0', textAlign: 'center' }}>
-            <Icon.alert style={{ width: 40, height: 40, margin: '0 auto 8px' }} />
-            <p style={{ color: '#5e6b5a', fontSize: 14, margin: 0 }}>Nenhuma despesa neste mês.<br/>Use o botão "+" para registrar seus lançamentos.</p>
+          <div className="home-empty sm" style={{ padding: '20px 0', textAlign: 'center' }}>
+            <Icon.alert />
+            <p style={{ color: 'var(--muted)', fontSize: 14, margin: 0 }}>Nenhuma despesa neste mês.<br/>Use o botão "+" para registrar seus lançamentos.</p>
           </div>
         ) : (
           <>
-            <div className="chart-fit">
-              <ResponsiveContainer width="100%" height={190}>
-                <ComposedChart data={evolution} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="day" ticks={[1, 8, 15, 22, 29]} tick={{ fontSize: 11, fill: "var(--faint)" }} axisLine={false} tickLine={false} />
-                  <YAxis width={44} tick={{ fontSize: 11, fill: "var(--faint)" }} axisLine={false} tickLine={false} tickFormatter={(value) => compactAxis(Number(value))} />
-                  <Tooltip cursor={false} formatter={(value, name) => [hiddenMoney ? "R$ ••••" : brl(Number(value)), name === "anterior" ? "Mês anterior" : "Este mês"]} labelFormatter={(day) => `Dia ${day}`} contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, fontSize: 13 }} />
-                  <Area dataKey="atual" stroke="none" fill="#e08b84" fillOpacity={0.18} isAnimationActive animationDuration={400} />
-                  <Line dataKey="anterior" stroke="#8E9AAF" strokeDasharray="4 4" strokeWidth={2} dot={false} isAnimationActive animationDuration={400} />
-                  <Line dataKey="atual" stroke="#e08b84" strokeWidth={2.5} dot={(props) => <TodayDot {...props} today={todayDay} />} isAnimationActive animationDuration={400} />
-                  <Line dataKey="proj" stroke="#e08b84" strokeDasharray="4 4" strokeWidth={2} dot={false} connectNulls isAnimationActive animationDuration={400} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            <EvolutionChart data={evolution} todayDay={todayDay} formatValue={(cents) => (hiddenMoney ? "R$ ••••" : brl(cents))} />
             <p className="evo-note">
               Até hoje você gastou <MoneyText cents={spentToday} />
               {spentPrev > 0 && (
@@ -621,16 +490,17 @@ export function HomePage({ me }: { me: Me }) {
           Despesas que se repetem mensalmente e comprometem seu orçamento futuro
         </p>
         {expenseTotal === 0 ? (
-          <div className="home-empty" style={{ padding: '20px 0', textAlign: 'center' }}>
-            <Icon.alert style={{ width: 40, height: 40, margin: '0 auto 8px' }} />
-            <p style={{ color: '#5e6b5a', fontSize: 14, margin: 0 }}>Nenhuma despesa recorrente neste mês.<br/>Use o botão "+" para criar suas primeiras parcelamentos.</p>
+          <div className="home-empty sm" style={{ padding: '20px 0', textAlign: 'center' }}>
+            <Icon.alert />
+            <p style={{ color: 'var(--muted)', fontSize: 14, margin: 0 }}>Nenhuma despesa recorrente neste mês.<br/>Use o botão "+" para criar suas primeiras parcelamentos.</p>
           </div>
         ) : (
           <>
             <Donut
-              items={d.recurrence}
-              total={expenseTotal}
-              caption="No mês"
+              slices={d.recurrence.map((item: { name: string; color: string; total_cents: number }) => ({ name: item.name, value: item.total_cents, color: item.color }))}
+              centerValue={hiddenMoney ? "R$ ••••" : brl(expenseTotal)}
+              centerCaption="No mês"
+              ariaLabel={`Despesas por recorrência, ${brl(expenseTotal)}`}
               onPick={(name) => {
                 const item = d.recurrence.find((row: { name: string }) => row.name === name);
                 if (!item) return;
@@ -706,7 +576,7 @@ export function HomePage({ me }: { me: Me }) {
 
   return (
     <HiddenMoney.Provider value={hiddenMoney}>
-      <main className="page home" style={{ borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+      <main className="page home">
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
@@ -718,21 +588,22 @@ export function HomePage({ me }: { me: Me }) {
           {layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => {
             const block = blocks[id];
             // Só renderiza o bloco se tiver conteúdo relevante
-            const hasData = 
+            const hasData =
               id === 'summary' ? true : // Resumo sempre mostra algo
-              id === 'upcoming' ? upcoming.length > 0 : 
-              id === 'invoices' ? invoiceRows.length > 0 : 
-              id === 'categories' ? cats.length > 0 : 
-              id === 'flow' ? true : 
-              id === 'evolution' ? spentToday !== 0 : 
-              id === 'recurrence' ? expenseTotal !== 0 : 
+              id === 'goal' ? true :
+              id === 'upcoming' ? upcoming.length > 0 :
+              id === 'invoices' ? invoiceRows.length > 0 :
+              id === 'categories' ? cats.length > 0 :
+              id === 'evolution' ? spentToday !== 0 :
+              id === 'recurrence' ? expenseTotal !== 0 :
               id === 'year' ? yearQ.data ? true : false : false;
-            
-            return hasData ? (
-              <div key={id} ref={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined} style={{ background: 'var(--surface)', borderRadius: '16px', padding: '12px', marginBottom: 8, border: '1px solid var(--line)', transition: 'border-color 0.2s' }}>
-                {block}
-              </div>
-            ) : null;
+
+            if (!hasData) return null;
+            if (id === "evolution" || id === "year") {
+              // Só esses dois precisam da ref pro observer de rolagem (carregam dados ao entrar na tela).
+              return <div key={id} ref={id === "evolution" ? evoRef : yearRef}>{block}</div>;
+            }
+            return <div key={id}>{block}</div>;
           })}
         </div>
         <button type="button" className="config-home" style={{ color: 'var(--green)', borderColor: 'var(--green)' }} onClick={() => setConfig(true)}>
@@ -787,7 +658,12 @@ export function HomePage({ me }: { me: Me }) {
             <p className="empty">Sem subcategorias neste mês.</p>
           ) : (
             <>
-              <Donut items={childParts} total={childParts.reduce((sum, item) => sum + item.total_cents, 0)} caption={selectedCat.name} />
+              <Donut
+                slices={childParts.map((item) => ({ name: item.name, value: item.total_cents, color: item.color }))}
+                centerValue={hiddenMoney ? "R$ ••••" : brl(childParts.reduce((sum, item) => sum + item.total_cents, 0))}
+                centerCaption={selectedCat.name}
+                ariaLabel={`${selectedCat.name}, ${brl(childParts.reduce((sum, item) => sum + item.total_cents, 0))}`}
+              />
               <div className="rec-rows">
                 {childParts.map((item) => (
                   <div key={item.name} className="rec-row">
@@ -902,10 +778,10 @@ function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members
   return (
     <div className="hd home-top">
       <div className="home-greet">
-        <small className="home-kicker" style={{ color: '#22c55e' }}>{me.household_name}</small>
+        <small className="home-kicker">{me.household_name}</small>
         <h1>Olá, {me.name.split(" ")[0]}</h1>
       </div>
-      <nav className="home-actions" style={{ borderColor: '#22c55e', color: '#22c55e' }} aria-label="Ferramentas rápidas">
+      <nav className="home-actions" aria-label="Ferramentas rápidas">
         {shown.length > 0 && (
           <Link to="/progresso" className="avatars" aria-label="Ver progresso dos membros">
             {shown.map((member) => (
@@ -918,41 +794,6 @@ function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members
         </button>
       </nav>
     </div>
-  );
-}
-
-function HBar({ label, total, done, color, signed, max }: { label: string; total: number; done: number; color: string; signed?: boolean; max: number }) {
-  const width = max > 0 ? (Math.abs(total) / max) * 100 : 0;
-  const safeDone = Math.abs(total) > 0 ? Math.max(0, Math.min(1, Math.abs(done) / Math.abs(total))) : 0;
-  return (
-    <div className="hbar">
-      <div className="hbar-top">
-        <span>{label}</span>
-        <b>
-          <MoneyText cents={signed ? total : Math.abs(total)} />
-        </b>
-      </div>
-      <div className="hbar-track">
-        <div className="hbar-fill" style={{ width: total === 0 ? "0%" : `${width}%`, ["--c" as string]: color }}>
-          <i style={{ width: `${safeDone * 100}%` }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TodayDot(props: { cx?: number; cy?: number; payload?: { day?: number }; today?: number }) {
-  const { cx, cy, payload, today } = props;
-  if (cx == null || cy == null || payload?.day !== today) return <g />;
-  return <circle cx={cx} cy={cy} r={5} fill="var(--surface)" stroke="#e08b84" strokeWidth={2.5} />;
-}
-
-function MonthTick({ x, y, payload, selected }: { x?: string | number; y?: string | number; payload?: { value?: string }; selected?: boolean }) {
-  const yPos = Number(y ?? 0) + 12;
-  return (
-    <text x={x} y={yPos} textAnchor="middle" fill={selected ? "var(--ink)" : "var(--faint)"} fontSize={11} fontWeight={selected ? 700 : 500}>
-      {payload?.value}
-    </text>
   );
 }
 
@@ -988,7 +829,6 @@ function YearBlock({
     cum: cum[index],
   }));
   const picked = rows[monthIndex];
-  const tick = { fontSize: 11, fill: "var(--faint)", fontFamily: "inherit" };
   return (
     <section className="card" aria-label="Ano em gráfico">
       <div className="hd">
@@ -1005,25 +845,7 @@ function YearBlock({
         </button>
       </div>
       <div className="year-scroll" ref={scroller}>
-        <div className="year-wide chart-pick">
-          <ResponsiveContainer width="100%" height={180}>
-            <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <XAxis dataKey="name" interval={0} axisLine={false} tickLine={false} tick={(props) => <MonthTick {...props} selected={props.index === monthIndex} />} />
-              <YAxis width={42} tick={tick} axisLine={false} tickLine={false} tickFormatter={(value) => compactAxis(Number(value))} />
-              <MonthBar dataKey="inc" fill="#6fbf8a" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400} onClick={(_entry, index) => onPick(index)}>
-                {rows.map((row) => (
-                  <Cell key={row.name} fill={row.inc ? "#6fbf8a" : "var(--bar-empty)"} />
-                ))}
-              </MonthBar>
-              <MonthBar dataKey="exp" fill="#e08b84" maxBarSize={14} radius={[3, 3, 0, 0]} isAnimationActive animationDuration={400} onClick={(_entry, index) => onPick(index)}>
-                {rows.map((row) => (
-                  <Cell key={row.name} fill={row.exp ? "#e08b84" : "var(--bar-empty)"} />
-                ))}
-              </MonthBar>
-              {showCum && <Line dataKey="cum" stroke="var(--chart-cum)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive animationDuration={400} />}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        <YearBarChart rows={rows as YearRow[]} monthIndex={monthIndex} showCum={showCum} onPick={onPick} />
       </div>
       <div className="ysel">
         <b>{picked?.name}</b>

@@ -1,6 +1,6 @@
 import { useRef, type TouchEvent } from 'react';
 
-const IGNORE = '.sc, .year-scroll, .recharts-wrapper, input, select, textarea, [role="slider"], .sheet, .overlay';
+const IGNORE = '.sc, .year-scroll, .chart-fit, .year-wide, input, select, textarea, [role="slider"], .sheet, .overlay';
 
 export function useSwipe(onPrev: () => void, onNext: () => void) {
   const start = useRef<{ x: number; y: number; t: number } | null>(null);

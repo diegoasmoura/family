@@ -57,6 +57,7 @@ Produção (NAS): `docker compose up -d --build` com `.env` baseado em `.env.exa
 - `state.tsx`: estado de sessão — mês selecionado, `person` (`'me'` padrão = Eu, `'all'` = Nós), toasts e `celebrate` de XP. Eu/Nós e mês **não** são persistidos.
 - Preferências locais em `localStorage`: `fin-theme`, `fin-hide-money` (`privacy.ts`), `fin-home-layout`.
 - Telas em `src/pages/`; folhas reutilizáveis na raiz de `src` (`TxSheet`, `PaySheet`, `SettleSheet`, `TxMenu`); primitivos de UI em `ui.tsx`; estilos globais em `styles.css` (variáveis CSS, tema claro/escuro via `data-theme`).
+- `charts.tsx`: motor de gráficos do app, em `@visx` (primitivas SVG pequenas, não um pacote de gráfico pronto). Cada gráfico mede a própria largura com `@visx/responsive` (`ParentSize`) em vez de depender do pai ter altura definida. Cores sempre por variável do tema (`var(--pos)`/`var(--exp)`/`var(--chart-cum)`/`var(--bar-empty)`), nunca hex fixo, pra herdar claro/escuro. Texto de eixo que revela valor em reais leva `className="ax"`, escondido pelo modo "ocultar valores" (`html[data-hide-money="1"] .ax`). `CartoesPage.tsx` tem seu próprio SVG à mão (`.cchart`), fora desse módulo.
 
 ## Regras de negócio que mais quebram
 

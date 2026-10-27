@@ -41,7 +41,6 @@
   --r-lg: 20px;
   --r-xl: 24px;
   --bar-empty: #e6e9ef;
-  --chart-exp: #ff7a6b;
   --chart-cum: #1c7ed6;
   color-scheme: light;
   font-family: "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -51,7 +50,6 @@
 }
 
 :root[data-theme="dark"] {
-  --chart-exp: #f2685a;
   --chart-cum: #5aa9f0;
   --green-text: #7ed957;
   --green-soft: #1a2e22;
@@ -2049,10 +2047,8 @@ a.kebab {
   width: 100%;
   min-width: 0;
 }
-.chart-fit .recharts-wrapper,
-.chart-fit .recharts-surface,
-.year-wide .recharts-wrapper,
-.year-wide .recharts-surface {
+.chart-fit svg,
+.year-wide svg {
   overflow: visible;
 }
 .chart-fit :focus,
@@ -2061,32 +2057,10 @@ a.kebab {
 .year-wide :focus-visible {
   outline: none;
 }
-.chart-pick .recharts-sector,
-.chart-pick .recharts-bar-rectangle {
-  cursor: pointer;
-}
 .card.inv-line {
   flex-direction: row;
   align-items: center;
   gap: 10px;
-}
-.donut {
-  width: min(100%, 280px);
-  height: auto;
-  display: block;
-  margin: 0 auto;
-}
-.donut-total {
-  font-size: 12px;
-  font-weight: 700;
-  fill: var(--ink);
-  font-family: inherit;
-}
-.donut-pct {
-  font-size: 10px;
-  font-weight: 700;
-  fill: var(--ink);
-  font-family: inherit;
 }
 .cat-rows {
   display: flex;
@@ -2132,106 +2106,6 @@ a.kebab {
   height: 3px;
   border-radius: 2px;
   background: var(--chart-cum);
-}
-.ychart {
-  display: block;
-  overflow: visible;
-}
-.ychart .stop-inc {
-  stop-color: #9cf04a;
-}
-.ychart .stop-inc2 {
-  stop-color: var(--green-dark);
-}
-.ychart .stop-exp {
-  stop-color: #ffb4aa;
-}
-.ychart .stop-exp2 {
-  stop-color: #ef5d4e;
-}
-.ychart .stop-area {
-  stop-color: var(--chart-cum);
-  stop-opacity: 0.2;
-}
-.ychart .stop-area2 {
-  stop-color: var(--chart-cum);
-  stop-opacity: 0;
-}
-.ychart .grid {
-  stroke: var(--line);
-  stroke-width: 1;
-  stroke-dasharray: 4 5;
-}
-.ychart .zero {
-  stroke: var(--line);
-  stroke-width: 1.5;
-}
-.ychart .ax {
-  font-size: 11px;
-  font-weight: 600;
-  fill: var(--faint);
-  font-family: inherit;
-}
-.ychart .mon {
-  cursor: pointer;
-}
-.ychart .hit {
-  fill: transparent;
-}
-@media (hover: hover) {
-  .ychart .mon:hover .hit {
-    fill: var(--line-soft);
-  }
-}
-.ychart .mon.on .hit {
-  fill: transparent;
-}
-.ychart .pill {
-  fill: var(--green);
-}
-.ychart .mon.on .mo-l {
-  fill: var(--ink);
-  font-weight: 700;
-}
-.ychart .call {
-  fill: var(--chart-cum);
-}
-.ychart .call-t {
-  font-size: 10px;
-  font-weight: 700;
-  fill: #fff;
-  font-family: inherit;
-}
-.ychart .mon.fut .b {
-  opacity: 0.72;
-}
-.ychart .area,
-.ychart .cum,
-.ychart .dot,
-.ychart .halo {
-  pointer-events: none;
-}
-.ychart .cum {
-  fill: none;
-  stroke: var(--chart-cum);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.ychart .cum.fut {
-  stroke-dasharray: 7 6;
-}
-.ychart .dot {
-  fill: var(--surface);
-  stroke: var(--chart-cum);
-  stroke-width: 2.5;
-}
-.ychart .halo {
-  fill: var(--chart-cum);
-  opacity: 0.18;
-}
-.ychart .fut .dot {
-  stroke-dasharray: 2.2 1.6;
 }
 .ysel {
   display: flex;
@@ -2367,6 +2241,7 @@ a.kebab {
 .page.home .home-kicker {
   font-size: 12px;
   font-weight: 500;
+  color: var(--green-text);
 }
 .page.home .home-top {
   justify-content: flex-start;
@@ -2644,6 +2519,17 @@ small.late { color: var(--neg); font-weight: 600; }
   height: 100%;
   background: currentColor;
 }
+.home-empty svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+}
+.home-empty.sm svg {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 8px;
+}
 .hint-box {
   display: flex;
   align-items: center;
@@ -2744,8 +2630,7 @@ html[data-hide-money="1"] :is(.num, .money, .home-balance, .year td + td) {
   filter: blur(7px);
   user-select: none;
 }
-html[data-hide-money="1"] .recharts-yAxis,
-html[data-hide-money="1"] .cchart .ax { visibility: hidden; }
+html[data-hide-money="1"] .ax { visibility: hidden; }
 .offline {
   margin: 0;
   padding: 8px 16px;
@@ -2810,57 +2695,51 @@ button.plan-open {
 .sheet .hd { touch-action: none; cursor: grab; }
 
 /* =====================================================================
-   GOAL METER · indicador visual de meta "Receitas > Despesas"
+   META PRINCIPAL · "Receitas > Despesas", o card de destaque do Início
    ===================================================================== */
-.balance-goal-wrapper {
-  text-align: center;
-  padding: 16px;
-  border-radius: 12px;
-  background: var(--surface);
-}
-
-.goal-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.goal-value-large {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 8px 0;
-}
-
-.goal-status {
-  font-size: 12px;
+.goal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  font-size: 14px;
   font-weight: 600;
-  text-transform: uppercase;
-  margin: 4px 0;
 }
-
-.goal-status.positive { color: var(--pos); }
-.goal-status.negative { color: var(--neg); }
-
-.goal-progress-bar {
-  width: 180px;
-  height: 8px;
-  background: #e2e8f0;
-  border-radius: 4px;
+.goal-head svg { width: 18px; height: 18px; flex: none; }
+.goal-head.pos { background: var(--green-soft); color: var(--pos); }
+.goal-head.neg { background: var(--danger-bg); color: var(--neg); }
+.cmp-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cmp-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.cmp-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.cmp-track {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line-soft);
   overflow: hidden;
-  margin: 8px auto 0;
 }
-
-.goal-progress-bar div {
+.cmp-track i {
+  display: block;
   height: 100%;
-  width: 0%;
-  transition: width 0.5s ease;
-  background: var(--pos);
+  border-radius: inherit;
+  transition: width 0.4s ease;
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .goal-progress-bar div {
+  .cmp-track i {
     transition: width 0.01ms !important;
   }
 }
