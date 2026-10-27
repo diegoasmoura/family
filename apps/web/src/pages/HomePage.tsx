@@ -271,6 +271,12 @@ export function HomePage({ me }: { me: Me }) {
   }
 
   const expenseTotal = d.expense.total_cents;
+  const incomeTotal = d.income.total_cents;
+  const resultCents = incomeTotal - expenseTotal;
+  // Progresso: % das despesas coberto pelas receitas
+  // Quando income >= expenses: 100% (meta cumprida)
+  // Quando income < expenses: % de cobertura (ex: 85 = receitas cobrem 85% das despesas)
+  const progressPercent = expenseTotal > 0 ? Math.min(100, (incomeTotal / expenseTotal) * 100) : 100;
   const cats: { category_id: number | null; name: string; color: string | null; total_cents: number }[] = d.categories;
   const top = cats.slice(0, 5);
   const restCents = cats.slice(5).reduce((sum, item) => sum + item.total_cents, 0);
@@ -338,6 +344,28 @@ export function HomePage({ me }: { me: Me }) {
             <Bar ratio={expenseTotal ? d.expense.realized_cents / expenseTotal : 0} />
             <small>{d.expense.to_pay_cents > 0 ? <><MoneyText cents={d.expense.to_pay_cents} /> a pagar</> : "pagas"}</small>
           </Link>
+          <div className="sum-col" style={{ textAlign: 'right', paddingLeft: 16 }}>
+            <small className="goal-label">Meta: Receitas > Despesas</small>
+            <MoneyText cents={resultCents} className="goal-value-large"/>
+            <div className={`goal-status ${resultCents >= 0 ? 'positive' : 'negative'}`}>
+              {resultCents >= 0 ? (
+                <span>✅ Em dia</span>
+              ) : (
+                <span>⟡ Rebalance</span>
+              )}
+            </div>
+            <div className="goal-progress-bar">
+              <div 
+                style={{
+                  width: `${progressPercent}%`,
+                  background: resultCents >= 0 ? 'var(--pos)' : 'var(--neg)'
+                }}
+              />
+            </div>
+            <small style={{ fontSize: 10, color: 'var(--muted)', marginTop: '4px' }}>
+              {progressPercent.toFixed(0)}% de cobertura
+            </small>
+          </div>
         </div>
         {/* Nova seção: progresso meta e comparação */}
         <div className="sum-progress" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--line-soft)' }}>

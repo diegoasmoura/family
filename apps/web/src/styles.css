@@ -2810,6 +2810,62 @@ button.plan-open {
 .sheet .hd { touch-action: none; cursor: grab; }
 
 /* =====================================================================
+   GOAL METER · indicador visual de meta "Receitas > Despesas"
+   ===================================================================== */
+.balance-goal-wrapper {
+  text-align: center;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.goal-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.goal-value-large {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 8px 0;
+}
+
+.goal-status {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 4px 0;
+}
+
+.goal-status.positive { color: var(--pos); }
+.goal-status.negative { color: var(--neg); }
+
+.goal-progress-bar {
+  width: 180px;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px auto 0;
+}
+
+.goal-progress-bar div {
+  height: 100%;
+  width: 0%;
+  transition: width 0.5s ease;
+  background: var(--pos);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-progress-bar div {
+    transition: width 0.01ms !important;
+  }
+}
+
+/* =====================================================================
    REVISÃO DE LAYOUT · tudo abaixo é novo (o resto do arquivo foi ajustado no lugar)
    ===================================================================== */
 
