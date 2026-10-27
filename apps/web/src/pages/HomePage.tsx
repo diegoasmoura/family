@@ -345,15 +345,17 @@ export function HomePage({ me }: { me: Me }) {
             <small>{d.expense.to_pay_cents > 0 ? <><MoneyText cents={d.expense.to_pay_cents} /> a pagar</> : "pagas"}</small>
           </Link>
           <div className="sum-col" style={{ textAlign: 'right', paddingLeft: 16 }}>
-            <small className="goal-label">Meta: Receitas > Despesas</small>
+            <small className="goal-label">Meta: Receitas e Despesas</small>
             <MoneyText cents={resultCents} className="goal-value-large"/>
-            <div className={`goal-status ${resultCents >= 0 ? 'positive' : 'negative'}`}>
-              {resultCents >= 0 ? (
+            {resultCents >= 0 ? (
+              <div className="goal-status positive">
                 <span>✅ Em dia</span>
-              ) : (
+              </div>
+            ) : (
+              <div className="goal-status negative">
                 <span>⟡ Rebalance</span>
-              )}
-            </div>
+              </div>
+            )}
             <div className="goal-progress-bar">
               <div 
                 style={{
