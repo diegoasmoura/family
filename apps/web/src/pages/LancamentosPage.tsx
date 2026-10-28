@@ -395,9 +395,9 @@ export function LancamentosPage() {
               </button>
             ))}
           </div>
-          {!income && person !== 'all' && (
-            <small title="No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga.">
-              Cartão só vira “Pago” quando a fatura é paga — veja em Cartões.
+          {!income && (
+            <small title="Pago e A pagar aqui são dinheiro que já saiu ou vai sair de uma conta. Compra no cartão nunca entra nos dois, mesmo com a fatura paga — ela aparece com o selo “Pago” na própria linha, mas quem paga de fato é a fatura.">
+              Compras no cartão não entram em “Pago”/“A pagar” — acompanhe a fatura em Cartões.
             </small>
           )}
 

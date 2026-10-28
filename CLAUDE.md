@@ -72,7 +72,7 @@ Produção (NAS): `docker compose up -d --build` com `.env` baseado em `.env.exa
 - Dinheiro sempre em **centavos inteiros**; parcelas jogam os centavos restantes nas primeiras.
 - Compra no cartão é despesa no **mês da fatura**; pagar a fatura só tira dinheiro da conta (não é despesa). Pagamento acima da fatura vira crédito da próxima.
 - Compra no dia do fechamento ou depois entra na fatura seguinte; vencimento > fechamento vence no mesmo mês, senão no seguinte.
-- Status (pago, atrasado, próximo ≤7 dias, previsto) é **calculado**, nunca gravado.
+- Status (pago, atrasado, próximo ≤7 dias, previsto) é **calculado**, nunca gravado. Compra de cartão mostra status **"Pago"** por linha quando a fatura dela já quitou (`deriveStatus` em `packages/domain/src/status.ts`) — mas `/transactions`'s `settled_cents`/`pending_cents` (os números "Pago"/"A pagar" de Lançamentos) são só **caixa de conta** (`!t.card_id && t.paid_on`) e **nunca** contam compra de cartão, mesmo com a fatura paga. As duas coisas usam a palavra "Pago" com escopos diferentes de propósito — não é bug, é dinheiro-saiu-da-conta vs. despesa-já-quitada; antes de "consertar" uma divergência entre elas, confirme qual das duas está sendo lida.
 - `include_in_reports = 0` ("Contar na soma" desligado) mexe no saldo mas fica fora de totais e orçamento.
 - Transferência e "Corrigir fim do mês" não são receita nem despesa.
 - Antes de alterar qualquer um desses comportamentos, confira `premissas.md`.
