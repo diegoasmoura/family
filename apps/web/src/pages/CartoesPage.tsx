@@ -526,8 +526,9 @@ const ACTIONS: [Panel, string, boolean?][] = [
   ['excluir', 'Excluir', true],
 ];
 
-function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }) {
+function CardMenu({ name, invoicePaid, onPick }: { name: string; invoicePaid?: boolean; onPick: (p: Panel) => void }) {
   const [open, setOpen] = useState(false);
+  const actions = invoicePaid ? [['despesas', 'Desfazer pagamento'] as [Panel, string, boolean?], ...ACTIONS] : ACTIONS;
   return (
     <>
       <button type="button" className="kebab" aria-label="Mais ações do cartão" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
@@ -536,9 +537,9 @@ function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }
       {open && (
         <Sheet title={name} onClose={() => setOpen(false)}>
           <div className="list">
-            {ACTIONS.map(([panel, label, danger]) => (
+            {actions.map(([panel, label, danger]) => (
               <button
-                key={panel}
+                key={label}
                 type="button"
                 className={`r${danger ? ' danger' : ''}`}
                 style={{ minHeight: 52 }}
@@ -584,7 +585,7 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           <Link className="kebab" to="/lancar" state={{ from: location.pathname + location.search, cardId: card.id }} aria-label={`Nova compra no ${card.name}`}>
             <Icon.plus />
           </Link>
-          <CardMenu name={card.name} onPick={onPanel} />
+          <CardMenu name={card.name} invoicePaid={invoice?.state === 'paid'} onPick={onPanel} />
         </div>
       </div>
 
@@ -625,9 +626,16 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           </div>
         </button>
       )}
-      <button type="button" className={invoice && invoice.remaining_cents > 0 ? 'btn sm' : 'btn ghost sm'} style={{ alignSelf: 'flex-start' }} onClick={() => onPanel('pagar')}>
-        {invoice && invoice.remaining_cents > 0 ? `Pagar ${brl(invoice.remaining_cents)}` : 'Pagamento antecipado'}
-      </button>
+      <div className="row" style={{ gap: 8, alignSelf: 'flex-start' }}>
+        <button type="button" className={invoice && invoice.remaining_cents > 0 ? 'btn sm' : 'btn ghost sm'} onClick={() => onPanel('pagar')}>
+          {invoice && invoice.remaining_cents > 0 ? `Pagar ${brl(invoice.remaining_cents)}` : 'Pagamento antecipado'}
+        </button>
+        {invoice?.state === 'paid' && (
+          <button type="button" className="btn ghost sm" onClick={() => onPanel('despesas')}>
+            Desfazer pagamento
+          </button>
+        )}
+      </div>
 
       <div className="cc-3">
         <div>

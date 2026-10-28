@@ -7,3 +7,4 @@ dist/
 .env
 backups/
 .playwright-mcp/
+.claude/
