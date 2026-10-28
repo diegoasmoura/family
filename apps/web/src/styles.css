@@ -190,6 +190,21 @@ small,
   justify-content: space-between;
   gap: 12px;
 }
+.hd-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hd .home-jump {
+  flex: none;
+}
+.hd-desc {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--faint);
+}
 .title-row {
   display: flex;
   align-items: center;
@@ -2057,6 +2072,44 @@ a.kebab {
 .year-wide :focus-visible {
   outline: none;
 }
+.donut-svg {
+  animation: donut-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center;
+}
+@keyframes donut-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.donut-slice {
+  transform: translate(0, 0);
+  transition: transform 160ms ease;
+}
+.donut-slice path {
+  transition: filter 160ms ease;
+}
+.donut-slice:hover,
+.donut-slice:active {
+  transform: translate(var(--tx), var(--ty));
+}
+.donut-slice:hover path,
+.donut-slice:active path {
+  filter: brightness(1.07);
+}
+@media (prefers-reduced-motion: reduce) {
+  .donut-svg {
+    animation: none;
+  }
+  .donut-slice,
+  .donut-slice path {
+    transition: none;
+  }
+}
 .card.inv-line {
   flex-direction: row;
   align-items: center;
@@ -2382,10 +2435,84 @@ a.kebab {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ptr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+}
+.ptr-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  color: var(--green-text);
+  transition: transform 180ms ease;
+}
+.ptr-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.ptr-icon.ready {
+  transform: rotate(180deg);
+}
+.ptr-icon.busy {
+  border-color: transparent;
+  background: none;
+}
+.ptr small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+}
+.ptr-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  border-top-color: var(--green-text);
+  animation: ptr-spin 650ms linear infinite;
+}
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ptr-icon {
+    transition: none;
+  }
+  .ptr-spinner {
+    animation-duration: 1200ms;
+  }
+}
 .home-stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 420ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 .money {
   white-space: nowrap;

@@ -64,6 +64,7 @@ export const Icon = {
   eye: () => svg(<><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>),
   eyeOff: () => svg(<>{path('M3 3l18 18')}{path('M9.9 5.6A10 10 0 0 1 12 5c6 0 10 7 10 7a18 18 0 0 1-3.4 4')}{path('M6.1 6.7C3.6 8.6 2 12 2 12s4 7 10 7c1.5 0 2.9-.4 4.1-1')}</>),
   grid: () => svg(<><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></>),
+  arrowDown: () => svg(path('M12 4v15M6 13l6 6 6-6')),
 };
 
 export function StatusIcon({ status, label }: { status: Tx['display_status']; label?: string }) {

@@ -62,6 +62,23 @@ function MoneyText({ cents, sign }: { cents: number; sign?: boolean }) {
   );
 }
 
+/** Revela cada card com um leve fade+subida na primeira vez que entra na tela. */
+function RevealItem({ index, forwardRef, children }: { index: number; forwardRef?: (node: HTMLDivElement | null) => void; children: ReactNode }) {
+  const [setEl, seen] = useInView<HTMLDivElement>("0px 0px -72px 0px");
+  return (
+    <div
+      ref={(node) => {
+        setEl(node);
+        forwardRef?.(node);
+      }}
+      className={`reveal${seen ? " in" : ""}`}
+      style={{ transitionDelay: `${Math.min(index, 6) * 40}ms` }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function cumulative(items: Tx[], month: string) {
   const days = daysInMonth(month);
   const byDay = Array.from({ length: days }, () => 0);
@@ -290,10 +307,10 @@ export function HomePage({ me }: { me: Me }) {
     upcoming: (
       <section className="card" aria-label="Próximos vencimentos">
         <div className="hd">
-          <h2>Próximos vencimentos</h2>
-          <p className="up-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-            Contas e faturas que vencem nos próximos 30 dias
-          </p>
+          <div className="hd-title">
+            <h2>Próximos vencimentos</h2>
+            <p className="hd-desc">Próximos 30 dias</p>
+          </div>
           <Link className="home-jump" to="/calendario">
             Calendário <Icon.right />
           </Link>
@@ -374,9 +391,6 @@ export function HomePage({ me }: { me: Me }) {
       <section className="card" aria-label="Despesas por categoria">
         <div className="hd">
           <h2>Despesas por categoria</h2>
-          <p className="cat-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-            Como suas despesas estão distribuídas por categoria este mês
-          </p>
           <Link className="home-jump" to="/orcamento">
             Orçamento <Icon.right />
           </Link>
@@ -456,9 +470,7 @@ export function HomePage({ me }: { me: Me }) {
     evolution: (
       <section className="card" aria-label="Evolução das despesas">
         <h2>Evolução das despesas</h2>
-        <p className="evo-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-          Como suas despesas evoluem ao longo do mês comparado ao anterior
-        </p>
+        <p className="hd-desc">Comparado ao mês anterior</p>
         {spentToday === 0 ? (
           <div className="home-empty sm" style={{ padding: '20px 0', textAlign: 'center' }}>
             <Icon.alert />
@@ -486,9 +498,7 @@ export function HomePage({ me }: { me: Me }) {
     recurrence: (
       <section className="card" aria-label="Despesas por recorrência">
         <h2>Despesas por recorrência</h2>
-        <p className="rec-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-          Despesas que se repetem mensalmente e comprometem seu orçamento futuro
-        </p>
+        <p className="hd-desc">Se repetem todo mês e comprometem meses futuros</p>
         {expenseTotal === 0 ? (
           <div className="home-empty sm" style={{ padding: '20px 0', textAlign: 'center' }}>
             <Icon.alert />
@@ -530,9 +540,6 @@ export function HomePage({ me }: { me: Me }) {
       <section className="card" aria-label="Faturas dos cartões">
         <div className="hd">
           <h2>Faturas dos cartões</h2>
-          <p className="inv-desc" style={{ fontSize: 11, color: 'var(--faint)', marginTop: '4px' }}>
-            Status das faturas dos seus cartões de crédito este mês
-          </p>
           <Link className="home-jump" to="/cartoes">
             Cartões <Icon.right />
           </Link>
@@ -580,12 +587,22 @@ export function HomePage({ me }: { me: Me }) {
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
-        <div className={`ptr${ptr.busy ? " busy" : ""}`} style={{ height: ptr.busy ? 36 : ptr.pull / 2 }} aria-hidden>
-          {ptr.busy ? "Atualizando…" : ptr.ready ? "Solte para atualizar" : ptr.pull > 8 ? "Puxe para atualizar" : ""}
+        <div
+          className={`ptr${ptr.busy ? " busy" : ""}`}
+          style={{
+            height: ptr.busy ? 44 : Math.min(60, ptr.pull * 0.65),
+            transition: ptr.busy || ptr.pull === 0 ? "height 220ms cubic-bezier(.22,1,.36,1)" : "none",
+          }}
+          aria-hidden
+        >
+          <span className={`ptr-icon${ptr.busy ? " busy" : ptr.ready ? " ready" : ""}`}>
+            {ptr.busy ? <span className="ptr-spinner" /> : <Icon.arrowDown />}
+          </span>
+          {(ptr.busy || ptr.pull > 8) && <small>{ptr.busy ? "Atualizando…" : ptr.ready ? "Solte para atualizar" : "Puxe para atualizar"}</small>}
         </div>
         <ErrorText error={q.error} />
         <div className="home-stack">
-          {layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => {
+          {layout.order.filter((id) => !layout.hidden.includes(id)).map((id, index) => {
             const block = blocks[id];
             // Só renderiza o bloco se tiver conteúdo relevante
             const hasData =
@@ -599,11 +616,12 @@ export function HomePage({ me }: { me: Me }) {
               id === 'year' ? yearQ.data ? true : false : false;
 
             if (!hasData) return null;
-            if (id === "evolution" || id === "year") {
-              // Só esses dois precisam da ref pro observer de rolagem (carregam dados ao entrar na tela).
-              return <div key={id} ref={id === "evolution" ? evoRef : yearRef}>{block}</div>;
-            }
-            return <div key={id}>{block}</div>;
+            // evolution/year também carregam a ref do observer que antecipa o carregamento do gráfico.
+            return (
+              <RevealItem key={id} index={index} forwardRef={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined}>
+                {block}
+              </RevealItem>
+            );
           })}
         </div>
         <button type="button" className="config-home" style={{ color: 'var(--green)', borderColor: 'var(--green)' }} onClick={() => setConfig(true)}>

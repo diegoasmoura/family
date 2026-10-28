@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { ParentSize } from "@visx/responsive";
 import { Group } from "@visx/group";
 import { Pie, LinePath, AreaClosed, Bar as VxBar } from "@visx/shape";
@@ -6,7 +6,6 @@ import { scaleLinear, scaleBand } from "@visx/scale";
 import { curveMonotoneX } from "@visx/curve";
 import { localPoint } from "@visx/event";
 import { useTooltip, TooltipWithBounds, defaultStyles } from "@visx/tooltip";
-import { inkOn } from "@fin/domain";
 
 /**
  * Motor de gráficos do app: @visx (primitivas de baixo nível, SVG, bem pequenas).
@@ -29,6 +28,17 @@ export function compactAxis(cents: number) {
 }
 
 const tick = { fontSize: 11, fill: "var(--faint)" } as const;
+
+/** Sombra escura da própria cor da fatia, pra contornar o número sem depender de preto/branco fixo. */
+function shadeOf(hex: string, amount: number) {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return "rgba(0,0,0,0.55)";
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const d = (c: number) => Math.max(0, Math.round(c * (1 - amount)));
+  return `rgb(${d(r)}, ${d(g)}, ${d(b)})`;
+}
 
 function ResponsiveSvg({ height, pad = 12, children }: { height: number; pad?: number; children: (width: number) => React.ReactNode }) {
   return (
@@ -66,7 +76,7 @@ export function Donut({
           const inner = Math.round(outer * 0.68);
           const size = outer * 2;
           return (
-            <svg width="100%" height={size + 12} viewBox={`0 0 ${width} ${size + 12}`}>
+            <svg className="donut-svg" width="100%" height={size + 12} viewBox={`0 0 ${width} ${size + 12}`}>
               <Group top={size / 2 + 6} left={width / 2}>
                 <Pie data={parts} pieValue={(d) => d.value} outerRadius={outer} innerRadius={inner} padAngle={parts.length > 1 ? 0.035 : 0}>
                   {(pie) =>
@@ -77,16 +87,33 @@ export function Donut({
                       const fill = slice.color || "#8E9AAF";
                       const path = pie.path(arc);
                       if (!path) return null;
+                      const dist = Math.hypot(labelX, labelY) || 1;
+                      const lift = parts.length > 1 ? 6 : 0;
+                      const tx = (labelX / dist) * lift;
+                      const ty = (labelY / dist) * lift;
                       return (
-                        <g key={slice.name}>
-                          <path
-                            d={path}
-                            fill={fill}
-                            style={onPick ? { cursor: "pointer" } : undefined}
-                            onClick={onPick ? () => onPick(slice.name) : undefined}
-                          />
+                        <g
+                          key={slice.name}
+                          className="donut-slice"
+                          style={{ "--tx": `${tx}px`, "--ty": `${ty}px`, cursor: onPick ? "pointer" : undefined } as CSSProperties}
+                          onClick={onPick ? () => onPick(slice.name) : undefined}
+                        >
+                          <path d={path} fill={fill} />
                           {fraction >= 0.08 && (
-                            <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600} fill={inkOn(fill)}>
+                            <text
+                              x={labelX}
+                              y={labelY}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontSize={13}
+                              fontWeight={700}
+                              letterSpacing={0.2}
+                              fill="#fff"
+                              stroke={shadeOf(fill, 0.45)}
+                              strokeWidth={3}
+                              strokeLinejoin="round"
+                              paintOrder="stroke"
+                            >
                               {Math.round(fraction * 100)}%
                             </text>
                           )}
