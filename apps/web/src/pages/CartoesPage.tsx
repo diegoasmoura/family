@@ -169,6 +169,39 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
     ['Fixas', txs.filter((t) => t.recurrence_id && !t.plan_id)],
     ['Avulsas', txs.filter((t) => !t.plan_id && !t.recurrence_id)],
   ].filter((entry): entry is [string, Purchase[]] => entry[1].length > 0);
+  const paymentsSection = inv && (inv.payments.length > 0 || inv.credit_in_cents > 0) && (
+    <section className="card">
+      <h2>Pagamentos</h2>
+      {inv.credit_in_cents > 0 && (
+        <div className="kv">
+          <span>Crédito da fatura anterior</span>
+          <b className="num">{brl(inv.credit_in_cents)}</b>
+        </div>
+      )}
+      {inv.payments.map((p: any) => (
+        <div className="kv" key={p.id}>
+          <span>
+            {shortDate(p.paid_on)} · {p.account_name}
+          </span>
+          <span className="row">
+            <b className="num">{brl(p.amount_cents)}</b>
+            <button
+              className="link"
+              aria-label="Remover pagamento"
+              onClick={() =>
+                confirm(
+                  `Remover o pagamento de ${brl(p.amount_cents)} feito em ${shortDate(p.paid_on)}? O valor volta para a conta, mas as compras que ele já efetivou continuam efetivadas.`,
+                  () => removePayment.mutate(p.id),
+                )
+              }
+            >
+              remover
+            </button>
+          </span>
+        </div>
+      ))}
+    </section>
+  );
   return (
     <>
     <Sheet title={`${card.name} · fatura de ${monthName(month)}`} onClose={onClose}>
@@ -180,6 +213,7 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
             Fecha em {shortDate(inv.closing_date)} · vence em {shortDate(inv.due_date)}
             {inv.pending_cents > 0 ? ` · ${brl(inv.pending_cents)} pendentes de confirmação` : ''}
           </small>
+          {inv.state === 'paid' && paymentsSection}
           {txs.length === 0 && <p className="empty">Nenhuma compra nesta fatura.</p>}
           {groups.map(([title, items]) => (
             <div key={title} className="stack" style={{ gap: 4 }}>
@@ -195,39 +229,7 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
             <span>Total da fatura</span>
             <b className="num">{brl(inv.total_cents)}</b>
           </div>
-          {(inv.payments.length > 0 || inv.credit_in_cents > 0) && (
-            <section className="card">
-              <h2>Pagamentos</h2>
-              {inv.credit_in_cents > 0 && (
-                <div className="kv">
-                  <span>Crédito da fatura anterior</span>
-                  <b className="num">{brl(inv.credit_in_cents)}</b>
-                </div>
-              )}
-              {inv.payments.map((p: any) => (
-                <div className="kv" key={p.id}>
-                  <span>
-                    {shortDate(p.paid_on)} · {p.account_name}
-                  </span>
-                  <span className="row">
-                    <b className="num">{brl(p.amount_cents)}</b>
-                    <button
-                      className="link"
-                      aria-label="Remover pagamento"
-                      onClick={() =>
-                        confirm(
-                          `Remover o pagamento de ${brl(p.amount_cents)} feito em ${shortDate(p.paid_on)}? O valor volta para a conta, mas as compras que ele já efetivou continuam efetivadas.`,
-                          () => removePayment.mutate(p.id),
-                        )
-                      }
-                    >
-                      remover
-                    </button>
-                  </span>
-                </div>
-              ))}
-            </section>
-          )}
+          {inv.state !== 'paid' && paymentsSection}
           <ErrorText error={removePayment.error} />
         </>
       )}
