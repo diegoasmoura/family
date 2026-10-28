@@ -139,13 +139,17 @@ O saldo do resumo é de todas as contas: saldo inicial, mais o que já entrou e 
 
 ## Lançamentos
 
-Primeira linha: título “Lançamentos”, botão de resumo e botão de busca. Segunda: Eu / Nós, na largura da coluna (mais estreita que a do Início no computador). Terceira: Despesas / Receitas. Depois o mês, três números e a lista.
+Primeira linha: título “Lançamentos”, botão de resumo e botão de busca. Segunda: Eu / Nós, na largura da coluna (mais estreita que a do Início no computador). Terceira: Despesas / Receitas. Depois o mês, três números, a situação (Todos, A pagar, Vencidos, Pagos — chips, não a faixa cheia do Tipo) e a lista.
 
 Os três números:
 
 - Despesas ou Receitas: soma do que entra no relatório. Em Eu a compra do cartão entra aqui.
 - Pago ou Recebido: o que já tem data de pagamento na conta. Compra de cartão não tem essa data, então não entra, mesmo com a fatura paga.
 - A pagar ou A receber: o que ainda não foi pago na conta. Em Nós, nas despesas, soma também o restante das faturas. Em Eu a compra do cartão não entra neste terceiro número: os três podem não fechar.
+
+Os três números não mudam com a situação escolhida: eles são o resumo do mês inteiro; a situação só filtra a lista abaixo.
+
+Cada linha da lista tem o título e o valor na mesma altura, ligados por uma linha pontilhada (facilita achar o valor à direita). Categoria, subcategoria e de quem ficam numa segunda linha, menor, junto da data. O nome da conta ou do cartão não se repete em cada linha: já está no cabeçalho do grupo.
 
 **Nós, em despesas:** as compras do cartão saem da lista solta e viram um bloco por fatura do mês, antes dos grupos de conta. O cabeçalho é o banco, o estado (Aberta, Fechada, Atrasada, Paga ou Futura) e o total da fatura. Se o pagamento foi parcial, o detalhe acrescenta “falta” e o valor que resta. Dentro, cada parcelamento é uma linha com `2/2`, `1/60` e assim por diante. Cada cobrança fixa do cartão é uma linha com a etiqueta **Fixa**. Compras avulsas do mesmo cartão somam numa linha “Outras compras”, com “N compras” quando há mais de uma; o toque abre o cartão, sem menu. O ajuste da fatura entra nessa linha ou numa linha “Ajuste”. Se a fatura só tem avulsas, a tela mostra só o cabeçalho. A busca não esconde esses blocos: ela só filtra as linhas soltas. Cada linha de conta e cada linha da fatura mostra um chip com o primeiro nome ou **Da casa**. Em “Outras compras”, esse chip só aparece se todas as avulsas daquela fatura forem da mesma pessoa.
 
@@ -173,13 +177,13 @@ Toque no dia abre a lista, mesmo vazia (“Nada neste dia”). Cada item diz que
 
 ## Visão anual
 
-Título “Visão anual · ano”, setas de ano, Eu / Nós e a faixa **Realizado / Previsto**. Três totais: receitas, despesas e saldo acumulado. A tabela rola na horizontal no celular. A coluna do mês atual fica destacada. Mês futuro fica mais claro. Célula zerada mostra “–”.
+Título “Visão anual · ano”, setas de ano, Eu / Nós e a faixa **Realizado / Previsto**. Três totais: receitas, despesas e saldo acumulado. Logo abaixo, o mesmo gráfico de barras do bloco “Ano” do Início (Receitas e Despesas por mês, com a opção de ver a sobra acumulada) — dá a visão de relance antes da tabela detalhada. A tabela rola na horizontal no celular. A coluna do mês atual fica destacada. Mês futuro fica mais claro. Célula zerada mostra “–”.
 
 Árvore: categoria, subcategoria e, ao abrir, a linha do registro (Salário dia 15, IPVA, Youtube Premium). Se a categoria pai também tem lançamento direto, aparece uma filha “{nome} (geral)”.
 
 **Realizado** inclui o que já foi lançado e também a conta que ainda está a pagar. A coluna é o mês de competência. Recorrência e parcela na conta nascem com o vencimento nesse mês. Lançamento avulso com vencimento noutro mês cai no mês da data, não no do vencimento. A compra no cartão entra no mês da fatura. **Previsto** acrescenta o que ainda é só previsão no cartão.
 
-A célula fica **verde e em negrito** quando todo o valor dela já foi pago ou recebido. Conta: tem data de pagamento. Cartão: a fatura quitou. Se só uma parte pagou, a célula fica na cor normal. A linha Saldo tem fundo verde claro o tempo todo, mas o número não fica verde negrito: saldo negativo fica vermelho. A tabela rola na horizontal também no computador. Ao abrir, centraliza o mês atual, que tem fundo amarelo. A primeira coluna fica grudada.
+A célula fica **verde e em negrito** quando todo o valor dela já foi pago ou recebido. Conta: tem data de pagamento. Cartão: a fatura quitou. Se só uma parte pagou, a célula fica na cor normal. O cabeçalho da seção Receitas é verde; o de Despesas é vermelho. A linha Saldo fica verde quando o total do ano é positivo e vermelha quando é negativo — a mesma lógica das células. A tabela rola na horizontal também no computador. Ao abrir, centraliza o mês atual, que tem fundo amarelo. A primeira coluna fica grudada.
 
 **Logo do banco** só na linha do registro, quando todo aquele registro veio de um banco ou cartão só. É a marca da biblioteca, no formato quadrado arredondado. Pagamentos, Salário, Transporte, Serviços e as outras categorias e subcategorias ficam só com o ícone da categoria. Se o nome não for um banco conhecido, a linha mostra o nome num selo, no lugar da logo.
 
@@ -226,7 +230,7 @@ Duplicar pergunta “Neste mês” ou “No próximo mês”. Cria um lançament
 
 ## Cartões
 
-Cabeçalho, soma do que falta no mês visível e **+ Cartão**. Cada cartão mostra limite, em aberto, disponível, fechamento, vencimento e a fatura do mês: restante, pagamentos e total. O estado é Futura, Aberta, Fechada, Atrasada ou Paga.
+Cabeçalho, soma do que falta no mês visível e **+ Cartão**. No cartão, a fatura do mês (estado, restante, pagamentos e total) vem logo depois do nome do cartão — é a primeira pergunta que importa, "quanto falta pagar". Limite, em aberto, disponível, fechamento e vencimento vêm depois, como detalhe secundário. O estado é Futura, Aberta, Fechada, Atrasada ou Paga. No cabeçalho do cartão só ficam **+** (nova compra) e o menu “⋮”; despesas associadas e evolução mensal só existem dentro do “⋮”, sem ícone próprio (evitava duas portas para a mesma ação).
 
 **Pagar a fatura** tira o valor da conta escolhida e **não cria despesa**. O padrão é o saldo. Se o saldo é zero, o botão vira “Pagamento antecipado”. Se pagar mais, o excesso vira crédito da próxima fatura e não vira receita. Sem conta padrão, a tela já sugere a primeira conta. Pagamento parcial efetiva as compras previstas daquela fatura com data até hoje. Quando o restante chega a zero, efetiva todas as previstas. Dá para remover um pagamento; isso não devolve as compras já efetivadas. O bloco “pagamentos” soma o que foi pago e o crédito vindo da fatura anterior.
 
@@ -312,7 +316,7 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Tocar numa conta em Próximos vencimentos abre a ficha na própria tela. A fatura abre o cartão, sem botão de pagar nessa lista.
 - O olho oculta valores em todo o app. Em Mais há “Ocultar valores” e “Ocultar ao sair do app”.
 - No celular a barra tem cinco itens: Início, Lançar, o botão +, Cartão e Ano. Mais fica no Início, à direita do olho. No computador Mais continua na coluna da esquerda, e o item ativo tem fundo verde claro.
-- Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, os quatro na mesma linha. A linha “Cartões de crédito” saiu da folha de resumo. No modo Eu, uma nota explica que a compra do cartão entra em Despesas e não em Pago nem em A pagar.
+- Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, em chips depois dos três números (não mais a faixa cheia do Tipo). A linha “Cartões de crédito” saiu da folha de resumo. No modo Eu, uma nota curta explica que a compra do cartão só vira “Pago” quando a fatura é paga.
 - Novo lançamento lembra o último destino, tem Hoje, Ontem e Outra, “Lançar e novo”, categorias mais usadas, sugestão de descrição e a linha de onde o valor sai ou entra. No parcelado, Cada parcela começa selecionado, à esquerda de Valor total. No celular, Lançar fica em cima e Lançar e novo embaixo.
 - Na fixa e no parcelamento em conta, mudar o dia pergunta “Só esta” ou “Esta e as seguintes”. O mês fica; o dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Excluir na ficha e no menu usa as mesmas duas opções para a fixa e para a parcela.
 - Cartões mostram “vence em N dias”, o melhor dia de compra, alerta de limite, o valor no botão de pagar e o menu em folha.
@@ -324,5 +328,6 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Deslizar para o lado troca o mês em Lançamentos, Calendário, Contas, Cartões e Orçamento.
 - Instalar na tela inicial exige HTTPS com nome. O service worker guarda a casca e não guarda a API. Sem rede, a faixa diz “Sem conexão”.
 - Avisos no celular também exigem HTTPS com nome e as chaves VAPID no servidor. O texto só diz que há vencimentos, sem valor. A situação de um lançamento é `paid`, `overdue`, `near` (até 7 dias) ou `planned`. A compra no cartão segue o vencimento da fatura. Em Próximos vencimentos, a conta traz o id do lançamento.
+- Revisão de Lançamentos, Cartões e Ano: título e valor de cada linha ficam ligados por uma linha pontilhada (Próximos vencimentos do Início e a lista de Lançamentos); o nome da conta não se repete mais em cada linha, só no cabeçalho do grupo; o cartão mostra a fatura antes do limite; a situação de Lançamentos virou chips depois dos números; a visão anual ganhou o gráfico do Início no topo e corrigiu as cores dos cabeçalhos de seção e da linha Saldo (seguiam sempre verdes). No Resumo do Início, “Orçamento” estava comparando o já pago com o que falta pagar no mês (dois números de fluxo de caixa) em vez do teto de orçamento de verdade; agora usa o valor real de `/orçamento` e mostra o percentual.
 
 

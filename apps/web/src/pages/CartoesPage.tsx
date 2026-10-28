@@ -581,15 +581,50 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           <Link className="kebab" to="/lancar" state={{ from: location.pathname + location.search, cardId: card.id }} aria-label={`Nova compra no ${card.name}`}>
             <Icon.plus />
           </Link>
-          <button type="button" className="kebab" aria-label="Despesas associadas" onClick={() => onPanel('despesas')}>
-            <Icon.list />
-          </button>
-          <button type="button" className="kebab" aria-label={`Gráfico do ${card.name}`} onClick={() => onPanel('evolucao')}>
-            <Icon.trend />
-          </button>
           <CardMenu name={card.name} onPick={onPanel} />
         </div>
       </div>
+
+      {invoice && (
+        <button type="button" className="cc-inv headline" aria-label={`Lançamentos da fatura de ${monthName(invoice.reference_month)}`} onClick={() => onPanel('despesas')}>
+          <div className="hd">
+            <span className="row" style={{ gap: 8 }}>
+              <b style={{ fontSize: 18 }}>Fatura</b>
+              {invoice.remaining_cents > 0 ? (
+                <span className={`badge ${invoice.state === 'overdue' ? 'red' : 'quiet'}`}>
+                  <span style={{ width: 14, height: 14, display: 'inline-flex' }}>{invoice.state === 'overdue' ? <Icon.alert /> : <Icon.clock />}</span>
+                  {invoice.state === 'overdue' ? 'Atrasada' : 'A pagar'}
+                </span>
+              ) : (
+                <span className={`badge ${stateBadge(invoice.state)}`}>
+                  {invoice.state === 'paid' && (
+                    <span style={{ width: 14, height: 14, display: 'inline-flex' }}>
+                      <Icon.check />
+                    </span>
+                  )}
+                  {invoice.state_label}
+                </span>
+              )}
+            </span>
+            <b className={`num ${invoice.remaining_cents > 0 ? 'neg' : 'pos'}`} style={{ fontSize: 24 }}>
+              {brl(invoice.remaining_cents)}
+            </b>
+          </div>
+          <div className="hd">
+            <span>Pagamentos realizados</span>
+            <span className={`num${invoice.paid_cents + invoice.credit_in_cents > 0 ? ' pos' : ''}`}>{brl(invoice.paid_cents + invoice.credit_in_cents)}</span>
+          </div>
+          <div className="hd">
+            <span>Despesas do mês</span>
+            <span className="num neg">
+              {brl(invoice.total_cents)} <span className="chev"><Icon.right /></span>
+            </span>
+          </div>
+        </button>
+      )}
+      <button type="button" className={invoice && invoice.remaining_cents > 0 ? 'btn sm' : 'btn ghost sm'} style={{ alignSelf: 'flex-start' }} onClick={() => onPanel('pagar')}>
+        {invoice && invoice.remaining_cents > 0 ? `Pagar ${brl(invoice.remaining_cents)}` : 'Pagamento antecipado'}
+      </button>
 
       <div className="cc-3">
         <div>
@@ -644,50 +679,6 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
         Melhor dia de compra: dia {card.closing_day}
         {card.closing_day > 28 ? ' (ou o último do mês)' : ''}
       </small>
-
-      {invoice && (
-        <button type="button" className="cc-inv" aria-label={`Lançamentos da fatura de ${monthName(invoice.reference_month)}`} onClick={() => onPanel('despesas')}>
-          <div className="hd">
-            <b style={{ fontSize: 18 }}>Fatura</b>
-            <b className={`num ${invoice.remaining_cents > 0 ? 'neg' : 'pos'}`} style={{ fontSize: 20 }}>
-              {brl(invoice.remaining_cents)}
-            </b>
-          </div>
-          <div className="hd">
-            <span>Pagamentos realizados</span>
-            <span className={`num${invoice.paid_cents + invoice.credit_in_cents > 0 ? ' pos' : ''}`}>{brl(invoice.paid_cents + invoice.credit_in_cents)}</span>
-          </div>
-          <div className="hd">
-            <span>Despesas do mês</span>
-            <span className="num neg">
-              {brl(invoice.total_cents)} <span className="chev"><Icon.right /></span>
-            </span>
-          </div>
-        </button>
-      )}
-
-      <div className="hd">
-        {invoice && invoice.remaining_cents > 0 ? (
-          <span className={`badge ${invoice.state === 'overdue' ? 'red' : 'quiet'}`}>
-            <span style={{ width: 14, height: 14, display: 'inline-flex' }}>{invoice.state === 'overdue' ? <Icon.alert /> : <Icon.clock />}</span>
-            {invoice.state === 'overdue' ? 'Atrasada' : 'A pagar'}
-          </span>
-        ) : invoice ? (
-          <span className={`badge ${stateBadge(invoice.state)}`}>
-            {invoice.state === 'paid' && (
-              <span style={{ width: 14, height: 14, display: 'inline-flex' }}>
-                <Icon.check />
-              </span>
-            )}
-            {invoice.state_label}
-          </span>
-        ) : (
-          <span />
-        )}
-        <button type="button" className={invoice && invoice.remaining_cents > 0 ? 'btn sm' : 'btn ghost sm'} onClick={() => onPanel('pagar')}>
-          {invoice && invoice.remaining_cents > 0 ? `Pagar ${brl(invoice.remaining_cents)}` : 'Pagamento antecipado'}
-        </button>
-      </div>
       {card.credit_cents > 0 && <small>Crédito de pagamento antecipado: {brl(card.credit_cents)}</small>}
     </section>
   );

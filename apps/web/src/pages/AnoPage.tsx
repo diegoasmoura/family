@@ -7,6 +7,7 @@ import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, bankByName } from '../banks';
 import { ErrorText, Icon, Loading, Seg, Sheet, StatusIcon, shortDate } from '../ui';
+import { YearBarChart, type YearRow } from '../charts';
 
 interface Row {
   category_id: number | null;
@@ -96,6 +97,7 @@ export function AnoPage() {
   const [tx, setTx] = useState<Tx | null>(null);
   const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
   const [focus, setFocus] = useState<number | null>(null);
+  const [showCum, setShowCum] = useState(true);
   const who = personParam(person);
   const q = useApi(`/reports/year?year=${year}&mode=${mode}&person=${who}`);
   const d = q.data;
@@ -103,6 +105,12 @@ export function AnoPage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const currentIdx = d && yearOf(d.current_month) === year ? Number(d.current_month.slice(5, 7)) - 1 : -1;
   const loaded = Boolean(d);
+  const chartRows: YearRow[] = d
+    ? d.income.months.map((income: number, index: number) => {
+        const cum = d.balance.months.slice(0, index + 1).reduce((sum: number, v: number) => sum + v, 0);
+        return { name: MONTHS_SHORT_PT[index], inc: income, exp: d.expense.months[index], cum };
+      })
+    : [];
   const focusIdx = focus ?? (currentIdx >= 0 ? currentIdx : 0);
   const showMonth = (i: number) => !compact || i === focusIdx;
   const cols = (compact ? 1 : 12) + 2;
@@ -284,23 +292,34 @@ export function AnoPage() {
               <b className="num">{formatBRL(d.balance.total_cents)}</b>
             </div>
           </div>
-          <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <small>Toque numa categoria para abrir a composição, ou num valor para ver os lançamentos.</small>
-            <button className="btn sm ghost" disabled={!allKeys.length} onClick={() => setOpen(allOpen ? new Set() : new Set(allKeys))}>
-              {allOpen ? 'Recolher tudo' : 'Expandir tudo'}
+          <div className="legend">
+            <span><i className="sw inc" />Receitas</span>
+            <span><i className="sw exp" />Despesas</span>
+            <button type="button" className={`cum-toggle${showCum ? " on" : ""}`} aria-pressed={showCum} onClick={() => setShowCum((v) => !v)}>
+              Sobra acumulada
             </button>
           </div>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            {compact && (
+          <div className="year-scroll">
+            <YearBarChart rows={chartRows} monthIndex={focusIdx} showCum={showCum} onPick={setFocus} />
+          </div>
+          <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            {compact ? (
               <div className="row" style={{ gap: 4 }}>
                 <button className="ic" aria-label="Mês anterior" disabled={focusIdx === 0} onClick={() => setFocus(focusIdx - 1)}><Icon.left /></button>
                 <b>{MONTHS_LONG[focusIdx]}</b>
                 <button className="ic" aria-label="Próximo mês" disabled={focusIdx === 11} onClick={() => setFocus(focusIdx + 1)}><Icon.right /></button>
               </div>
+            ) : (
+              <small>Toque numa categoria para abrir a composição, ou num valor para ver os lançamentos.</small>
             )}
-            <button className="btn sm ghost" onClick={() => setCompact((c) => !c)}>
-              {compact ? 'Ver todos os meses' : 'Ver um mês'}
-            </button>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn sm ghost" disabled={!allKeys.length} onClick={() => setOpen(allOpen ? new Set() : new Set(allKeys))}>
+                {allOpen ? 'Recolher tudo' : 'Expandir tudo'}
+              </button>
+              <button className="btn sm ghost" onClick={() => setCompact((c) => !c)}>
+                {compact ? 'Ver todos os meses' : 'Ver um mês'}
+              </button>
+            </div>
           </div>
           <div className="sc-wrap" ref={wrapRef}>
           <div className="sc" ref={scRef} tabIndex={0} aria-label="Tabela anual com rolagem horizontal">
@@ -319,7 +338,7 @@ export function AnoPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="s">
+                <tr className="s inc">
                   <th colSpan={cols}>
                     <span>Receitas</span>
                   </th>
@@ -332,7 +351,7 @@ export function AnoPage() {
                     </td>
                   </tr>
                 )}
-                <tr className="s">
+                <tr className="s exp">
                   <th colSpan={cols}>
                     <span>Despesas</span>
                   </th>
@@ -353,7 +372,7 @@ export function AnoPage() {
                   <td>Total despesas</td>
                   {cells(d.expense.months, d.expense.total_cents, d.expense.paid_months, false, { kind: 'expense', title: 'Despesas' })}
                 </tr>
-                <tr className="sd">
+                <tr className={`sd${d.balance.total_cents < 0 ? ' neg' : ''}`}>
                   <td>Saldo</td>
                   {cells(d.balance.months, d.balance.total_cents, undefined, true)}
                 </tr>

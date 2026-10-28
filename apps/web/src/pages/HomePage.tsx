@@ -269,12 +269,17 @@ export function HomePage({ me }: { me: Me }) {
             <small>{d.expense.to_pay_cents > 0 ? <><MoneyText cents={d.expense.to_pay_cents} /> a pagar</> : "pagas"}</small>
           </Link>
         </div>
-        {d.expense.planned_cents > 0 && (
-          <p className="sum-desc">
-            Orçamento: <MoneyText cents={d.expense.realized_cents} /> de <MoneyText cents={d.expense.planned_cents} />
-            {d.expense.realized_cents / d.expense.planned_cents >= 1 ? " · meta ultrapassada" : d.expense.realized_cents / d.expense.planned_cents >= 0.8 ? " · perto da meta" : ""}
-          </p>
-        )}
+        {(budgets.data?.planned_cents ?? 0) > 0 && (() => {
+          const planned = budgets.data.planned_cents;
+          const spent = budgets.data.spent_cents;
+          const pct = Math.round((spent / planned) * 100);
+          return (
+            <p className="sum-desc">
+              Orçamento: <MoneyText cents={spent} /> de <MoneyText cents={planned} /> ({pct}%)
+              {pct >= 100 ? " · meta ultrapassada" : pct >= 80 ? " · perto da meta" : ""}
+            </p>
+          );
+        })()}
       </section>
     ),
     goal: (
@@ -336,9 +341,15 @@ export function HomePage({ me }: { me: Me }) {
                       <CategoryIcon cat={{ id: item.id, name: item.category_name || item.description, color: item.category_color, icon: item.category_icon, parent_id: item.category_parent_id }} size={40} />
                     )}
                     <span className="due-main">
-                      <span className="due-title">
-                        <span>{item.description}</span>
-                        {item.installment_label && <span className="tx-parcel">{item.installment_label}</span>}
+                      <span className="due-top">
+                        <span className="due-title">
+                          <span>{item.description}</span>
+                          {item.installment_label && <span className="tx-parcel">{item.installment_label}</span>}
+                        </span>
+                        <i className="due-leader" aria-hidden="true" />
+                        <b className={`num due-amt${item.kind === "income" ? " pos" : ""}`}>
+                          <MoneyText cents={item.amount_cents} sign={item.kind === "income"} />
+                        </b>
                       </span>
                       <small className={item.overdue ? "late" : item.due_on === today ? "soon" : undefined}>
                         {isInvoice
@@ -358,9 +369,6 @@ export function HomePage({ me }: { me: Me }) {
                                 : "Previsto"}
                       </small>
                     </span>
-                    <b className={`num due-amt${item.kind === "income" ? " pos" : ""}`}>
-                      <MoneyText cents={item.amount_cents} sign={item.kind === "income"} />
-                    </b>
                   </>
                 );
                 return (

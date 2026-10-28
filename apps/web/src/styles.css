@@ -934,7 +934,35 @@ select.inp:focus {
   flex-direction: column;
   gap: 3px;
 }
+.tx-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.tx-leader {
+  flex: 1 1 auto;
+  min-width: 10px;
+  height: 0;
+  border-bottom: 1px dotted var(--line);
+  margin-bottom: 5px;
+}
+.tx-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.tx-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
 .tx-kicker {
+  flex: none;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -993,22 +1021,16 @@ select.inp:focus {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--chip, var(--muted)) 55%, var(--ink));
 }
-.tx-side {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 4px;
-}
 .tx-date {
+  flex: none;
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
   white-space: nowrap;
 }
-.tx-side .num {
+.tx-amt {
+  flex: none;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
@@ -1493,10 +1515,16 @@ table.year thead th:first-child {
   box-shadow: 8px 0 10px -8px color-mix(in srgb, var(--ink) 40%, transparent);
 }
 table.year .s th {
-  background: var(--green-soft);
   text-align: left;
-  color: var(--green-text);
   position: static;
+}
+table.year .s.inc th {
+  background: var(--green-soft);
+  color: var(--green-text);
+}
+table.year .s.exp th {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 table.year .s th span {
   position: sticky;
@@ -1521,6 +1549,10 @@ table.year .sd td {
 }
 table.year .sd td:first-child {
   background: var(--green-soft);
+}
+table.year .sd.neg td,
+table.year .sd.neg td:first-child {
+  background: var(--danger-bg);
 }
 table.year .child td:first-child {
   padding-left: 30px;
@@ -1803,6 +1835,10 @@ table.year .bank-mark {
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+}
+.cc-inv.headline {
+  border-top: 0;
+  padding-top: 2px;
 }
 @media (hover: hover) {
   .cc-inv:hover {
@@ -2615,6 +2651,19 @@ a.kebab {
 .due-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .due-hit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; background: none; border: 0; text-align: left; color: inherit; padding: 0; }
 .due-row .btn.sm { min-height: 44px; flex: none; }
+.due-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.due-leader {
+  flex: 1 1 auto;
+  min-width: 10px;
+  height: 0;
+  border-bottom: 1px dotted var(--line);
+  margin-bottom: 5px;
+}
 .due-title {
   display: flex;
   align-items: center;
@@ -2629,7 +2678,7 @@ a.kebab {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.due-amt { font-size: 14px; font-weight: 600; }
+.due-amt { flex: none; font-size: 14px; font-weight: 600; }
 .due-amt.pos, .year-lines .pos { color: var(--pos); }
 .year-lines .exp { color: var(--exp); }
 small.soon { color: var(--warn-text); font-weight: 600; }

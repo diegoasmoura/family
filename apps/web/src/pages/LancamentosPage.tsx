@@ -137,7 +137,7 @@ function TxLine({
 }: {
   status: Tx['display_status'];
   statusLabel: string;
-  kicker: string;
+  kicker?: string | null;
   title: string;
   parcel?: string | null;
   chips?: ReactNode;
@@ -152,16 +152,21 @@ function TxLine({
       <button type="button" className="ledger-hit" onClick={onOpen}>
         <StatusIcon status={status} label={statusLabel} />
         <span className="tx-body">
-          <span className="tx-kicker">{kicker}</span>
-          <span className="tx-title">
-            <span className="name">{title}</span>
-            {parcel && <span className="tx-parcel">{parcel}</span>}
+          <span className="tx-top">
+            <span className="tx-title">
+              <span className="name">{title}</span>
+              {parcel && <span className="tx-parcel">{parcel}</span>}
+            </span>
+            <i className="tx-leader" aria-hidden="true" />
+            <b className="num tx-amt">{brl(amount)}</b>
           </span>
-          {chips}
-        </span>
-        <span className="tx-side">
-          <span className="tx-date">{date}</span>
-          <b className="num">{brl(amount)}</b>
+          <span className="tx-bottom">
+            <span className="tx-meta">
+              {kicker && <span className="tx-kicker">{kicker}</span>}
+              {chips}
+            </span>
+            <span className="tx-date">{date}</span>
+          </span>
         </span>
       </button>
       {menu}
@@ -227,24 +232,28 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
             <Link to={invoiceHref(inv)} className="ledger-hit">
               <StatusIcon status={lineStatus} label={inv.state_label} />
               <span className="tx-body">
-                <span className="tx-kicker">{inv.card_name}</span>
-                <span className="tx-title">
-                  <span className="name">{l.description}</span>
+                <span className="tx-top">
+                  <span className="tx-title">
+                    <span className="name">{l.description}</span>
+                  </span>
+                  <i className="tx-leader" aria-hidden="true" />
+                  <b className="num tx-amt">{brl(l.amount_cents)}</b>
                 </span>
-                {(l.count > 1 || 'for_user_name' in l) && (
-                  <span className="tx-chips">
-                    {l.count > 1 && (
-                      <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
-                        {l.count} compras
+                <span className="tx-bottom">
+                  <span className="tx-meta">
+                    {(l.count > 1 || 'for_user_name' in l) && (
+                      <span className="tx-chips">
+                        {l.count > 1 && (
+                          <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
+                            {l.count} compras
+                          </span>
+                        )}
+                        {'for_user_name' in l && <WhoChip name={l.for_user_name} />}
                       </span>
                     )}
-                    {'for_user_name' in l && <WhoChip name={l.for_user_name} />}
                   </span>
-                )}
-              </span>
-              <span className="tx-side">
-                <span className="tx-date">{dayLabel(inv.due_date)}</span>
-                <b className="num">{brl(l.amount_cents)}</b>
+                  <span className="tx-date">{dayLabel(inv.due_date)}</span>
+                </span>
               </span>
             </Link>
           </div>
@@ -253,7 +262,6 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
             key={l.tx.id}
             status={l.tx.display_status}
             statusLabel={l.tx.status_label}
-            kicker={l.tx.account_name || inv.card_name}
             title={l.description}
             parcel={l.label}
             chips={<CategoryChips tx={l.tx} who />}
@@ -343,17 +351,6 @@ export function LancamentosPage() {
           ['income', 'Receitas'],
         ]}
       />
-      <Seg
-        label="Situação"
-        value={situation}
-        onChange={setSituation}
-        options={[
-          ['all', 'Todos'],
-          ['pending', income ? 'A receber' : 'A pagar'],
-          ['overdue', 'Vencidos'],
-          ['paid', income ? 'Recebidos' : 'Pagos'],
-        ]}
-      />
       {search !== null && (
         <input className="inp" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
       )}
@@ -377,8 +374,31 @@ export function LancamentosPage() {
               <b className="num">{brl(q.data.pending_cents + (income ? 0 : q.data.invoices.reduce((a: number, i: any) => a + i.remaining_cents, 0)))}</b>
             </div>
           </div>
+          <div className="chips" role="tablist" aria-label="Situação">
+            {(
+              [
+                ['all', 'Todos'],
+                ['pending', income ? 'A receber' : 'A pagar'],
+                ['overdue', 'Vencidos'],
+                ['paid', income ? 'Recebidos' : 'Pagos'],
+              ] as [Situation, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={situation === value}
+                className={`chip sm${situation === value ? ' on' : ''}`}
+                onClick={() => setSituation(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {!income && person !== 'all' && (
-            <small>No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga (veja em Cartões).</small>
+            <small title="No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga.">
+              Cartão só vira “Pago” quando a fatura é paga — veja em Cartões.
+            </small>
           )}
 
           <div className="ledger">
@@ -402,7 +422,6 @@ export function LancamentosPage() {
                     key={t.id}
                     status={t.display_status}
                     statusLabel={t.status_label}
-                    kicker={t.account_name || t.card_name || t.parent_category_name || t.category_name || g.name}
                     title={t.description || t.category_name || (income ? 'Receita' : 'Despesa')}
                     parcel={t.installment_label ?? (t.card_id && t.recurrence_class === 'fixed' ? 'Fixa' : null)}
                     chips={<CategoryChips tx={t} who={person === 'all'} />}
