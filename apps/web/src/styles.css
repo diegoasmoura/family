@@ -453,13 +453,22 @@ nav.tabbar .brand {
   padding: 4px;
 }
 .seg button {
+  display: flex;
   flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 44px;
   padding: 0 16px;
   border: 0;
   border-radius: 12px;
   background: none;
   font-weight: 800;
+}
+.seg button svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .seg button.on {
   background: var(--surface);
@@ -514,6 +523,10 @@ nav.tabbar .brand {
   box-shadow: inset 0 -2px 0 currentColor;
 }
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 52px;
   padding: 0 20px;
   border: 0;
@@ -523,6 +536,11 @@ nav.tabbar .brand {
   color: var(--green-ink);
   font-size: 17px;
   font-weight: 800;
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .btn.big {
   min-height: 56px;
@@ -1418,6 +1436,17 @@ select.inp:focus {
 }
 .toast .badge {
   animation: bounce 0.6s ease-out;
+}
+.toast-action {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
 }
 @keyframes pop {
   from {
@@ -2357,8 +2386,6 @@ a.kebab {
   border-radius: var(--r-md);
 }
 .page.home .who,
-.page.lanc .who,
-.page.wide .who,
 .page.calendar .who {
   display: flex;
   align-self: stretch;
@@ -2370,8 +2397,6 @@ a.kebab {
   background: var(--line-soft);
 }
 .page.home .who button,
-.page.lanc .who button,
-.page.wide .who button,
 .page.calendar .who button {
   flex: 1;
   min-height: 36px;
@@ -2381,11 +2406,17 @@ a.kebab {
   font-weight: 600;
 }
 .page.home .who button[aria-selected='true'],
-.page.lanc .who button[aria-selected='true'],
-.page.wide .who button[aria-selected='true'],
 .page.calendar .who button[aria-selected='true'] {
   background: var(--surface);
   box-shadow: none;
+}
+/* Em Lançamentos e Ano, o Eu/Nós fica ao lado de um Seg de conteúdo (Despesa/Receita,
+   Realizado/Previsto) — mantém a aba sublinhada mais leve da .who base pra não virar
+   um segundo pílula igual ao Seg e os dois disputarem a mesma leitura. */
+.page.lanc .who,
+.page.wide .who {
+  margin-top: 4px;
+  margin-bottom: 2px;
 }
 .page.lanc {
   padding: max(16px, var(--safe-top)) 16px calc(var(--nav-h) + 72px);
@@ -2734,6 +2765,8 @@ small.late { color: var(--neg); font-weight: 600; }
 }
 .evo-note { margin: 0; font-size: 14px; line-height: 1.4; }
 .year-scroll { overflow-x: auto; margin: 0 -4px; }
+.month-focus-nav { justify-content: center; gap: 4px; margin-top: -4px; }
+.month-focus-nav b { min-width: 110px; text-align: center; }
 .year-wide { width: 640px; height: 180px; }
 .year-lines { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .year-lines b { font-weight: 600; }

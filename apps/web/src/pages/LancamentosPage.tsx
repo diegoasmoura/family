@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { addMonths, monthLabel } from '@fin/domain';
 import { useSwipe } from '../useSwipe';
+import { usePullToRefresh } from '../usePullToRefresh';
 import { useApi, type Tx } from '../api';
 import { BankMark, bankByName } from '../banks';
 import { paintColor } from '../categories';
@@ -9,7 +10,7 @@ import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { TxMenu, type TxSheetMode } from '../TxMenu';
-import { ErrorText, Icon, Loading, MonthNav, Seg, Sheet, StatusIcon, brl, dayLabel } from '../ui';
+import { ErrorText, Icon, Loading, MonthNav, PullToRefresh, Seg, Sheet, StatusIcon, brl, dayLabel } from '../ui';
 
 type Kind = 'expense' | 'income';
 
@@ -290,6 +291,7 @@ export function LancamentosPage() {
   const q = useApi(`/transactions?month=${month}&kind=${kind}&person=${personParam(person)}`);
   const income = kind === 'income';
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
+  const ptr = usePullToRefresh();
 
   const matchTx = (t: Tx) =>
     situation === 'all' ||
@@ -338,6 +340,7 @@ export function LancamentosPage() {
           </button>
         </div>
       </div>
+      <MonthNav month={month} onChange={setMonth} />
       <PersonFilter />
       <Seg
         label="Tipo de lançamento"
@@ -347,14 +350,14 @@ export function LancamentosPage() {
           setParams(k === 'income' ? { tipo: 'receitas' } : {});
         }}
         options={[
-          ['expense', 'Despesas'],
-          ['income', 'Receitas'],
+          ['expense', <><Icon.expense /> Despesas</>],
+          ['income', <><Icon.income /> Receitas</>],
         ]}
       />
       {search !== null && (
         <input className="inp" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
       )}
-      <MonthNav month={month} onChange={setMonth} />
+      <PullToRefresh ptr={ptr} />
       <ErrorText error={q.error} />
       {!q.data ? (
         <Loading />
@@ -371,7 +374,7 @@ export function LancamentosPage() {
             </div>
             <div className="st warn">
               <small>{income ? 'A receber' : 'A pagar'}</small>
-              <b className="num">{brl(q.data.pending_cents + (income ? 0 : q.data.invoices.reduce((a: number, i: any) => a + i.remaining_cents, 0)))}</b>
+              <b className="num">{brl(q.data.pending_cents)}</b>
             </div>
           </div>
           <div className="chips" role="tablist" aria-label="Situação">
@@ -396,8 +399,8 @@ export function LancamentosPage() {
             ))}
           </div>
           {!income && (
-            <small title="Pago e A pagar aqui são dinheiro que já saiu ou vai sair de uma conta. Compra no cartão nunca entra nos dois, mesmo com a fatura paga — ela aparece com o selo “Pago” na própria linha, mas quem paga de fato é a fatura.">
-              Compras no cartão não entram em “Pago”/“A pagar” — acompanhe a fatura em Cartões.
+            <small title="Compra no cartão soma em “A pagar” assim que é lançada. Ela só entra em “Pago” quando a fatura inteira quita — até lá, quem paga de fato é a fatura, não esta linha.">
+              Compras no cartão somam em “A pagar” ao serem lançadas; só entram em “Pago” quando a fatura quitar.
             </small>
           )}
 

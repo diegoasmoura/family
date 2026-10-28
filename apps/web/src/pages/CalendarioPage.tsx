@@ -80,8 +80,8 @@ export function CalendarioPage() {
           <h1>Calendário</h1>
         </div>
       </div>
-      <PersonFilter />
       <MonthNav month={month} onChange={(m) => { setMonth(m); setDay(null); }} />
+      <PersonFilter />
       <ErrorText error={cal.error} />
       {!data ? (
         <Loading />

@@ -16,10 +16,14 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
   const [date, setDate] = useState(today);
   const inv = detail.data;
   const value = amount ?? (inv?.remaining_cents || null);
+  const undoPay = useAction(
+    (paymentId: number) => api(`/invoice-payments/${paymentId}`, { method: 'DELETE' }),
+    () => toast('Pagamento desfeito'),
+  );
   const pay = useAction(
     (account: number | null) => api(`/invoices/${inv!.id}/payments`, { body: { amount_cents: value, account_id: account ?? undefined, paid_on: date } }),
-    () => {
-      toast('Pagamento registrado');
+    (res: any) => {
+      toast('Pagamento registrado', undefined, { label: 'Desfazer', onClick: () => undoPay.mutate(res.id) });
       onClose();
     },
   );

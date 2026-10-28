@@ -7,10 +7,11 @@ import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
 import { BrandMark, BrandPicker } from '../brands';
-import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, Sheet, brl, monthName, shortDate } from '../ui';
+import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, PullToRefresh, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { PaySheet } from '../PaySheet';
 import { useSwipe } from '../useSwipe';
+import { usePullToRefresh } from '../usePullToRefresh';
 
 const CARD_COLORS = ['#8A05BE', '#EC7000', '#CC092F', '#1E1E1E', '#0070AF', '#00A868', '#FFB800', ...CATEGORY_COLORS.slice(3, 6)];
 const MONTH_UP = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
@@ -725,6 +726,7 @@ export function CartoesPage() {
   const archivedCards = (archived.data ?? []).filter((c) => c.archived);
   const setMonth = (m: string) => setParams({ mes: m });
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
+  const ptr = usePullToRefresh();
   const p = panel;
   const selected = selectedTx;
 
@@ -744,6 +746,7 @@ export function CartoesPage() {
         </button>
       </div>
       <MonthNav month={month} onChange={setMonth} />
+      <PullToRefresh ptr={ptr} />
       <ErrorText error={cards.error ?? archive.error ?? remove.error ?? unarchive.error} />
 
       {!cards.data?.length ? (

@@ -4,11 +4,12 @@ import {
   House, List, CreditCard, Calendar, EllipsisVertical, Ellipsis, Check, Clock,
   CircleAlert, Search, X, ChevronLeft, ChevronRight, Flame, ChartColumn,
   TrendingUp, Plus, Lock, LockOpen, CircleCheckBig, Sun, Moon, Eye, EyeOff,
-  LayoutGrid, ArrowDown,
+  LayoutGrid, ArrowDown, ArrowUpRight, ArrowDownLeft, UnfoldVertical, FoldVertical,
 } from 'lucide-react';
 import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
 import { useAppState } from './state';
+import type { usePullToRefresh } from './usePullToRefresh';
 
 export const brl = (cents: number | null | undefined) => formatBRL(cents ?? 0);
 
@@ -67,7 +68,30 @@ export const Icon = {
   eyeOff: () => <EyeOff aria-hidden />,
   grid: () => <LayoutGrid aria-hidden />,
   arrowDown: () => <ArrowDown aria-hidden />,
+  expense: () => <ArrowUpRight aria-hidden />,
+  income: () => <ArrowDownLeft aria-hidden />,
+  expand: () => <UnfoldVertical aria-hidden />,
+  collapse: () => <FoldVertical aria-hidden />,
 };
+
+/** Indicador de "puxar pra atualizar", a partir do estado de usePullToRefresh. */
+export function PullToRefresh({ ptr }: { ptr: ReturnType<typeof usePullToRefresh> }) {
+  return (
+    <div
+      className={`ptr${ptr.busy ? ' busy' : ''}`}
+      style={{
+        height: ptr.busy ? 44 : Math.min(60, ptr.pull * 0.65),
+        transition: ptr.busy || ptr.pull === 0 ? 'height 220ms cubic-bezier(.22,1,.36,1)' : 'none',
+      }}
+      aria-hidden
+    >
+      <span className={`ptr-icon${ptr.busy ? ' busy' : ptr.ready ? ' ready' : ''}`}>
+        {ptr.busy ? <span className="ptr-spinner" /> : <Icon.arrowDown />}
+      </span>
+      {(ptr.busy || ptr.pull > 8) && <small>{ptr.busy ? 'Atualizando…' : ptr.ready ? 'Solte para atualizar' : 'Puxe para atualizar'}</small>}
+    </div>
+  );
+}
 
 export function StatusIcon({ status, label }: { status: Tx['display_status']; label?: string }) {
   const icon = status === 'paid' ? Icon.check() : status === 'overdue' ? Icon.alert() : status === 'card' ? Icon.card() : Icon.clock();
@@ -78,7 +102,7 @@ export function StatusIcon({ status, label }: { status: Tx['display_status']; la
   );
 }
 
-export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
+export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, ReactNode][]; onChange: (v: T) => void; label: string }) {
   return (
     <div className="seg" role="tablist" aria-label={label}>
       {options.map(([v, text]) => (

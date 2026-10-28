@@ -139,13 +139,13 @@ O saldo do resumo é de todas as contas: saldo inicial, mais o que já entrou e 
 
 ## Lançamentos
 
-Primeira linha: título “Lançamentos”, botão de resumo e botão de busca. Segunda: Eu / Nós, na largura da coluna (mais estreita que a do Início no computador). Terceira: Despesas / Receitas. Depois o mês, três números, a situação (Todos, A pagar, Vencidos, Pagos — chips, não a faixa cheia do Tipo) e a lista.
+Primeira linha: título “Lançamentos”, botão de resumo e botão de busca. Segunda: o mês (mesmo miolo de seta anterior/nome/seta seguinte das outras telas). Terceira: Eu / Nós. Quarta: Despesas / Receitas, com ícone (seta saindo para Despesas, seta entrando para Receitas). Depois três números, a situação (Todos, A pagar, Vencidos, Pagos — chips, não a faixa cheia do Tipo) e a lista. Essa ordem — Mês, Eu/Nós, Tipo — é a mesma do Início, do Calendário e da Visão anual.
 
 Os três números:
 
-- Despesas ou Receitas: soma do que entra no relatório. Em Eu a compra do cartão entra aqui.
-- Pago ou Recebido: o que já tem data de pagamento na conta. Compra de cartão não tem essa data, então não entra, mesmo com a fatura paga.
-- A pagar ou A receber: o que ainda não foi pago na conta. Em Nós, nas despesas, soma também o restante das faturas. Em Eu a compra do cartão não entra neste terceiro número: os três podem não fechar.
+- Despesas ou Receitas: soma do que entra no relatório. A compra do cartão entra aqui (em Eu ou em Nós).
+- Pago ou Recebido: o que já tem data de pagamento na conta. Compra de cartão não tem essa data, então não entra, mesmo com a fatura paga — só a quitação da fatura move dinheiro de conta de fato.
+- A pagar ou A receber: o que ainda não foi pago na conta, mais a compra de cartão já lançada (confirmada) cuja fatura ainda não quitou — em Eu ou em Nós. Durante um pagamento parcial de fatura, esse número soma a compra inteira até a fatura quitar por completo (não desconta o que já foi pago).
 
 Os três números não mudam com a situação escolhida: eles são o resumo do mês inteiro; a situação só filtra a lista abaixo.
 
@@ -316,7 +316,7 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Tocar numa conta em Próximos vencimentos abre a ficha na própria tela. A fatura abre o cartão, sem botão de pagar nessa lista.
 - O olho oculta valores em todo o app. Em Mais há “Ocultar valores” e “Ocultar ao sair do app”.
 - No celular a barra tem cinco itens: Início, Lançar, o botão +, Cartão e Ano. Mais fica no Início, à direita do olho. No computador Mais continua na coluna da esquerda, e o item ativo tem fundo verde claro.
-- Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, em chips depois dos três números (não mais a faixa cheia do Tipo). A linha “Cartões de crédito” saiu da folha de resumo. Em despesas (Eu ou Nós), uma nota curta explica que compra no cartão nunca entra em “Pago”/“A pagar” — esses dois números são só dinheiro de conta (caixa), mesmo que a linha da compra já mostre o selo “Pago” porque a fatura quitou.
+- Lançamentos tem a situação Todos, A pagar, Vencidos e Pagos, em chips depois dos três números (não mais a faixa cheia do Tipo). A linha “Cartões de crédito” saiu da folha de resumo. Em despesas (Eu ou Nós), uma nota curta explica que compra no cartão soma em “A pagar” ao ser lançada, mas só entra em “Pago” quando a fatura inteira quitar.
 - Novo lançamento lembra o último destino, tem Hoje, Ontem e Outra, “Lançar e novo”, categorias mais usadas, sugestão de descrição e a linha de onde o valor sai ou entra. No parcelado, Cada parcela começa selecionado, à esquerda de Valor total. No celular, Lançar fica em cima e Lançar e novo embaixo.
 - Na fixa e no parcelamento em conta, mudar o dia pergunta “Só esta” ou “Esta e as seguintes”. O mês fica; o dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Excluir na ficha e no menu usa as mesmas duas opções para a fixa e para a parcela.
 - Cartões mostram “vence em N dias”, o melhor dia de compra, alerta de limite, o valor no botão de pagar e o menu em folha.
@@ -329,5 +329,6 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Instalar na tela inicial exige HTTPS com nome. O service worker guarda a casca e não guarda a API. Sem rede, a faixa diz “Sem conexão”.
 - Avisos no celular também exigem HTTPS com nome e as chaves VAPID no servidor. O texto só diz que há vencimentos, sem valor. A situação de um lançamento é `paid`, `overdue`, `near` (até 7 dias) ou `planned`. A compra no cartão segue o vencimento da fatura. Em Próximos vencimentos, a conta traz o id do lançamento.
 - Revisão de Lançamentos, Cartões e Ano: título e valor de cada linha ficam ligados por uma linha pontilhada (Próximos vencimentos do Início e a lista de Lançamentos); o nome da conta não se repete mais em cada linha, só no cabeçalho do grupo; o cartão mostra a fatura antes do limite; a situação de Lançamentos virou chips depois dos números; a visão anual ganhou o gráfico do Início no topo e corrigiu as cores dos cabeçalhos de seção e da linha Saldo (seguiam sempre verdes). No Resumo do Início, “Orçamento” estava comparando o já pago com o que falta pagar no mês (dois números de fluxo de caixa) em vez do teto de orçamento de verdade; agora usa o valor real de `/orçamento` e mostra o percentual.
+- Puxar pra atualizar, antes só do Início, passou para Lançamentos, Cartões e Ano. A ordem Mês → Eu/Nós → Tipo (Despesas/Receitas, Realizado/Previsto) ficou igual nas quatro telas que têm as três faixas — em Lançamentos o mês era o último dos três, agora é o primeiro. Despesas/Receitas e Realizado/Previsto ganharam ícone (seta saindo/seta entrando; check/relógio) pra não ficar visualmente idêntico à faixa Eu/Nós ao lado; em Lançamentos e na Visão anual, Eu/Nós voltou a ser a aba sublinhada mais leve (como no resto do app) nessas duas telas, só pra não parecer uma segunda faixa cheia igual ao Tipo. Na Visão anual, o miolo de mês do modo compacto ficou sempre visível sob o gráfico (antes trocava de lugar com a dica de toque); “Expandir tudo”/“Recolher tudo” e “Ver todos os meses”/“Ver um mês” ganharam ícone. Pagar uma fatura agora mostra “Desfazer” no aviso de sucesso, por 5 segundos, pra corrigir um toque errado sem abrir Cartões e caçar “remover pagamento” dentro da fatura.
 
 

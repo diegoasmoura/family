@@ -5,8 +5,9 @@ import { CategoryIcon } from '../categories';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
+import { usePullToRefresh } from '../usePullToRefresh';
 import { BankMark, bankByName } from '../banks';
-import { ErrorText, Icon, Loading, Seg, Sheet, StatusIcon, shortDate } from '../ui';
+import { ErrorText, Icon, Loading, PullToRefresh, Seg, Sheet, StatusIcon, shortDate } from '../ui';
 import { YearBarChart, type YearRow } from '../charts';
 
 interface Row {
@@ -98,6 +99,7 @@ export function AnoPage() {
   const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
   const [focus, setFocus] = useState<number | null>(null);
   const [showCum, setShowCum] = useState(true);
+  const ptr = usePullToRefresh();
   const who = personParam(person);
   const q = useApi(`/reports/year?year=${year}&mode=${mode}&person=${who}`);
   const d = q.data;
@@ -269,10 +271,11 @@ export function AnoPage() {
         value={mode}
         onChange={setMode}
         options={[
-          ['realized', 'Realizado'],
-          ['planned', 'Previsto'],
+          ['realized', <><Icon.check /> Realizado</>],
+          ['planned', <><Icon.clock /> Previsto</>],
         ]}
       />
+      <PullToRefresh ptr={ptr} />
       <ErrorText error={q.error} />
       {!d ? (
         <Loading />
@@ -302,21 +305,22 @@ export function AnoPage() {
           <div className="year-scroll">
             <YearBarChart rows={chartRows} monthIndex={focusIdx} showCum={showCum} onPick={setFocus} />
           </div>
+          {compact && (
+            <div className="row month-focus-nav">
+              <button className="ic" aria-label="Mês anterior" disabled={focusIdx === 0} onClick={() => setFocus(focusIdx - 1)}><Icon.left /></button>
+              <b>{MONTHS_LONG[focusIdx]}</b>
+              <button className="ic" aria-label="Próximo mês" disabled={focusIdx === 11} onClick={() => setFocus(focusIdx + 1)}><Icon.right /></button>
+            </div>
+          )}
           <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            {compact ? (
-              <div className="row" style={{ gap: 4 }}>
-                <button className="ic" aria-label="Mês anterior" disabled={focusIdx === 0} onClick={() => setFocus(focusIdx - 1)}><Icon.left /></button>
-                <b>{MONTHS_LONG[focusIdx]}</b>
-                <button className="ic" aria-label="Próximo mês" disabled={focusIdx === 11} onClick={() => setFocus(focusIdx + 1)}><Icon.right /></button>
-              </div>
-            ) : (
-              <small>Toque numa categoria para abrir a composição, ou num valor para ver os lançamentos.</small>
-            )}
+            <small>Toque numa categoria para abrir a composição, ou num valor para ver os lançamentos.</small>
             <div className="row" style={{ gap: 8 }}>
               <button className="btn sm ghost" disabled={!allKeys.length} onClick={() => setOpen(allOpen ? new Set() : new Set(allKeys))}>
+                {allOpen ? <Icon.collapse /> : <Icon.expand />}
                 {allOpen ? 'Recolher tudo' : 'Expandir tudo'}
               </button>
-              <button className="btn sm ghost" onClick={() => setCompact((c) => !c)}>
+              <button className="btn sm ghost" aria-pressed={!compact} onClick={() => setCompact((c) => !c)}>
+                <Icon.grid />
                 {compact ? 'Ver todos os meses' : 'Ver um mês'}
               </button>
             </div>

@@ -6,6 +6,7 @@ interface Toast {
   id: number;
   text: string;
   level?: number;
+  action?: { label: string; onClick: () => void };
 }
 
 export type PersonScope = 'all' | 'me' | number;
@@ -17,7 +18,7 @@ interface AppState {
   person: PersonScope;
   setPerson: (person: PersonScope) => void;
   today: string;
-  toast: (text: string, level?: number) => void;
+  toast: (text: string, level?: number, action?: Toast['action']) => void;
   celebrate: (xp: XpResult | null | undefined, fallback?: string) => void;
 }
 
@@ -29,10 +30,10 @@ export function AppStateProvider({ today, children }: { today: string; children:
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 
-  const toast = useCallback((text: string, level?: number) => {
+  const toast = useCallback((text: string, level?: number, action?: Toast['action']) => {
     const id = ++seq.current;
-    setToasts((t) => [...t, { id, text, level }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
+    setToasts((t) => [...t, { id, text, level, action }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 5000 : 2800);
   }, []);
 
   const celebrate = useCallback(
@@ -54,6 +55,18 @@ export function AppStateProvider({ today, children }: { today: string; children:
         <div className="toast" role="status" key={current.id}>
           {current.text}
           {current.level ? <span className="badge">Nível {current.level}</span> : null}
+          {current.action && (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={() => {
+                setToasts((t) => t.filter((x) => x.id !== current.id));
+                current.action!.onClick();
+              }}
+            >
+              {current.action.label}
+            </button>
+          )}
         </div>
       )}
     </Ctx.Provider>

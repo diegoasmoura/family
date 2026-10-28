@@ -7,7 +7,7 @@ import { TxSheet } from "../TxSheet";
 import { setHidden, useHidden } from "../privacy";
 import { useInView } from "../useInView";
 import { usePullToRefresh } from "../usePullToRefresh";
-import { Bar, ErrorText, Icon, Loading, MonthNav, Sheet, brl, shortDate } from "../ui";
+import { Bar, ErrorText, Icon, Loading, MonthNav, PullToRefresh, Sheet, brl, shortDate } from "../ui";
 import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { BankMark } from "../banks";
 import { CategoryIcon } from "../categories";
@@ -595,19 +595,7 @@ export function HomePage({ me }: { me: Me }) {
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <MonthNav month={month} onChange={setMonth} />
         <PersonFilter />
-        <div
-          className={`ptr${ptr.busy ? " busy" : ""}`}
-          style={{
-            height: ptr.busy ? 44 : Math.min(60, ptr.pull * 0.65),
-            transition: ptr.busy || ptr.pull === 0 ? "height 220ms cubic-bezier(.22,1,.36,1)" : "none",
-          }}
-          aria-hidden
-        >
-          <span className={`ptr-icon${ptr.busy ? " busy" : ptr.ready ? " ready" : ""}`}>
-            {ptr.busy ? <span className="ptr-spinner" /> : <Icon.arrowDown />}
-          </span>
-          {(ptr.busy || ptr.pull > 8) && <small>{ptr.busy ? "Atualizando…" : ptr.ready ? "Solte para atualizar" : "Puxe para atualizar"}</small>}
-        </div>
+        <PullToRefresh ptr={ptr} />
         <ErrorText error={q.error} />
         <div className="home-stack">
           {layout.order.filter((id) => !layout.hidden.includes(id)).map((id, index) => {
