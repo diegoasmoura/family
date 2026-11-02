@@ -6,6 +6,7 @@ import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, bankByName } from '../banks';
+import { BudgetYear } from '../BudgetYear';
 import { ErrorText, Icon, Loading, Seg, Sheet, StatusIcon, shortDate } from '../ui';
 
 interface Row {
@@ -101,7 +102,7 @@ function Amt({ cents, abs }: { cents: number; abs?: boolean }) {
 export function AnoPage() {
   const { today, person } = useAppState();
   const [year, setYear] = useState(yearOf(today));
-  const [mode, setMode] = useState<'realized' | 'planned'>('realized');
+  const [mode, setMode] = useState<'realized' | 'planned' | 'budget'>('realized');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [audit, setAudit] = useState<Audit | null>(null);
   const [tx, setTx] = useState<Tx | null>(null);
@@ -109,7 +110,8 @@ export function AnoPage() {
   const [focus, setFocus] = useState<number | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const who = personParam(person);
-  const q = useApi(`/reports/year?year=${year}&mode=${mode}&person=${who}`);
+  const tableMode = mode === 'budget' ? 'planned' : mode;
+  const q = useApi(mode === 'budget' ? null : `/reports/year?year=${year}&mode=${tableMode}&person=${who}`);
   const d = q.data;
   const scRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -283,22 +285,25 @@ export function AnoPage() {
         </button>
       </div>
       <Seg
-        label="Realizado ou previsto"
+        label="Lançado, previsto ou orçado"
         value={mode}
         onChange={setMode}
         options={[
-          ['realized', 'Realizado'],
+          ['realized', 'Lançado'],
           ['planned', 'Previsto'],
+          ['budget', 'Orçado'],
         ]}
       />
       <ErrorText error={q.error} />
-      {!d ? (
+      {mode === 'budget' ? (
+        <BudgetYear year={year} />
+      ) : !d ? (
         <Loading />
       ) : (
         <>
           <section className={`card sum-card ${tone}`} aria-label={`Resumo de ${year}`}>
             <div className="sum-top">
-              <small>{mode === 'realized' ? 'Realizado' : 'Previsto'} em {year}</small>
+              <small>{mode === 'realized' ? 'Lançado' : 'Previsto'} em {year}</small>
               <span className={`sum-pill ${tone}`}>
                 {tone === 'neg' ? <Icon.alert /> : <Icon.check />}
                 {tone === 'neg' ? 'No vermelho' : 'No azul'}
@@ -420,13 +425,13 @@ export function AnoPage() {
             </button>
             {noteOpen && (
               <small>
-                Toque numa categoria para ver a composição, ou num valor para ver os lançamentos. A coluna destacada é o mês atual. Contas entram no vencimento, pagas ou a pagar. Compras no cartão entram no mês da fatura. O que já foi pago fica em verde.
+                Lançado é tudo que já está lançado e confirmado, inclusive contas ainda a pagar. Previsto soma também as compras previstas no cartão. Toque numa categoria para ver a composição, ou num valor para ver os lançamentos. A coluna destacada é o mês atual. Contas entram no vencimento, pagas ou a pagar. Compras no cartão entram no mês da fatura. O que já foi pago fica em verde.
               </small>
             )}
           </div>
         </>
       )}
-      {audit && <AuditSheet key={JSON.stringify(audit)} audit={audit} year={year} mode={mode} person={who} onClose={() => setAudit(null)} onTx={setTx} />}
+      {audit && <AuditSheet key={JSON.stringify(audit)} audit={audit} year={year} mode={tableMode} person={who} onClose={() => setAudit(null)} onTx={setTx} />}
       {tx && <TxSheet key={`${tx.id}-${tx.status}`} tx={tx} onClose={() => setTx(null)} />}
     </main>
   );

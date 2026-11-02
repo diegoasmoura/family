@@ -3449,3 +3449,26 @@ main.page { gap: 12px; }
 .pcard-nav { display: flex; align-items: center; justify-content: center; gap: 14px; }
 .pcard-nav .pcard-arrow { position: relative; top: auto; transform: none; width: 36px; height: 36px; box-shadow: none; }
 .pcard-nav .pcard-arrow:active { transform: scale(0.92); }
+
+/* ---------- Orçado x gasto no ano ---------- */
+.by-meter { display: block; height: 10px; border-radius: 999px; background: var(--bar-empty); overflow: hidden; }
+.by-meter.sm { height: 6px; }
+.by-meter i { display: block; height: 100%; border-radius: inherit; background: var(--chart-inc); }
+.by-meter i.near { background: var(--warn-text); }
+.by-meter i.over { background: var(--neg); }
+.by-list { gap: 0; padding: 4px 16px; }
+.by-item { border-bottom: 1px solid var(--line-soft); }
+.by-item:last-child { border-bottom: 0; }
+.by-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.by-main { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.by-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.by-tag { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--green-soft); color: var(--pos); }
+.by-tag.near { background: var(--warn-bg); color: var(--warn-text); }
+.by-tag.over { background: var(--danger-bg); color: var(--neg); }
+.by-row .chev { display: inline-flex; color: var(--muted); transition: transform 0.15s; }
+.by-row .chev.open { transform: rotate(90deg); }
+.by-row .chev svg { width: 16px; height: 16px; }
+.by-months { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px 48px; }
+.by-month { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.by-month > span:first-child { color: var(--muted); font-weight: 600; }
+.by-note { color: var(--muted); }

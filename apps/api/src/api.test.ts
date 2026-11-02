@@ -890,6 +890,22 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(b.planned_cents).toBe(100000);
     });
 
+    it('o orçado do ano compara o teto de cada mês com o gasto efetivado, só nos meses orçados', async () => {
+      await ok(await agent.put('/api/budgets').send({ category_id: ids.cat['Alimentação'], month: '2026-10', planned_cents: 100000 }));
+      await ok(await agent.put('/api/budgets').send({ category_id: ids.cat['Alimentação'], month: '2026-11', planned_cents: 50000 }));
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 72000, occurred_on: '2026-10-02', account_id: ids.bradesco, category_id: ids.cat['Mercado'] }), 201);
+      // gasto num mês sem orçamento não entra na comparação da categoria
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 9000, occurred_on: '2026-09-02', account_id: ids.bradesco, category_id: ids.cat['Mercado'] }), 201);
+      const y = await ok(await agent.get('/api/budgets/year?year=2026'));
+      expect(y.months).toHaveLength(12);
+      const food = y.items.find((i: any) => i.name === 'Alimentação');
+      expect(food).toMatchObject({ planned_cents: 150000, spent_cents: 72000 });
+      expect(food.months[8]).toMatchObject({ planned_cents: null, spent_cents: 9000 });
+      expect(y.planned_cents).toBe(150000);
+      expect(y.spent_cents).toBe(72000);
+      expect(y.items.every((i: any) => i.planned_cents > 0)).toBe(true);
+    });
+
     it('a evolução vem no painel e, em Nós, deixa a compra do cartão de fora', async () => {
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 1000, occurred_on: '2026-10-02', account_id: ids.bradesco }), 201);
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 5000, occurred_on: '2026-10-02', card_id: ids.ultra }), 201);

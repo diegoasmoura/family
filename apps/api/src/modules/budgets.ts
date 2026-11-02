@@ -58,6 +58,66 @@ export function budgetsRouter(): Router {
     });
   });
 
+  /**
+   * Orçamento x gasto efetivado, mês a mês, no ano inteiro. Mesma regra da tela do mês:
+   * a categoria pai soma as filhas, e o total não conta a filha de novo quando o pai tem orçamento.
+   * O gasto de cada categoria só entra nos meses em que ela tem orçamento.
+   */
+  r.get('/year', async (req, res) => {
+    const year = parse(z.coerce.number().int().min(2000).max(2100), req.query.year);
+    const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+    const cats = await req.ctx.db.all(
+      `SELECT id, name, parent_id, color FROM categories
+        WHERE household_id = ? AND kind = 'expense' AND deleted_at IS NULL ORDER BY sort_order, name`,
+      [req.ctx.householdId],
+    );
+    const rows = await req.ctx.db.all(
+      'SELECT category_id, month, planned_cents FROM budgets WHERE household_id = ? AND month >= ? AND month <= ?',
+      [req.ctx.householdId, months[0], months[11]],
+    );
+    const planned = new Map<string, number>();
+    for (const b of rows) planned.set(`${b.category_id}|${b.month}`, num(b.planned_cents));
+    const spentByMonth = await Promise.all(months.map((m) => spentWithChildren(req.ctx, m)));
+
+    const items = cats
+      .map((c) => {
+        const perMonth = months.map((m, i) => {
+          const p = planned.get(`${c.id}|${m}`);
+          return { month: m, planned_cents: p ?? null, spent_cents: spentByMonth[i].get(c.id) ?? 0 };
+        });
+        const budgeted = perMonth.filter((x) => x.planned_cents != null);
+        return {
+          category_id: c.id,
+          name: c.name,
+          parent_id: c.parent_id,
+          color: c.color,
+          months: perMonth,
+          planned_cents: budgeted.reduce((a, x) => a + (x.planned_cents ?? 0), 0),
+          spent_cents: budgeted.reduce((a, x) => a + x.spent_cents, 0),
+          has_budget: budgeted.length > 0,
+        };
+      })
+      .filter((i) => i.has_budget);
+
+    const monthTotals = months.map((m, i) => {
+      const budgeted = cats.filter((c) => planned.has(`${c.id}|${m}`));
+      const ids = new Set(budgeted.map((c) => c.id));
+      const top = budgeted.filter((c) => c.parent_id == null || !ids.has(c.parent_id));
+      return {
+        month: m,
+        planned_cents: top.reduce((a, c) => a + (planned.get(`${c.id}|${m}`) ?? 0), 0),
+        spent_cents: top.reduce((a, c) => a + (spentByMonth[i].get(c.id) ?? 0), 0),
+      };
+    });
+    res.json({
+      year,
+      months: monthTotals,
+      planned_cents: monthTotals.reduce((a, m) => a + m.planned_cents, 0),
+      spent_cents: monthTotals.reduce((a, m) => a + m.spent_cents, 0),
+      items,
+    });
+  });
+
   r.put('/', async (req, res) => {
     const body = parse(z.object({ client_uuid: zUuid.optional(), category_id: zId, month: zMonth, planned_cents: zCentsOrZero }), req.body);
     await assertCategory(req.ctx, body.category_id, 'expense');

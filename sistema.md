@@ -173,11 +173,11 @@ Toque no dia abre a lista, mesmo vazia (“Nada neste dia”). Cada item diz que
 
 ## Visão anual
 
-Título “Visão anual · ano”, setas de ano, Eu / Nós e a faixa **Realizado / Previsto**. Três totais: receitas, despesas e saldo acumulado. A tabela rola na horizontal no celular. A coluna do mês atual fica destacada. Mês futuro fica mais claro. Célula zerada mostra “–”.
+Título “Visão anual”, seletor de ano (com “Ano atual” para voltar), Eu / Nós e a faixa **Lançado / Previsto / Orçado**. Três totais: receitas, despesas e saldo acumulado. A tabela rola na horizontal no celular. A coluna do mês atual fica destacada. Mês futuro fica mais claro. Célula zerada mostra “–”.
 
 Árvore: categoria, subcategoria e, ao abrir, a linha do registro (Salário dia 15, IPVA, Youtube Premium). Se a categoria pai também tem lançamento direto, aparece uma filha “{nome} (geral)”.
 
-**Realizado** inclui o que já foi lançado e também a conta que ainda está a pagar. A coluna é o mês de competência. Recorrência e parcela na conta nascem com o vencimento nesse mês. Lançamento avulso com vencimento noutro mês cai no mês da data, não no do vencimento. A compra no cartão entra no mês da fatura. **Previsto** acrescenta o que ainda é só previsão no cartão.
+**Lançado** (antes “Realizado”) inclui o que já foi lançado e também a conta que ainda está a pagar. A coluna é o mês de competência. Recorrência e parcela na conta nascem com o vencimento nesse mês. Lançamento avulso com vencimento noutro mês cai no mês da data, não no do vencimento. A compra no cartão entra no mês da fatura. **Previsto** acrescenta o que ainda é só previsão no cartão.
 
 A célula fica **verde e em negrito** quando todo o valor dela já foi pago ou recebido. Conta: tem data de pagamento. Cartão: a fatura quitou. Se só uma parte pagou, a célula fica na cor normal. A linha Saldo tem fundo verde claro o tempo todo, mas o número não fica verde negrito: saldo negativo fica vermelho. A tabela rola na horizontal também no computador. Ao abrir, centraliza o mês atual, que tem fundo amarelo. A primeira coluna fica grudada.
 
@@ -325,4 +325,4 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Instalar na tela inicial exige HTTPS com nome. O service worker guarda a casca e não guarda a API. Sem rede, a faixa diz “Sem conexão”.
 - Avisos no celular também exigem HTTPS com nome e as chaves VAPID no servidor. O texto só diz que há vencimentos, sem valor. A situação de um lançamento é `paid`, `overdue`, `near` (até 7 dias) ou `planned`. A compra no cartão segue o vencimento da fatura. Em Próximos vencimentos, a conta traz o id do lançamento.
 
-
+**Orçado** (terceira opção da faixa) compara, por categoria, o teto do mês (tela Orçamento) com o gasto efetivado, mês a mês no ano (`GET /budgets/year`). O gasto conta só o que já foi pago ou entrou na fatura, e cada categoria só entra nos meses em que tem orçamento. A categoria pai soma as filhas, e o total não conta a filha duas vezes quando o pai também tem orçamento. O orçamento é da casa inteira, então esta visão não muda com Eu / Nós.
