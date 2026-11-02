@@ -7,12 +7,13 @@ import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
 import { BrandPicker } from '../brands';
-import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, Sheet, brl, monthName, shortDate } from '../ui';
+import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, PullToRefresh, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { PaySheet } from '../PaySheet';
 import { AccountForm } from '../AccountForm';
 import { CardRail } from '../CardFace';
 import { useSwipe } from '../useSwipe';
+import { usePullToRefresh } from '../usePullToRefresh';
 
 const CARD_COLORS = ['#8A05BE', '#EC7000', '#CC092F', '#1E1E1E', '#0070AF', '#00A868', '#FFB800', ...CATEGORY_COLORS.slice(3, 6)];
 const MONTH_UP = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
@@ -178,6 +179,39 @@ function DespesasSheet({ card, month: startMonth, onClose, onTx }: { card: Card;
     ['Fixas', txs.filter((t) => t.recurrence_id && !t.plan_id)],
     ['Avulsas', txs.filter((t) => !t.plan_id && !t.recurrence_id)],
   ].filter((entry): entry is [string, Purchase[]] => entry[1].length > 0);
+  const paymentsSection = inv && (inv.payments.length > 0 || inv.credit_in_cents > 0) && (
+    <section className="card">
+      <h2>Pagamentos</h2>
+      {inv.credit_in_cents > 0 && (
+        <div className="kv">
+          <span>Crédito da fatura anterior</span>
+          <b className="num">{brl(inv.credit_in_cents)}</b>
+        </div>
+      )}
+      {inv.payments.map((p: any) => (
+        <div className="kv" key={p.id}>
+          <span>
+            {shortDate(p.paid_on)} · {p.account_name}
+          </span>
+          <span className="row">
+            <b className="num">{brl(p.amount_cents)}</b>
+            <button
+              className="link"
+              aria-label="Remover pagamento"
+              onClick={() =>
+                confirm(
+                  `Remover o pagamento de ${brl(p.amount_cents)} feito em ${shortDate(p.paid_on)}? O valor volta para a conta, mas as compras que ele já efetivou continuam efetivadas.`,
+                  () => removePayment.mutate(p.id),
+                )
+              }
+            >
+              remover
+            </button>
+          </span>
+        </div>
+      ))}
+    </section>
+  );
   return (
     <>
     <Sheet title={`${card.name} · lançamentos`} onClose={onClose}>
@@ -198,6 +232,7 @@ function DespesasSheet({ card, month: startMonth, onClose, onTx }: { card: Card;
             Fecha em {shortDate(inv.closing_date)} · vence em {shortDate(inv.due_date)}
             {inv.pending_cents > 0 ? ` · ${brl(inv.pending_cents)} pendentes de confirmação` : ''}
           </small>
+          {inv.state === 'paid' && paymentsSection}
           {txs.length === 0 && <p className="empty">Nenhuma compra nesta fatura.</p>}
           {groups.map(([title, items]) => (
             <div key={title} className="stack" style={{ gap: 4 }}>
@@ -213,39 +248,7 @@ function DespesasSheet({ card, month: startMonth, onClose, onTx }: { card: Card;
             <span>Total da fatura</span>
             <b className="num">{brl(inv.total_cents)}</b>
           </div>
-          {(inv.payments.length > 0 || inv.credit_in_cents > 0) && (
-            <section className="card">
-              <h2>Pagamentos</h2>
-              {inv.credit_in_cents > 0 && (
-                <div className="kv">
-                  <span>Crédito da fatura anterior</span>
-                  <b className="num">{brl(inv.credit_in_cents)}</b>
-                </div>
-              )}
-              {inv.payments.map((p: any) => (
-                <div className="kv" key={p.id}>
-                  <span>
-                    {shortDate(p.paid_on)} · {p.account_name}
-                  </span>
-                  <span className="row">
-                    <b className="num">{brl(p.amount_cents)}</b>
-                    <button
-                      className="link"
-                      aria-label="Remover pagamento"
-                      onClick={() =>
-                        confirm(
-                          `Remover o pagamento de ${brl(p.amount_cents)} feito em ${shortDate(p.paid_on)}? O valor volta para a conta, mas as compras que ele já efetivou continuam efetivadas.`,
-                          () => removePayment.mutate(p.id),
-                        )
-                      }
-                    >
-                      remover
-                    </button>
-                  </span>
-                </div>
-              ))}
-            </section>
-          )}
+          {inv.state !== 'paid' && paymentsSection}
           <ErrorText error={removePayment.error} />
         </>
       )}
@@ -542,8 +545,9 @@ const ACTIONS: [Panel, string, boolean?][] = [
   ['excluir', 'Excluir', true],
 ];
 
-function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }) {
+function CardMenu({ name, invoicePaid, onPick }: { name: string; invoicePaid?: boolean; onPick: (p: Panel) => void }) {
   const [open, setOpen] = useState(false);
+  const actions = invoicePaid ? [['despesas', 'Desfazer pagamento'] as [Panel, string, boolean?], ...ACTIONS] : ACTIONS;
   return (
     <>
       <button type="button" className="pcd-act" aria-label="Mais ações do cartão" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
@@ -553,9 +557,9 @@ function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }
       {open && (
         <Sheet title={name} onClose={() => setOpen(false)}>
           <div className="list">
-            {ACTIONS.map(([panel, label, danger]) => (
+            {actions.map(([panel, label, danger]) => (
               <button
-                key={panel}
+                key={label}
                 type="button"
                 className={`r${danger ? ' danger' : ''}`}
                 style={{ minHeight: 52 }}
@@ -664,9 +668,16 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
         </section>
       )}
       {invoice && !owing && !empty && (
-        <button type="button" className="pcd-link" onClick={() => onPanel('pagar')}>
-          Adiantar pagamento
-        </button>
+        <div className="pcd-links">
+          <button type="button" className="pcd-link" onClick={() => onPanel('pagar')}>
+            Adiantar pagamento
+          </button>
+          {invoice.state === 'paid' && (
+            <button type="button" className="pcd-link" onClick={() => onPanel('despesas')}>
+              Desfazer pagamento
+            </button>
+          )}
+        </div>
       )}
 
       {!empty && invoice && (
@@ -819,6 +830,7 @@ export function CartoesPage() {
   const archivedCards = (archived.data ?? []).filter((c) => c.archived);
   const setMonth = (m: string) => setParams({ mes: m });
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
+  const ptr = usePullToRefresh();
   const p = panel;
   const activeCard = cards.data?.find((c) => c.id === activeId) ?? cards.data?.[0];
   const selected = selectedTx;
@@ -834,6 +846,7 @@ export function CartoesPage() {
         </button>
       </div>
       <MonthNav month={month} onChange={setMonth} />
+      <PullToRefresh ptr={ptr} />
       <small className="num pc-due">
         {brl(totalDue)} a pagar em {monthName(month)}
       </small>

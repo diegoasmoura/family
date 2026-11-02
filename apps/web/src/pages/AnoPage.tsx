@@ -5,9 +5,11 @@ import { CategoryIcon } from '../categories';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
+import { usePullToRefresh } from '../usePullToRefresh';
 import { BankMark, bankByName } from '../banks';
 import { BudgetYear } from '../BudgetYear';
-import { ErrorText, Icon, Loading, Seg, Sheet, StatusIcon, shortDate } from '../ui';
+import { ErrorText, Icon, Loading, PullToRefresh, Seg, Sheet, StatusIcon, shortDate } from '../ui';
+import { YearBarChart, type YearRow } from '../charts';
 
 interface Row {
   category_id: number | null;
@@ -109,6 +111,8 @@ export function AnoPage() {
   const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
   const [focus, setFocus] = useState<number | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [showCum, setShowCum] = useState(true);
+  const ptr = usePullToRefresh();
   const who = personParam(person);
   const tableMode = mode === 'budget' ? 'planned' : mode;
   const q = useApi(mode === 'budget' ? null : `/reports/year?year=${year}&mode=${tableMode}&person=${who}`);
@@ -117,6 +121,12 @@ export function AnoPage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const currentIdx = d && yearOf(d.current_month) === year ? Number(d.current_month.slice(5, 7)) - 1 : -1;
   const loaded = Boolean(d);
+  const chartRows: YearRow[] = d
+    ? d.income.months.map((income: number, index: number) => {
+        const cum = d.balance.months.slice(0, index + 1).reduce((sum: number, v: number) => sum + v, 0);
+        return { name: MONTHS_SHORT_PT[index], inc: income, exp: d.expense.months[index], cum };
+      })
+    : [];
   const focusIdx = focus ?? (currentIdx >= 0 ? currentIdx : 0);
   const showMonth = (i: number) => !compact || i === focusIdx;
   const cols = (compact ? 1 : 12) + 2;
@@ -289,11 +299,12 @@ export function AnoPage() {
         value={mode}
         onChange={setMode}
         options={[
-          ['realized', 'Lançado'],
-          ['planned', 'Previsto'],
-          ['budget', 'Orçado'],
+          ['realized', <><Icon.check /> Lançado</>],
+          ['planned', <><Icon.clock /> Previsto</>],
+          ['budget', <><Icon.chart /> Orçado</>],
         ]}
       />
+      <PullToRefresh ptr={ptr} />
       <ErrorText error={q.error} />
       {mode === 'budget' ? (
         <BudgetYear year={year} />
@@ -335,6 +346,17 @@ export function AnoPage() {
             </div>
           </section>
 
+          <div className="legend">
+            <span><i className="sw inc" />Receitas</span>
+            <span><i className="sw exp" />Despesas</span>
+            <button type="button" className={`cum-toggle${showCum ? " on" : ""}`} aria-pressed={showCum} onClick={() => setShowCum((v) => !v)}>
+              Sobra acumulada
+            </button>
+          </div>
+          <div className="year-scroll">
+            <YearBarChart rows={chartRows} monthIndex={focusIdx} showCum={showCum} onPick={setFocus} />
+          </div>
+
           <div className="year-bar">
             <Seg
               label="Quantos meses mostrar"
@@ -346,6 +368,7 @@ export function AnoPage() {
               ]}
             />
             <button className="btn sm ghost" disabled={!allKeys.length} onClick={() => setOpen(allOpen ? new Set() : new Set(allKeys))}>
+              {allOpen ? <Icon.collapse /> : <Icon.expand />}
               {allOpen ? 'Recolher tudo' : 'Expandir tudo'}
             </button>
           </div>
@@ -411,7 +434,7 @@ export function AnoPage() {
                   <td>Total despesas</td>
                   {cells(d.expense.months, d.expense.total_cents, d.expense.paid_months, false, { kind: 'expense', title: 'Despesas' })}
                 </tr>
-                <tr className="sd">
+                <tr className={`sd${d.balance.total_cents < 0 ? ' neg' : ''}`}>
                   <td>Saldo</td>
                   {cells(d.balance.months, d.balance.total_cents, undefined, true)}
                 </tr>

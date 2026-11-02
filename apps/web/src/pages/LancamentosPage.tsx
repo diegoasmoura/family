@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { addMonths, monthLabel } from '@fin/domain';
 import { useSwipe } from '../useSwipe';
+import { usePullToRefresh } from '../usePullToRefresh';
 import { useApi, type Tx } from '../api';
 import { BankMark, bankByName } from '../banks';
 import { paintColor } from '../categories';
@@ -9,7 +10,7 @@ import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { TxMenu, type TxSheetMode } from '../TxMenu';
-import { ErrorText, Icon, Loading, MonthNav, Seg, Sheet, StatusIcon, brl, dayLabel } from '../ui';
+import { ErrorText, Icon, Loading, MonthNav, PullToRefresh, Seg, Sheet, StatusIcon, brl, dayLabel } from '../ui';
 
 type Kind = 'expense' | 'income';
 
@@ -137,7 +138,7 @@ function TxLine({
 }: {
   status: Tx['display_status'];
   statusLabel: string;
-  kicker: string;
+  kicker?: string | null;
   title: string;
   parcel?: string | null;
   chips?: ReactNode;
@@ -152,16 +153,21 @@ function TxLine({
       <button type="button" className="ledger-hit" onClick={onOpen}>
         <StatusIcon status={status} label={statusLabel} />
         <span className="tx-body">
-          <span className="tx-kicker">{kicker}</span>
-          <span className="tx-title">
-            <span className="name">{title}</span>
-            {parcel && <span className="tx-parcel">{parcel}</span>}
+          <span className="tx-top">
+            <span className="tx-title">
+              <span className="name">{title}</span>
+              {parcel && <span className="tx-parcel">{parcel}</span>}
+            </span>
+            <i className="tx-leader" aria-hidden="true" />
+            <b className="num tx-amt">{brl(amount)}</b>
           </span>
-          {chips}
-        </span>
-        <span className="tx-side">
-          <span className="tx-date">{date}</span>
-          <b className="num">{brl(amount)}</b>
+          <span className="tx-bottom">
+            <span className="tx-meta">
+              {kicker && <span className="tx-kicker">{kicker}</span>}
+              {chips}
+            </span>
+            <span className="tx-date">{date}</span>
+          </span>
         </span>
       </button>
       {menu}
@@ -227,24 +233,28 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
             <Link to={invoiceHref(inv)} className="ledger-hit">
               <StatusIcon status={lineStatus} label={inv.state_label} />
               <span className="tx-body">
-                <span className="tx-kicker">{inv.card_name}</span>
-                <span className="tx-title">
-                  <span className="name">{l.description}</span>
+                <span className="tx-top">
+                  <span className="tx-title">
+                    <span className="name">{l.description}</span>
+                  </span>
+                  <i className="tx-leader" aria-hidden="true" />
+                  <b className="num tx-amt">{brl(l.amount_cents)}</b>
                 </span>
-                {(l.count > 1 || 'for_user_name' in l) && (
-                  <span className="tx-chips">
-                    {l.count > 1 && (
-                      <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
-                        {l.count} compras
+                <span className="tx-bottom">
+                  <span className="tx-meta">
+                    {(l.count > 1 || 'for_user_name' in l) && (
+                      <span className="tx-chips">
+                        {l.count > 1 && (
+                          <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
+                            {l.count} compras
+                          </span>
+                        )}
+                        {'for_user_name' in l && <WhoChip name={l.for_user_name} />}
                       </span>
                     )}
-                    {'for_user_name' in l && <WhoChip name={l.for_user_name} />}
                   </span>
-                )}
-              </span>
-              <span className="tx-side">
-                <span className="tx-date">{dayLabel(inv.due_date)}</span>
-                <b className="num">{brl(l.amount_cents)}</b>
+                  <span className="tx-date">{dayLabel(inv.due_date)}</span>
+                </span>
               </span>
             </Link>
           </div>
@@ -253,7 +263,6 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
             key={l.tx.id}
             status={l.tx.display_status}
             statusLabel={l.tx.status_label}
-            kicker={l.tx.account_name || inv.card_name}
             title={l.description}
             parcel={l.label}
             chips={<CategoryChips tx={l.tx} who />}
@@ -283,6 +292,7 @@ export function LancamentosPage() {
   const q = useApi(`/transactions?month=${month}&kind=${kind}&person=${personParam(person)}`);
   const income = kind === 'income';
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
+  const ptr = usePullToRefresh();
 
   const matchTx = (t: Tx) =>
     situation === 'all' ||
@@ -323,7 +333,8 @@ export function LancamentosPage() {
   const overdueInvoices = allInvoices.filter((inv) => inv.state === 'overdue');
   const overdueCount = overdueTxs.length + overdueInvoices.length;
   const overdueCents = overdueTxs.reduce((a, t) => a + t.amount_cents, 0) + overdueInvoices.reduce((a, inv: any) => a + (inv.remaining_cents ?? 0), 0);
-  const pendingTotal = (q.data?.pending_cents ?? 0) + allInvoices.reduce((a: number, i: any) => a + i.remaining_cents, 0);
+  // A API já inclui no "A pagar" a compra de cartão cuja fatura ainda não quitou.
+  const pendingTotal = q.data?.pending_cents ?? 0;
 
   return (
     <main className="page lanc" {...swipe}>
@@ -353,11 +364,12 @@ export function LancamentosPage() {
             setParams(k === 'income' ? { tipo: 'receitas' } : {});
           }}
           options={[
-            ['expense', 'Despesas'],
-            ['income', 'Receitas'],
+            ['expense', <><Icon.expense /> Despesas</>],
+            ['income', <><Icon.income /> Receitas</>],
           ]}
         />
       </div>
+      <PullToRefresh ptr={ptr} />
       <ErrorText error={q.error} />
       {!q.data ? (
         <Loading />
@@ -386,12 +398,12 @@ export function LancamentosPage() {
               <em>{situation === 'overdue' ? 'Limpar' : 'Ver'}</em>
             </button>
           )}
-          {!income && person !== 'all' && (
+          {!income && (
             <div className="lanc-note">
               <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
                 ⓘ Como as compras do cartão contam
               </button>
-              {noteOpen && <small>No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga (veja em Cartões).</small>}
+              {noteOpen && <small>Compras no cartão somam em “A pagar” ao serem lançadas; só entram em “Pago” quando a fatura quitar.</small>}
             </div>
           )}
 
@@ -416,7 +428,6 @@ export function LancamentosPage() {
                     key={t.id}
                     status={t.display_status}
                     statusLabel={t.status_label}
-                    kicker={t.account_name || t.card_name || t.parent_category_name || t.category_name || g.name}
                     title={t.description || t.category_name || (income ? 'Receita' : 'Despesa')}
                     parcel={t.installment_label ?? (t.card_id && t.recurrence_class === 'fixed' ? 'Fixa' : null)}
                     chips={<CategoryChips tx={t} who={person === 'all'} />}

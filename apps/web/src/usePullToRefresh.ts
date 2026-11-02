@@ -17,6 +17,10 @@ export function usePullToRefresh(threshold = 72) {
     const onMove = (e: TouchEvent) => {
       if (startY.current == null || busyRef.current) return;
       const dy = e.touches[0].clientY - startY.current;
+      // Segura o scroll nativo enquanto puxa pra baixo: sem isso, o "bounce"
+      // elástico do navegador soma com a nossa animação e o ícone pisca atrás
+      // do que está acima dele por um frame.
+      if (dy > 0 && e.cancelable) e.preventDefault();
       pullRef.current = dy > 0 ? Math.min(dy, threshold * 1.4) : 0;
       setPull(pullRef.current);
     };
@@ -37,7 +41,7 @@ export function usePullToRefresh(threshold = 72) {
       }
     };
     window.addEventListener('touchstart', onStart, { passive: true });
-    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onEnd);
     return () => {
       window.removeEventListener('touchstart', onStart);

@@ -1,5 +1,5 @@
 import { addMonths, MONTHS_SHORT_PT, monthOf } from '@fin/domain';
-import { Bar, BarChart, ResponsiveContainer, XAxis } from 'recharts';
+import { StackedMonthBars } from './charts';
 
 export type HistoryPoint = { month: string; planned_cents: number; paid_cents: number };
 
@@ -43,13 +43,7 @@ export function HistoryChart({ points }: { points: HistoryPoint[] }) {
     <section className="card history" aria-label={`Histórico dos últimos 6 meses. ${summary}`}>
       <b>Histórico</b>
       <div className="history-chart">
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={data} barCategoryGap="30%">
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--muted)' }} />
-            <Bar dataKey="paid_cents" stackId="month" fill="var(--green)" maxBarSize={28} radius={[6, 6, 0, 0]} />
-            <Bar dataKey="open_cents" stackId="month" fill="var(--line)" maxBarSize={28} radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <StackedMonthBars rows={data} />
       </div>
     </section>
   );

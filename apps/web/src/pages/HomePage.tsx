@@ -1,25 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { addMonths, daysInMonth, formatBRL, inkOn } from "@fin/domain";
-import {
-  Area,
-  Bar as MonthBar,
-  Cell,
-  ComposedChart,
-  Label,
-  Line,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { addMonths, daysInMonth, formatBRL } from "@fin/domain";
+import { Donut, EvolutionChart, YearBarChart, type YearRow } from "../charts";
 import { AvatarFigure } from "../Avatar";
 import { setHidden, useHidden } from "../privacy";
 import { useInView } from "../useInView";
 import { usePullToRefresh } from "../usePullToRefresh";
-import { ErrorText, Icon, Loading, MonthNav, Sheet, brl, monthName } from "../ui";
+import { ErrorText, Icon, Loading, MonthNav, PullToRefresh, Sheet, brl, monthName } from "../ui";
 import { api, useAction, useApi, type Card, type Category, type Me, type Member, type Tx } from "../api";
 import { CardRail } from "../CardFace";
 import { CategoryIcon } from "../categories";
@@ -72,72 +59,19 @@ function MoneyText({ cents, sign, abs }: { cents: number; sign?: boolean; abs?: 
   );
 }
 
-function slicePercent(props: {
-  cx?: number;
-  cy?: number;
-  midAngle?: number;
-  innerRadius?: number;
-  outerRadius?: number;
-  percent?: number;
-  payload?: { color?: string | null };
-}) {
-  const { cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, percent = 0, payload } = props;
-  if (percent < 0.08 || !Number.isFinite(innerRadius) || !Number.isFinite(outerRadius)) return null;
-  const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.55;
-  const rad = (-midAngle * Math.PI) / 180;
-  const color = payload?.color || "#8E9AAF";
+/** Revela cada card com um leve fade+subida na primeira vez que entra na tela. */
+function RevealItem({ index, forwardRef, children }: { index: number; forwardRef?: (node: HTMLDivElement | null) => void; children: ReactNode }) {
+  const [setEl, seen] = useInView<HTMLDivElement>("0px 0px -72px 0px");
   return (
-    <text x={cx + radius * Math.cos(rad)} y={cy + radius * Math.sin(rad)} textAnchor="middle" dominantBaseline="central" fill={inkOn(color)} fontSize={12} fontWeight={600}>
-      {`${Math.round(percent * 100)}%`}
-    </text>
-  );
-}
-
-function Donut({ items, total, caption, onPick }: { items: { name: string; total_cents: number; color: string | null }[]; total: number; caption: string; onPick?: (name: string) => void }) {
-  const parts = items.filter((item) => item.total_cents > 0);
-  const hidden = useContext(HiddenMoney);
-  const box = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(320);
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const measure = () => setWidth(el.clientWidth || 320);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  const outer = Math.max(78, Math.min(104, Math.round(width * 0.3)));
-  const inner = Math.round(outer * 0.68);
-  return (
-    <div ref={box} className={`chart-fit${onPick ? " chart-pick" : ""}`} role="img" aria-label={`${caption}, ${brl(total)}`}>
-      <ResponsiveContainer width="100%" height={outer * 2 + 12}>
-        <PieChart>
-          <Pie
-            data={parts}
-            dataKey="total_cents"
-            nameKey="name"
-            innerRadius={inner}
-            outerRadius={outer}
-            rootTabIndex={-1}
-            paddingAngle={parts.length > 1 ? 2 : 0}
-            stroke="none"
-            labelLine={false}
-            label={slicePercent}
-            animationDuration={400}
-            onClick={onPick ? (data) => {
-              const name = String(data.name ?? "");
-              if (name) onPick(name);
-            } : undefined}
-          >
-            {parts.map((part) => (
-              <Cell key={part.name} fill={part.color || "#8E9AAF"} />
-            ))}
-            <Label value={hidden ? "R$ ••••" : brl(total)} position="center" fill="var(--ink)" fontSize={18} fontWeight={700} dy={-8} />
-            <Label value={caption} position="center" fill="var(--muted)" fontSize={12} fontWeight={500} dy={12} />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
+    <div
+      ref={(node) => {
+        setEl(node);
+        forwardRef?.(node);
+      }}
+      className={`reveal${seen ? " in" : ""}`}
+      style={{ transitionDelay: `${Math.min(index, 6) * 40}ms` }}
+    >
+      {children}
     </div>
   );
 }
@@ -157,12 +91,6 @@ function cumulative(items: Tx[], month: string) {
     run += value;
     return run;
   });
-}
-
-function compactAxis(cents: number) {
-  const v = Math.abs(cents) / 100;
-  const text = v >= 1000 ? `${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : Math.round(v).toLocaleString("pt-BR");
-  return cents < 0 ? `-${text}` : text;
 }
 
 export function HomePage({ me }: { me: Me }) {
@@ -366,9 +294,10 @@ export function HomePage({ me }: { me: Me }) {
         ) : (
           <>
             <Donut
-              items={restCents > 0 ? [...top, { name: "Demais categorias", total_cents: restCents, color: "#8E9AAF" }] : top}
-              total={expenseTotal}
-              caption="Despesas"
+              slices={(restCents > 0 ? [...top, { name: "Demais categorias", total_cents: restCents, color: "#8E9AAF" }] : top).map((item) => ({ name: item.name, value: item.total_cents, color: item.color }))}
+              centerValue={hiddenMoney ? "R$ ••••" : brl(expenseTotal)}
+              centerCaption="Despesas"
+              ariaLabel={`Despesas, ${brl(expenseTotal)}`}
               onPick={(name) => {
                 if (name === "Demais categorias") return;
                 if (isCatchAll(name)) setClassify(name);
@@ -460,19 +389,7 @@ export function HomePage({ me }: { me: Me }) {
           <p className="empty">Nenhuma despesa neste mês. Use o botão "+" para registrar o primeiro gasto.</p>
         ) : (
           <>
-            <div className="chart-fit">
-              <ResponsiveContainer width="100%" height={190}>
-                <ComposedChart data={evolution} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="day" ticks={[1, 8, 15, 22, 29]} tick={{ fontSize: 11, fill: "var(--faint)" }} axisLine={false} tickLine={false} />
-                  <YAxis width={44} tick={{ fontSize: 11, fill: "var(--faint)" }} axisLine={false} tickLine={false} tickFormatter={(value) => compactAxis(Number(value))} />
-                  <Tooltip cursor={false} formatter={(value, name) => [hiddenMoney ? "R$ ••••" : brl(Number(value)), name === "anterior" ? "Mês anterior" : "Este mês"]} labelFormatter={(day) => `Dia ${day}`} contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, fontSize: 13 }} />
-                  <Area dataKey="atual" stroke="none" fill="var(--chart-exp)" fillOpacity={0.18} isAnimationActive animationDuration={400} />
-                  <Line dataKey="anterior" stroke="var(--chart-prev)" strokeDasharray="4 4" strokeWidth={2} dot={false} isAnimationActive animationDuration={400} />
-                  <Line dataKey="atual" stroke="var(--chart-exp)" strokeWidth={2.5} dot={(props) => <TodayDot {...props} today={todayDay} />} isAnimationActive animationDuration={400} />
-                  <Line dataKey="proj" stroke="var(--chart-exp)" strokeDasharray="4 4" strokeWidth={2} dot={false} connectNulls isAnimationActive animationDuration={400} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            <EvolutionChart data={evolution} todayDay={todayDay} formatValue={(cents) => (hiddenMoney ? "R$ ••••" : brl(cents))} />
             <p className="evo-note">
               Até hoje você gastou <MoneyText cents={spentToday} />
               {spentPrev > 0 && (
@@ -497,9 +414,10 @@ export function HomePage({ me }: { me: Me }) {
         ) : (
           <>
             <Donut
-              items={d.recurrence}
-              total={expenseTotal}
-              caption="No mês"
+              slices={d.recurrence.map((item: { name: string; color: string; total_cents: number }) => ({ name: item.name, value: item.total_cents, color: item.color }))}
+              centerValue={hiddenMoney ? "R$ ••••" : brl(expenseTotal)}
+              centerCaption="No mês"
+              ariaLabel={`Despesas por recorrência, ${brl(expenseTotal)}`}
               onPick={(name) => {
                 const item = d.recurrence.find((row: { name: string }) => row.name === name);
                 if (!item) return;
@@ -537,26 +455,27 @@ export function HomePage({ me }: { me: Me }) {
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} onConfig={() => setConfig(true)} />
         <PersonFilter />
         <MonthNav month={month} onChange={setMonth} />
-        <div className={`ptr${ptr.busy ? " busy" : ""}`} style={{ height: ptr.busy ? 36 : ptr.pull / 2 }} aria-hidden>
-          {ptr.busy ? "Atualizando…" : ptr.ready ? "Solte para atualizar" : ptr.pull > 8 ? "Puxe para atualizar" : ""}
-        </div>
+        <PullToRefresh ptr={ptr} />
         <ErrorText error={q.error} />
         <div className="home-stack">
-          {layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => {
+          {layout.order.filter((id) => !layout.hidden.includes(id)).map((id, index) => {
             const block = blocks[id];
             // Só renderiza o bloco se tiver conteúdo relevante
-            const hasData = 
-              id === 'summary' ? true : // Resumo sempre mostra algo
-              id === 'cards' ? (cardList.length > 0) : id === 'categories' ? true : 
-              id === 'evolution' ? true : 
-              id === 'recurrence' ? true : 
-              id === 'year' ? true : false;
-            
-            return hasData ? (
-              <div key={id} ref={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined}>
+            const hasData =
+              id === "summary" ? true : // Resumo sempre mostra algo
+              id === "cards" ? cardList.length > 0 :
+              id === "categories" ? true :
+              id === "evolution" ? true :
+              id === "recurrence" ? true :
+              id === "year" ? true : false;
+
+            if (!hasData) return null;
+            // evolution/year também carregam a ref do observer que antecipa o carregamento do gráfico.
+            return (
+              <RevealItem key={id} index={index} forwardRef={id === "evolution" ? evoRef : id === "year" ? yearRef : undefined}>
                 {block}
-              </div>
-            ) : null;
+              </RevealItem>
+            );
           })}
         </div>
         {showTop && (
@@ -607,7 +526,12 @@ export function HomePage({ me }: { me: Me }) {
             <p className="empty">Sem subcategorias neste mês.</p>
           ) : (
             <>
-              <Donut items={childParts} total={childParts.reduce((sum, item) => sum + item.total_cents, 0)} caption={selectedCat.name} />
+              <Donut
+                slices={childParts.map((item) => ({ name: item.name, value: item.total_cents, color: item.color }))}
+                centerValue={hiddenMoney ? "R$ ••••" : brl(childParts.reduce((sum, item) => sum + item.total_cents, 0))}
+                centerCaption={selectedCat.name}
+                ariaLabel={`${selectedCat.name}, ${brl(childParts.reduce((sum, item) => sum + item.total_cents, 0))}`}
+              />
               <div className="rec-rows">
                 {childParts.map((item) => (
                   <div key={item.name} className="rec-row">
@@ -726,21 +650,6 @@ function HomeHeader({ me, members, person, hidden, onToggle, onConfig }: { me: M
   );
 }
 
-function TodayDot(props: { cx?: number; cy?: number; payload?: { day?: number }; today?: number }) {
-  const { cx, cy, payload, today } = props;
-  if (cx == null || cy == null || payload?.day !== today) return <g />;
-  return <circle cx={cx} cy={cy} r={5} fill="var(--surface)" stroke="var(--chart-exp)" strokeWidth={2.5} />;
-}
-
-function MonthTick({ x, y, payload, selected }: { x?: string | number; y?: string | number; payload?: { value?: string }; selected?: boolean }) {
-  const yPos = Number(y ?? 0) + 12;
-  return (
-    <text x={x} y={yPos} textAnchor="middle" fill={selected ? "var(--ink)" : "var(--faint)"} fontSize={11} fontWeight={selected ? 700 : 500}>
-      {payload?.value}
-    </text>
-  );
-}
-
 function YearBlock({
   year,
   monthIndex,
@@ -765,7 +674,7 @@ function YearBlock({
     );
   }
   const cum = data.balance.months.reduce((acc: number[], value: number) => [...acc, (acc.at(-1) ?? 0) + value], []);
-  const rows = data.income.months.map((income: number, index: number) => ({
+  const rows: YearRow[] = data.income.months.map((income: number, index: number) => ({
     name: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][index],
     inc: income,
     exp: data.expense.months[index],
@@ -773,10 +682,6 @@ function YearBlock({
   }));
   const picked = rows[monthIndex];
   const pickedMonth = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-  const pick = (state: { activeTooltipIndex?: number | string | null }) => {
-    const index = Number(state?.activeTooltipIndex);
-    if (Number.isInteger(index) && index >= 0 && index < 12) onPick(index);
-  };
   return (
     <section className="card year-card" aria-label="Ano em gráfico">
       <div className="hd">
@@ -793,24 +698,7 @@ function YearBlock({
         </button>
       </div>
       <div className="year-chart chart-pick">
-        <ResponsiveContainer width="100%" height={150}>
-          <ComposedChart data={rows} margin={{ top: 4, right: 0, left: 0, bottom: 0 }} barGap={2} onClick={pick}>
-            <XAxis dataKey="name" interval={0} axisLine={false} tickLine={false} tick={(props) => <MonthTick {...props} selected={props.index === monthIndex} />} />
-            <YAxis hide />
-            <Tooltip cursor={{ fill: "var(--line-soft)", radius: 8 }} content={() => null} />
-            <MonthBar dataKey="inc" maxBarSize={10} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={400}>
-              {rows.map((row, index) => (
-                <Cell key={row.name} fill={row.inc ? "var(--chart-inc)" : "var(--bar-empty)"} fillOpacity={index === monthIndex ? 1 : 0.45} />
-              ))}
-            </MonthBar>
-            <MonthBar dataKey="exp" maxBarSize={10} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={400}>
-              {rows.map((row, index) => (
-                <Cell key={row.name} fill={row.exp ? "var(--chart-exp)" : "var(--bar-empty)"} fillOpacity={index === monthIndex ? 1 : 0.45} />
-              ))}
-            </MonthBar>
-            {showCum && <Line dataKey="cum" stroke="var(--chart-cum)" strokeWidth={2} dot={{ r: 2.5 }} isAnimationActive animationDuration={400} />}
-          </ComposedChart>
-        </ResponsiveContainer>
+        <YearBarChart rows={rows} monthIndex={monthIndex} showCum={showCum} onPick={onPick} />
       </div>
       <div className="year-sel">
         <small>{monthName(pickedMonth)}</small>
