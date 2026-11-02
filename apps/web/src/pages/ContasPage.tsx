@@ -1,102 +1,13 @@
 import { useState } from 'react';
 import { api, useAction, useApi, type Account, type Me } from '../api';
 import { useAppState } from '../state';
-import { BankMark, BankPicker } from '../banks';
+import { BankMark } from '../banks';
 import { BackButton, ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { useSwipe } from '../useSwipe';
 import type { Transfer } from '../types';
+import { AccountForm, typeLabel } from '../AccountForm';
 import { addMonths } from '@fin/domain';
-
-const TYPES: [string, string][] = [
-  ['checking', 'Conta corrente'],
-  ['savings', 'Poupança'],
-  ['cash', 'Dinheiro'],
-  ['wallet', 'Carteira digital'],
-  ['investment', 'Investimento'],
-];
-const typeLabel = (t: string) => TYPES.find(([k]) => k === t)?.[1] ?? t;
-
-function AccountForm({ account, isAdmin, onClose }: { account?: Account; isAdmin: boolean; onClose: () => void }) {
-  const { today, toast } = useAppState();
-  const [form, setForm] = useState({
-    name: account?.name ?? '',
-    type: account?.type ?? 'checking',
-    initial_balance_cents: (account?.initial_balance_cents ?? 0) as number | null,
-    initial_balance_on: account?.initial_balance_on ?? today,
-  });
-  const save = useAction(
-    () => {
-      const body = { ...form, initial_balance_cents: form.initial_balance_cents ?? 0 };
-      return account ? api(`/accounts/${account.id}`, { method: 'PATCH', body }) : api('/accounts', { body });
-    },
-    () => {
-      toast(account ? 'Conta atualizada' : 'Conta criada');
-      onClose();
-    },
-  );
-  const archive = useAction(
-    () => api(`/accounts/${account!.id}`, { method: 'DELETE' }),
-    (r: any) => {
-      toast(r.archived ? 'Conta arquivada' : 'Conta excluída');
-      onClose();
-    },
-  );
-  const { confirm, dialog } = useConfirm();
-  return (
-    <>
-    <Sheet title={account ? 'Editar conta' : 'Nova conta'} onClose={onClose}>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate(undefined);
-        }}
-      >
-        <label className="f">
-          <span>Banco</span>
-          <BankPicker name={form.name} onChange={(name) => setForm((f) => ({ ...f, name }))} />
-        </label>
-        <label className="f">
-          <span>Tipo</span>
-          <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-            {TYPES.map(([k, l]) => (
-              <option key={k} value={k}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <MoneyInput label="Saldo inicial" allowNegative value={form.initial_balance_cents} onChange={(v) => setForm((f) => ({ ...f, initial_balance_cents: v }))} />
-        <label className="f">
-          <span>Data do saldo inicial</span>
-          <input type="date" value={form.initial_balance_on} onChange={(e) => setForm((f) => ({ ...f, initial_balance_on: e.target.value }))} required />
-        </label>
-        <small>O saldo é calculado a partir desta data: saldo inicial + receitas − despesas − faturas pagas ± transferências.</small>
-        <ErrorText error={save.error ?? archive.error} />
-        <button className="btn block" disabled={save.isPending || !form.name.trim()}>
-          Salvar
-        </button>
-        {account && isAdmin && (
-          <button
-            type="button"
-            className="btn danger block"
-            onClick={() =>
-              confirm(
-                `Arquivar ou excluir “${account.name}”? Se a conta já teve movimentos, ela é arquivada e o histórico fica; senão, é apagada.`,
-                () => archive.mutate(undefined),
-              )
-            }
-          >
-            Arquivar conta
-          </button>
-        )}
-      </form>
-    </Sheet>
-    {dialog}
-    </>
-  );
-}
 
 function ClosingForm({ account, month, onClose }: { account: Account; month: string; onClose: () => void }) {
   const { toast } = useAppState();

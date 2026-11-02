@@ -10,6 +10,7 @@ import { BrandMark, BrandPicker } from '../brands';
 import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { PaySheet } from '../PaySheet';
+import { AccountForm } from '../AccountForm';
 import { useSwipe } from '../useSwipe';
 
 const CARD_COLORS = ['#8A05BE', '#EC7000', '#CC092F', '#1E1E1E', '#0070AF', '#00A868', '#FFB800', ...CATEGORY_COLORS.slice(3, 6)];
@@ -21,7 +22,7 @@ function daysUntil(iso: string, today: string) {
   return Math.round((b - a) / 86_400_000);
 }
 const when = (n: number) => (n < 0 ? `há ${-n} d` : n === 0 ? 'hoje' : n === 1 ? 'amanhã' : `em ${n} dias`);
-const cardColor = (card: Pick<Card, 'id' | 'color'>) => card.color ?? CARD_COLORS[card.id % CARD_COLORS.length];
+export const cardColor = (card: Pick<Card, 'id' | 'color'>) => card.color ?? CARD_COLORS[card.id % CARD_COLORS.length];
 
 type Panel = 'despesas' | 'historico' | 'categorias' | 'evolucao' | 'reajustar' | 'pagar' | 'editar' | 'arquivar' | 'excluir';
 
@@ -43,6 +44,7 @@ export function CardLogo({ card, size = 48 }: { card: Pick<Card, 'id' | 'name' |
 function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
   const { toast } = useAppState();
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
+  const [newAccount, setNewAccount] = useState(false);
   const [form, setForm] = useState({
     name: card?.name ?? '',
     brand: card?.brand ?? '',
@@ -72,6 +74,7 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
     </label>
   );
   return (
+    <>
     <Sheet title={card ? 'Editar cartão' : 'Novo cartão'} onClose={onClose}>
       <form
         className="stack"
@@ -103,6 +106,9 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
               </option>
             ))}
           </select>
+          <button type="button" className="link" onClick={() => setNewAccount(true)}>
+            + Nova conta
+          </button>
         </label>
         <ErrorText error={save.error} />
         <button className="btn block" disabled={save.isPending || !form.name.trim()}>
@@ -110,6 +116,8 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
         </button>
       </form>
     </Sheet>
+    {newAccount && <AccountForm onClose={() => setNewAccount(false)} onSaved={(saved) => setForm((f) => ({ ...f, default_pay_account_id: saved.id }))} />}
+    </>
   );
 }
 
@@ -156,8 +164,9 @@ function PurchaseRow({ t, onTx }: { t: Purchase; onTx: (t: Tx) => void }) {
   );
 }
 
-function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: string; onClose: () => void; onTx: (t: Tx) => void }) {
+function DespesasSheet({ card, month: startMonth, onClose, onTx }: { card: Card; month: string; onClose: () => void; onTx: (t: Tx) => void }) {
   const { toast } = useAppState();
+  const [month, setMonth] = useState(startMonth);
   const detail = useInvoiceDetail(card, month);
   const removePayment = useAction((id: number) => api(`/invoice-payments/${id}`, { method: 'DELETE' }), () => toast('Pagamento removido'));
   const { confirm, dialog } = useConfirm();
@@ -170,7 +179,16 @@ function DespesasSheet({ card, month, onClose, onTx }: { card: Card; month: stri
   ].filter((entry): entry is [string, Purchase[]] => entry[1].length > 0);
   return (
     <>
-    <Sheet title={`${card.name} · fatura de ${monthName(month)}`} onClose={onClose}>
+    <Sheet title={`${card.name} · lançamentos`} onClose={onClose}>
+      <div className="hd month-nav">
+        <button type="button" className="ic" aria-label="Fatura anterior" onClick={() => setMonth(addMonths(month, -1))}>
+          <Icon.left />
+        </button>
+        <b>Fatura de {monthName(month)}</b>
+        <button type="button" className="ic" aria-label="Próxima fatura" onClick={() => setMonth(addMonths(month, 1))}>
+          <Icon.right />
+        </button>
+      </div>
       {!inv ? (
         <Loading />
       ) : (
@@ -565,9 +583,9 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
   return (
     <section className="card cc" aria-label={`Cartão ${card.name}`}>
       <div className="hd">
-        <div className="row" style={{ minWidth: 0 }}>
+        <button type="button" className="cc-title" aria-label={`Ver lançamentos do ${card.name}`} onClick={() => onPanel('despesas')}>
           <CardLogo card={card} />
-          <div style={{ minWidth: 0 }}>
+          <span style={{ minWidth: 0, display: 'block' }}>
             <b style={{ fontSize: 18 }}>{card.name}</b>
             {card.brand && (
               <span className="brand-line">
@@ -575,8 +593,11 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
                 <small>{card.brand}</small>
               </span>
             )}
-          </div>
-        </div>
+          </span>
+          <span className="chev" aria-hidden>
+            <Icon.right />
+          </span>
+        </button>
         <div className="row" style={{ gap: 0 }}>
           <Link className="kebab" to="/lancar" state={{ from: location.pathname + location.search, cardId: card.id }} aria-label={`Nova compra no ${card.name}`}>
             <Icon.plus />
@@ -665,6 +686,10 @@ function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoic
           </div>
         </button>
       )}
+
+      <button type="button" className="btn ghost block cc-see" onClick={() => onPanel('despesas')}>
+        <Icon.list /> Ver lançamentos{invoice ? ` de ${monthName(invoice.reference_month)}` : ''}
+      </button>
 
       <div className="hd">
         {invoice && invoice.remaining_cents > 0 ? (

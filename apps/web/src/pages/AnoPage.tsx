@@ -87,6 +87,17 @@ function AuditSheet({ audit, year, mode, person, onClose, onTx }: { audit: Audit
   );
 }
 
+/** Valor com o "R$" menor, no mesmo padrão do Início. Usa .money para respeitar o olho de ocultar valores. */
+function Amt({ cents, abs }: { cents: number; abs?: boolean }) {
+  const [sym, rest] = formatBRL(abs ? Math.abs(cents) : cents).replace(/^-/, '').split(' ');
+  return (
+    <span className="money">
+      {!abs && cents < 0 ? '-' : ''}
+      <span className="rs">{sym}</span> {rest}
+    </span>
+  );
+}
+
 export function AnoPage() {
   const { today, person } = useAppState();
   const [year, setYear] = useState(yearOf(today));
@@ -96,6 +107,7 @@ export function AnoPage() {
   const [tx, setTx] = useState<Tx | null>(null);
   const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
   const [focus, setFocus] = useState<number | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
   const who = personParam(person);
   const q = useApi(`/reports/year?year=${year}&mode=${mode}&person=${who}`);
   const d = q.data;
@@ -244,18 +256,32 @@ export function AnoPage() {
   const section = (rows: Row[], prefix: 'i' | 'e') =>
     rows.map((r) => row(r, `${prefix}${r.category_id}`, 0, prefix === 'i' ? 'income' : 'expense'));
 
+  const awayYear = year !== yearOf(today);
+  const balance = d?.balance.total_cents ?? 0;
+  const tone = balance < 0 ? 'neg' : 'pos';
+
   return (
     <main className="page wide">
       <div className="hd">
-        <button className="ic" aria-label="Ano anterior" onClick={() => { setYear(year - 1); setFocus(null); }}>
+        <h1>Visão anual</h1>
+      </div>
+      <PersonFilter />
+      <div className="hd month-nav">
+        <button type="button" className="ic" aria-label="Ano anterior" onClick={() => { setYear(year - 1); setFocus(null); }}>
           <Icon.left />
         </button>
-        <h1>Visão anual · {year}</h1>
-        <button className="ic" aria-label="Próximo ano" onClick={() => { setYear(year + 1); setFocus(null); }}>
+        {awayYear ? (
+          <button type="button" className="month-back" aria-label={`Voltar para ${yearOf(today)}`} onClick={() => { setYear(yearOf(today)); setFocus(null); }}>
+            <b>{year}</b>
+            <small>Ano atual</small>
+          </button>
+        ) : (
+          <b>{year}</b>
+        )}
+        <button type="button" className="ic" aria-label="Próximo ano" onClick={() => { setYear(year + 1); setFocus(null); }}>
           <Icon.right />
         </button>
       </div>
-      <PersonFilter />
       <Seg
         label="Realizado ou previsto"
         value={mode}
@@ -270,38 +296,65 @@ export function AnoPage() {
         <Loading />
       ) : (
         <>
-          <div className="stats">
-            <div className="st">
-              <small>Receitas</small>
-              <b className="num">{formatBRL(d.income.total_cents)}</b>
+          <section className={`card sum-card ${tone}`} aria-label={`Resumo de ${year}`}>
+            <div className="sum-top">
+              <small>{mode === 'realized' ? 'Realizado' : 'Previsto'} em {year}</small>
+              <span className={`sum-pill ${tone}`}>
+                {tone === 'neg' ? <Icon.alert /> : <Icon.check />}
+                {tone === 'neg' ? 'No vermelho' : 'No azul'}
+              </span>
             </div>
-            <div className="st">
-              <small>Despesas</small>
-              <b className="num">{formatBRL(d.expense.total_cents)}</b>
+            <div className="sum-hero">
+              <small>{tone === 'neg' ? 'Falta cobrir no ano' : 'Sobra acumulada no ano'}</small>
+              <div className="sum-amt">
+                <Amt cents={balance} abs />
+              </div>
             </div>
-            <div className={`st ${d.balance.total_cents >= 0 ? 'ok' : 'warn'}`}>
-              <small>Saldo acumulado</small>
-              <b className="num">{formatBRL(d.balance.total_cents)}</b>
+            <div className="sum-tiles">
+              <div className="sum-tile in">
+                <span className="sum-tile-hd">
+                  <i aria-hidden>↓</i>Receitas
+                </span>
+                <b>
+                  <Amt cents={d.income.total_cents} />
+                </b>
+              </div>
+              <div className="sum-tile out">
+                <span className="sum-tile-hd">
+                  <i aria-hidden>↑</i>Despesas
+                </span>
+                <b>
+                  <Amt cents={d.expense.total_cents} />
+                </b>
+              </div>
             </div>
-          </div>
-          <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <small>Toque numa categoria para abrir a composição, ou num valor para ver os lançamentos.</small>
+          </section>
+
+          <div className="year-bar">
+            <Seg
+              label="Quantos meses mostrar"
+              value={compact ? 'one' : 'all'}
+              onChange={(v) => setCompact(v === 'one')}
+              options={[
+                ['one', 'Um mês'],
+                ['all', 'Ano todo'],
+              ]}
+            />
             <button className="btn sm ghost" disabled={!allKeys.length} onClick={() => setOpen(allOpen ? new Set() : new Set(allKeys))}>
               {allOpen ? 'Recolher tudo' : 'Expandir tudo'}
             </button>
           </div>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            {compact && (
-              <div className="row" style={{ gap: 4 }}>
-                <button className="ic" aria-label="Mês anterior" disabled={focusIdx === 0} onClick={() => setFocus(focusIdx - 1)}><Icon.left /></button>
-                <b>{MONTHS_LONG[focusIdx]}</b>
-                <button className="ic" aria-label="Próximo mês" disabled={focusIdx === 11} onClick={() => setFocus(focusIdx + 1)}><Icon.right /></button>
-              </div>
-            )}
-            <button className="btn sm ghost" onClick={() => setCompact((c) => !c)}>
-              {compact ? 'Ver todos os meses' : 'Ver um mês'}
-            </button>
-          </div>
+          {compact && (
+            <div className="hd month-nav">
+              <button type="button" className="ic" aria-label="Mês anterior" disabled={focusIdx === 0} onClick={() => setFocus(focusIdx - 1)}>
+                <Icon.left />
+              </button>
+              <b>{MONTHS_LONG[focusIdx]}</b>
+              <button type="button" className="ic" aria-label="Próximo mês" disabled={focusIdx === 11} onClick={() => setFocus(focusIdx + 1)}>
+                <Icon.right />
+              </button>
+            </div>
+          )}
           <div className="sc-wrap" ref={wrapRef}>
           <div className="sc" ref={scRef} tabIndex={0} aria-label="Tabela anual com rolagem horizontal">
             <table className="year">
@@ -361,9 +414,16 @@ export function AnoPage() {
             </table>
           </div>
           </div>
-          <small>
-            A coluna destacada é o mês atual. Contas entram no vencimento, pagas ou a pagar. Compras no cartão entram no mês da fatura. O que já foi pago fica em verde.
-          </small>
+          <div className="lanc-note">
+            <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
+              ⓘ Como ler esta tabela
+            </button>
+            {noteOpen && (
+              <small>
+                Toque numa categoria para ver a composição, ou num valor para ver os lançamentos. A coluna destacada é o mês atual. Contas entram no vencimento, pagas ou a pagar. Compras no cartão entram no mês da fatura. O que já foi pago fica em verde.
+              </small>
+            )}
+          </div>
         </>
       )}
       {audit && <AuditSheet key={JSON.stringify(audit)} audit={audit} year={year} mode={mode} person={who} onClose={() => setAudit(null)} onTx={setTx} />}

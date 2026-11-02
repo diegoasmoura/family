@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi, type Account, type Card } from './api';
 import { useAppState } from './state';
 import { ErrorText, Loading, MoneyInput, Sheet, brl, monthName } from './ui';
+import { AccountForm } from './AccountForm';
 
 function useInvoiceDetail(card: Card, month: string) {
   return useApi<any>(`/cards/${card.id}/invoices/${month}`);
@@ -14,6 +15,7 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
   const [amount, setAmount] = useState<number | null>(null);
   const [accountId, setAccountId] = useState<number | null>(card.default_pay_account_id);
   const [date, setDate] = useState(today);
+  const [newAccount, setNewAccount] = useState(false);
   const inv = detail.data;
   const value = amount ?? (inv?.remaining_cents || null);
   const pay = useAction(
@@ -25,6 +27,7 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
   );
   const chosenAccount = accountId ?? accounts.data?.accounts[0]?.id ?? null;
   return (
+    <>
     <Sheet title={`Pagar fatura de ${monthName(month)}`} onClose={onClose}>
       {!inv ? (
         <Loading />
@@ -52,6 +55,9 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
                 </option>
               ))}
             </select>
+            <button type="button" className="link" onClick={() => setNewAccount(true)}>
+              + Nova conta
+            </button>
           </label>
           <label className="f">
             <span>Data do pagamento</span>
@@ -70,5 +76,7 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
         </form>
       )}
     </Sheet>
+    {newAccount && <AccountForm onClose={() => setNewAccount(false)} onSaved={(saved) => setAccountId(saved.id)} />}
+    </>
   );
 }

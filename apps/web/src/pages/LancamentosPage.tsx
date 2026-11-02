@@ -279,6 +279,7 @@ export function LancamentosPage() {
   const [situation, setSituation] = useState<Situation>('all');
   const [selected, setSelected] = useState<{ id: number; mode: TxSheetMode } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   const q = useApi(`/transactions?month=${month}&kind=${kind}&person=${personParam(person)}`);
   const income = kind === 'income';
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
@@ -317,6 +318,13 @@ export function LancamentosPage() {
     selected &&
     [...items, ...invoices.flatMap((inv) => (inv.lines ?? []).flatMap((l) => (l.kind === 'other' ? [] : [l.tx])))].find((t) => t.id === selected.id);
 
+  const allInvoices: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
+  const overdueTxs: Tx[] = (q.data?.items ?? []).filter((t: Tx) => t.display_status === 'overdue' && t.include_in_reports);
+  const overdueInvoices = allInvoices.filter((inv) => inv.state === 'overdue');
+  const overdueCount = overdueTxs.length + overdueInvoices.length;
+  const overdueCents = overdueTxs.reduce((a, t) => a + t.amount_cents, 0) + overdueInvoices.reduce((a, inv: any) => a + (inv.remaining_cents ?? 0), 0);
+  const pendingTotal = (q.data?.pending_cents ?? 0) + allInvoices.reduce((a: number, i: any) => a + i.remaining_cents, 0);
+
   return (
     <main className="page lanc" {...swipe}>
       <div className="hd">
@@ -331,54 +339,59 @@ export function LancamentosPage() {
         </div>
       </div>
       <PersonFilter />
-      <Seg
-        label="Tipo de lançamento"
-        value={kind}
-        onChange={(k) => {
-          setSituation('all');
-          setParams(k === 'income' ? { tipo: 'receitas' } : {});
-        }}
-        options={[
-          ['expense', 'Despesas'],
-          ['income', 'Receitas'],
-        ]}
-      />
-      <Seg
-        label="Situação"
-        value={situation}
-        onChange={setSituation}
-        options={[
-          ['all', 'Todos'],
-          ['pending', income ? 'A receber' : 'A pagar'],
-          ['overdue', 'Vencidos'],
-          ['paid', income ? 'Recebidos' : 'Pagos'],
-        ]}
-      />
       {search !== null && (
         <input className="inp" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
       )}
       <MonthNav month={month} onChange={setMonth} />
+      <div className={income ? 'tone-in' : 'tone-out'}>
+        <Seg
+          label="Tipo de lançamento"
+          value={kind}
+          onChange={(k) => {
+            setSituation('all');
+            setParams(k === 'income' ? { tipo: 'receitas' } : {});
+          }}
+          options={[
+            ['expense', 'Despesas'],
+            ['income', 'Receitas'],
+          ]}
+        />
+      </div>
       <ErrorText error={q.error} />
       {!q.data ? (
         <Loading />
       ) : (
         <>
-          <div className="stats">
-            <div className="st">
+          <div className="stats" role="group" aria-label="Filtrar pela situação">
+            <button type="button" className={`st${situation === 'all' ? ' on' : ''}`} aria-pressed={situation === 'all'} onClick={() => setSituation('all')}>
               <small>{income ? 'Receitas' : 'Despesas'}</small>
               <b className="num">{brl(q.data.summary.total_cents)}</b>
-            </div>
-            <div className="st ok">
+            </button>
+            <button type="button" className={`st ok${situation === 'paid' ? ' on' : ''}`} aria-pressed={situation === 'paid'} onClick={() => setSituation(situation === 'paid' ? 'all' : 'paid')}>
               <small>{income ? 'Recebido' : 'Pago'}</small>
               <b className="num">{brl(q.data.settled_cents)}</b>
-            </div>
-            <div className="st warn">
+            </button>
+            <button type="button" className={`st warn${situation === 'pending' ? ' on' : ''}`} aria-pressed={situation === 'pending'} onClick={() => setSituation(situation === 'pending' ? 'all' : 'pending')}>
               <small>{income ? 'A receber' : 'A pagar'}</small>
-              <b className="num">{brl(q.data.pending_cents + (income ? 0 : q.data.invoices.reduce((a: number, i: any) => a + i.remaining_cents, 0)))}</b>
-            </div>
+              <b className="num">{brl(pendingTotal)}</b>
+            </button>
           </div>
+          {overdueCount > 0 && (
+            <button type="button" className={`lanc-alert${situation === 'overdue' ? ' on' : ''}`} aria-pressed={situation === 'overdue'} onClick={() => setSituation(situation === 'overdue' ? 'all' : 'overdue')}>
+              <Icon.alert />
+              <span>
+                {overdueCount} {overdueCount === 1 ? 'vencida' : 'vencidas'} · {brl(overdueCents)}
+              </span>
+              <em>{situation === 'overdue' ? 'Limpar' : 'Ver'}</em>
+            </button>
+          )}
           {!income && person !== 'all' && (
-            <small>No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga (veja em Cartões).</small>
+            <div className="lanc-note">
+              <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
+                ⓘ Como as compras do cartão contam
+              </button>
+              {noteOpen && <small>No modo Eu, compras no cartão contam em “Despesas”, mas só aparecem em “Pago/A pagar” quando a fatura é paga (veja em Cartões).</small>}
+            </div>
           )}
 
           <div className="ledger">

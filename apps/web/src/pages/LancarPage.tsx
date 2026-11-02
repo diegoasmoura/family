@@ -5,6 +5,7 @@ import { api, clientUuid, useAction, useApi, type Account, type Card, type Categ
 import { CategoryPicker } from '../categories';
 import { useAppState } from '../state';
 import { BankMark } from '../banks';
+import { AccountForm } from '../AccountForm';
 import { ForWhom, useForWhom } from '../people';
 import { ErrorText, Icon, MoneyInput, Seg, brl, monthName } from '../ui';
 
@@ -52,6 +53,7 @@ export function LancarPage() {
   const [paidOverride, setPaidOverride] = useState<boolean | null>(null);
   const [forUser, setForUser] = useForWhom();
   const [uuid, setUuid] = useState(clientUuid);
+  const [newAccount, setNewAccount] = useState(false);
   const again = useRef(false);
   const dateRef = useRef<HTMLInputElement>(null);
 
@@ -273,8 +275,11 @@ export function LancarPage() {
               {a.name}
             </button>
           ))}
+          <button type="button" className="chip add" onClick={() => setNewAccount(true)}>
+            <Icon.plus /> Nova conta
+          </button>
         </div>
-        {noTargets && <p className="err">Cadastre uma conta em Mais → Contas antes de lançar.</p>}
+        {noTargets && <p className="err">Crie uma conta para poder lançar. Toque em “Nova conta”.</p>}
 
         <div className="chips" role="radiogroup" aria-label="Data rápida">
           <button type="button" role="radio" aria-checked={date === today} className={`chip sm${date === today ? ' on' : ''}`} onClick={() => setDate(today)}>Hoje</button>
@@ -342,6 +347,7 @@ export function LancarPage() {
           </button>
         </div>
       </form>
+      {newAccount && <AccountForm onClose={() => setNewAccount(false)} onSaved={(saved) => setTarget({ type: 'account', id: saved.id })} />}
     </div>
   );
 }
