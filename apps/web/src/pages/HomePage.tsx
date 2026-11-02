@@ -239,7 +239,7 @@ export function HomePage({ me }: { me: Me }) {
   if (!d) {
     return (
       <main className="page home">
-        <HomeHeader me={me} members={[]} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
+        <HomeHeader me={me} members={[]} person={person} hidden={hiddenMoney} onToggle={toggleHide} onConfig={() => setConfig(true)} />
         <PersonFilter />
         <MonthNav month={month} onChange={setMonth} />
         <ErrorText error={q.error} />
@@ -534,7 +534,7 @@ export function HomePage({ me }: { me: Me }) {
   return (
     <HiddenMoney.Provider value={hiddenMoney}>
       <main className="page home" style={{ borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-        <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
+        <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} onConfig={() => setConfig(true)} />
         <PersonFilter />
         <MonthNav month={month} onChange={setMonth} />
         <div className={`ptr${ptr.busy ? " busy" : ""}`} style={{ height: ptr.busy ? 36 : ptr.pull / 2 }} aria-hidden>
@@ -559,9 +559,6 @@ export function HomePage({ me }: { me: Me }) {
             ) : null;
           })}
         </div>
-        <button type="button" className="config-home" onClick={() => setConfig(true)}>
-          <Icon.grid /> Configurar resumo
-        </button>
         {showTop && (
           <button type="button" className="to-top" aria-label="Voltar ao topo" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -702,7 +699,7 @@ function ClassifySheet({ name, items, onClose }: { name: string; items: Tx[]; on
   );
 }
 
-function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members: Member[]; person: PersonScope; hidden: boolean; onToggle: () => void }) {
+function HomeHeader({ me, members, person, hidden, onToggle, onConfig }: { me: Me; members: Member[]; person: PersonScope; hidden: boolean; onToggle: () => void; onConfig: () => void }) {
   const shown = person === "all" ? members : members.filter((member) => member.me);
   return (
     <div className="hd home-top">
@@ -720,6 +717,9 @@ function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members
         )}
         <button type="button" className="ic eye" aria-pressed={hidden} aria-label={hidden ? "Mostrar valores" : "Ocultar valores"} onClick={onToggle}>
           {hidden ? <Icon.eyeOff /> : <Icon.eye />}
+        </button>
+        <button type="button" className="ic" aria-label="Configurar resumo" onClick={onConfig}>
+          <Icon.grid />
         </button>
       </nav>
     </div>

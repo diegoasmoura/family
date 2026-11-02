@@ -328,7 +328,11 @@ export function LancamentosPage() {
   return (
     <main className="page lanc" {...swipe}>
       <div className="hd">
-        <h1>Lançamentos</h1>
+        {search === null ? (
+          <h1>Lançamentos</h1>
+        ) : (
+          <input className="inp grow" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
+        )}
         <div className="row">
           <button className="ic" aria-label="Resumo" onClick={() => setSummaryOpen(true)} disabled={!q.data}>
             <Icon.chart />
@@ -339,9 +343,6 @@ export function LancamentosPage() {
         </div>
       </div>
       <PersonFilter />
-      {search !== null && (
-        <input className="inp" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
-      )}
       <MonthNav month={month} onChange={setMonth} />
       <div className={income ? 'tone-in' : 'tone-out'}>
         <Seg

@@ -1,9 +1,9 @@
-import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { inkOn } from "@fin/domain";
+import { formatBRL, inkOn } from "@fin/domain";
 import { bankByName, BankMark } from "./banks";
 import { BrandMark } from "./brands";
-import type { Card } from "./api";
+import type { Card, Invoice } from "./api";
 import { cardColor } from "./pages/CartoesPage";
 
 /** Degradês dos emissores mais comuns. Fora da lista, o cartão usa a cor dele. */
@@ -107,14 +107,40 @@ function Contactless() {
 
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-export function CardFace({ card, money, month }: { card: Card; money: (cents: number) => ReactNode; month: string }) {
+type Money = (cents: number) => ReactNode;
+
+/** Valor com o "R$" menor. A classe .money respeita o olho de ocultar valores. */
+const defaultMoney: Money = (cents) => {
+  const [sym, rest] = formatBRL(cents).split(" ");
+  return (
+    <span className="money">
+      <span className="rs">{sym}</span> {rest}
+    </span>
+  );
+};
+
+type FaceProps = {
+  card: Card;
+  month: string;
+  money?: Money;
+  /** Fatura do mês mostrado. Sem ela, usa a fatura atual do cartão. */
+  invoice?: Invoice | null;
+  /** Mostra a barra de limite e o fechamento dentro do cartão. */
+  detailed?: boolean;
+  /** Se informado, o cartão vira botão em vez de link. */
+  onOpen?: (card: Card) => void;
+};
+
+export function CardFace({ card, month, money = defaultMoney, invoice: given, detailed, onOpen }: FaceProps) {
   const face = faceStyle(card);
-  const invoice = card.current_invoice;
-  const open = invoice ? invoice.remaining_cents || (invoice.state === "paid" ? 0 : invoice.total_cents) : 0;
+  const invoice = given === undefined ? card.current_invoice : given;
+  const open = invoice ? (invoice.state === "paid" ? invoice.total_cents : invoice.remaining_cents || invoice.total_cents) : 0;
   const overdue = invoice?.state === "overdue";
   const label = !invoice ? "Sem fatura" : invoice.state === "paid" ? "Fatura paga" : overdue ? "Fatura atrasada" : "Fatura em aberto";
-  return (
-    <Link to={`/cartoes?card=${card.id}&mes=${invoice?.reference_month ?? month}`} className="pcard" data-ink={face.ink} style={{ background: face.background, ...face.vars } as CSSProperties} aria-label={`${card.name}: ${label}`}>
+  const pct = Math.round(Math.min(1, Math.max(0, card.used_ratio)) * 100);
+  const level = pct >= 95 ? "crit" : pct >= 80 ? "warn" : "ok";
+  const body = (
+    <>
       <div className="pcard-top">
         <span className="pcard-chips">
           <Chip />
@@ -133,9 +159,25 @@ export function CardFace({ card, money, month }: { card: Card; money: (cents: nu
           )}
         </div>
       </div>
+      {detailed && (
+        <div className="pcard-use" data-level={level}>
+          <span className="pcard-use-bar">
+            <i style={{ width: `${pct}%` }} />
+          </span>
+          <small>
+            {pct}% do limite de {money(card.limit_cents)}
+          </small>
+        </div>
+      )}
       <div className="pcard-foot">
+        {detailed && (
+          <div>
+            <small>Fecha</small>
+            <b>{invoice ? ddmm(invoice.closing_date) : "—"}</b>
+          </div>
+        )}
         <div>
-          <small>Vencimento</small>
+          <small>Vence</small>
           <b>{invoice ? ddmm(invoice.due_date) : "—"}</b>
         </div>
         <div>
@@ -148,19 +190,61 @@ export function CardFace({ card, money, month }: { card: Card; money: (cents: nu
       </div>
       <span className="pcard-sheen" aria-hidden />
       <span className="pcard-grain" aria-hidden />
+    </>
+  );
+  const props = { className: "pcard", "data-ink": face.ink, style: { background: face.background, ...face.vars } as CSSProperties, "aria-label": `${card.name}: ${label}` };
+  if (onOpen) {
+    return (
+      <button type="button" {...props} onClick={() => onOpen(card)}>
+        {body}
+      </button>
+    );
+  }
+  return (
+    <Link to={`/cartoes?card=${card.id}&mes=${invoice?.reference_month ?? month}`} {...props}>
+      {body}
     </Link>
   );
 }
 
-/** Cartões lado a lado: arrasta para o lado e o próximo encaixa. */
-export function CardRail({ cards, money, month }: { cards: Card[]; money: (cents: number) => ReactNode; month: string }) {
+/** Cartões lado a lado: arrasta para o lado, usa as setas ou os pontinhos. */
+export function CardRail({
+  cards,
+  month,
+  money,
+  invoiceOf,
+  detailed,
+  onOpen,
+  onActive,
+  initialId,
+}: {
+  cards: Card[];
+  month: string;
+  money?: Money;
+  invoiceOf?: (card: Card) => Invoice | null | undefined;
+  detailed?: boolean;
+  onOpen?: (card: Card) => void;
+  onActive?: (card: Card) => void;
+  initialId?: number;
+}) {
   const rail = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
+  const start = Math.max(0, cards.findIndex((c) => c.id === initialId));
+  const [active, setActive] = useState(start);
+  useEffect(() => {
+    const el = rail.current;
+    if (el && start > 0) el.scrollLeft = (el.scrollWidth / cards.length) * start;
+    // só na primeira exibição
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const onScroll = () => {
     const el = rail.current;
     if (!el || cards.length < 2) return;
     const slot = el.scrollWidth / cards.length;
-    setActive(Math.max(0, Math.min(cards.length - 1, Math.round(el.scrollLeft / slot))));
+    const next = Math.max(0, Math.min(cards.length - 1, Math.round(el.scrollLeft / slot)));
+    if (next !== active) {
+      setActive(next);
+      onActive?.(cards[next]);
+    }
   };
   const goTo = (index: number) => {
     const el = rail.current;
@@ -172,29 +256,27 @@ export function CardRail({ cards, money, month }: { cards: Card[]; money: (cents
       <div className="pcard-stage">
         <div ref={rail} className={`pcard-rail${cards.length === 1 ? " one" : ""}`} onScroll={onScroll}>
           {cards.map((card) => (
-            <CardFace key={card.id} card={card} money={money} month={month} />
+            <CardFace key={card.id} card={card} month={month} money={money} invoice={invoiceOf ? (invoiceOf(card) ?? null) : undefined} detailed={detailed} onOpen={onOpen} />
           ))}
         </div>
-        {cards.length > 1 && (
-          <>
-            <button type="button" className="pcard-arrow prev" aria-label="Cartão anterior" onClick={() => step(-1)}>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M15 5l-7 7 7 7" />
-              </svg>
-            </button>
-            <button type="button" className="pcard-arrow next" aria-label="Próximo cartão" onClick={() => step(1)}>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </>
-        )}
       </div>
       {cards.length > 1 && (
-        <div className="pcard-dots" role="tablist" aria-label="Escolher cartão">
-          {cards.map((card, index) => (
-            <button key={card.id} type="button" role="tab" aria-selected={index === active} aria-label={card.name} className={index === active ? "on" : undefined} onClick={() => goTo(index)} />
-          ))}
+        <div className="pcard-nav">
+          <button type="button" className="pcard-arrow" aria-label="Cartão anterior" onClick={() => step(-1)}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 5l-7 7 7 7" />
+            </svg>
+          </button>
+          <div className="pcard-dots" role="tablist" aria-label="Escolher cartão">
+            {cards.map((card, index) => (
+              <button key={card.id} type="button" role="tab" aria-selected={index === active} aria-label={card.name} className={index === active ? "on" : undefined} onClick={() => goTo(index)} />
+            ))}
+          </div>
+          <button type="button" className="pcard-arrow" aria-label="Próximo cartão" onClick={() => step(1)}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       )}
     </div>

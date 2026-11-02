@@ -6,11 +6,12 @@ import { CATEGORY_COLORS, CategoryIcon, paintColor } from '../categories';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
-import { BrandMark, BrandPicker } from '../brands';
+import { BrandPicker } from '../brands';
 import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { PaySheet } from '../PaySheet';
 import { AccountForm } from '../AccountForm';
+import { CardRail } from '../CardFace';
 import { useSwipe } from '../useSwipe';
 
 const CARD_COLORS = ['#8A05BE', '#EC7000', '#CC092F', '#1E1E1E', '#0070AF', '#00A868', '#FFB800', ...CATEGORY_COLORS.slice(3, 6)];
@@ -545,8 +546,9 @@ function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="kebab" aria-label="Mais ações do cartão" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+      <button type="button" className="pcd-act" aria-label="Mais ações do cartão" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
         <Icon.kebab />
+        <span>Mais</span>
       </button>
       {open && (
         <Sheet title={name} onClose={() => setOpen(false)}>
@@ -572,149 +574,201 @@ function CardMenu({ name, onPick }: { name: string; onPick: (p: Panel) => void }
   );
 }
 
-function CardBlock({ card, invoice, accountName, onPanel }: { card: Card; invoice?: Invoice; accountName?: string; onPanel: (p: Panel) => void }) {
+function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invoice?: Invoice; accountName?: string; onPanel: (p: Panel) => void }) {
   const location = useLocation();
   const { today } = useAppState();
+  const detail = useApi<any>(invoice?.id ? `/cards/${card.id}/invoices/${invoice.reference_month}` : null);
+  const users = useApi<{ id: number; name: string }[]>('/users');
+  const [dataOpen, setDataOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [bank, setBank] = useState<number | null>(null);
+
   const pct = Math.round(card.used_ratio * 100);
-  const level = pct >= 95 ? 'crit' : pct >= 80 ? 'warn' : 'ok';
-  const barColor = level === 'crit' ? 'var(--neg)' : level === 'warn' ? 'var(--warn-text)' : cardColor(card);
-  const closeIn = invoice && invoice.state === 'open' ? daysUntil(invoice.closing_date, today) : null;
   const dueIn = invoice && invoice.state !== 'paid' && invoice.state !== 'future' ? daysUntil(invoice.due_date, today) : null;
+  const closeIn = invoice && invoice.state === 'open' ? daysUntil(invoice.closing_date, today) : null;
+  const owing = Boolean(invoice && invoice.remaining_cents > 0);
+  const empty = !invoice || invoice.total_cents === 0;
+  const txs = (detail.data?.transactions ?? []) as Tx[];
+  const payments = (detail.data?.payments ?? []) as { paid_on: string; account_name?: string }[];
+  const lastPaid = payments.reduce<string | null>((max, p) => (!max || p.paid_on > max ? p.paid_on : max), null);
+
+  const who = new Map<string, number>();
+  for (const t of txs) {
+    const name = t.for_user_id ? (users.data?.find((u) => u.id === t.for_user_id)?.name.trim().split(/\s+/)[0] ?? 'Outro') : 'Da casa';
+    who.set(name, (who.get(name) ?? 0) + t.amount_cents);
+  }
+  const whoRows = [...who.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents);
+  const whoTotal = whoRows.reduce((sum, r) => sum + r.cents, 0);
+  const COLORS = ['var(--chart-inc)', 'var(--chart-cum)', 'var(--chart-prev)'];
+
+  const diff = bank != null && invoice ? bank - invoice.total_cents : null;
+
   return (
-    <section className="card cc" aria-label={`Cartão ${card.name}`}>
-      <div className="hd">
-        <button type="button" className="cc-title" aria-label={`Ver lançamentos do ${card.name}`} onClick={() => onPanel('despesas')}>
-          <CardLogo card={card} />
-          <span style={{ minWidth: 0, display: 'block' }}>
-            <b style={{ fontSize: 18 }}>{card.name}</b>
-            {card.brand && (
-              <span className="brand-line">
-                <BrandMark name={card.brand} width={28} />
-                <small>{card.brand}</small>
-              </span>
-            )}
+    <div className="pcd" aria-label={`Detalhes do ${card.name}`}>
+      <div className="pcd-actions">
+        <Link className="pcd-act" to="/lancar" state={{ from: location.pathname + location.search, cardId: card.id }}>
+          <Icon.plus />
+          <span>Compra</span>
+        </Link>
+        <button type="button" className="pcd-act" onClick={() => onPanel('despesas')}>
+          <Icon.list />
+          <span>Lançamentos</span>
+        </button>
+        <button type="button" className="pcd-act" onClick={() => onPanel('evolucao')}>
+          <Icon.trend />
+          <span>Evolução</span>
+        </button>
+        <CardMenu name={card.name} onPick={onPanel} />
+      </div>
+
+      {/* O que pede atenção depende da situação da fatura. */}
+      {invoice && invoice.state === 'overdue' && owing && (
+        <section className="pcd-status late" aria-label="Fatura atrasada">
+          <Icon.alert />
+          <span>
+            Venceu {dayMonth(invoice.due_date)} · {when(dueIn ?? 0)}
           </span>
-          <span className="chev" aria-hidden>
+        </section>
+      )}
+      {invoice && owing && invoice.state !== 'overdue' && (
+        <section className="pcd-status info" aria-label="Vencimento">
+          <Icon.clock />
+          <span>
+            Vence {dayMonth(invoice.due_date)}
+            {dueIn != null ? ` · ${when(dueIn)}` : ''}
+            {closeIn != null && closeIn >= 0 ? ` · fecha ${when(closeIn)}` : ''}
+          </span>
+        </section>
+      )}
+      {invoice && owing && (
+        <button type="button" className="btn block" onClick={() => onPanel('pagar')}>
+          Pagar {brl(invoice.remaining_cents)}
+        </button>
+      )}
+      {invoice && !owing && invoice.state === 'paid' && !empty && (
+        <section className="pcd-status ok" aria-label="Fatura paga">
+          <Icon.check />
+          <span>
+            Paga{lastPaid ? ` em ${shortDate(lastPaid)}` : ''} · {brl(invoice.total_cents)}
+            {payments[0]?.account_name ? ` · ${payments[0].account_name}` : ''}
+          </span>
+        </section>
+      )}
+      {empty && (
+        <section className="pcd-status info" aria-label="Sem compras">
+          <Icon.clock />
+          <span>
+            Sem compras nesta fatura. Compras até o dia {card.closing_day} entram nela; depois, na próxima.
+          </span>
+        </section>
+      )}
+      {invoice && !owing && !empty && (
+        <button type="button" className="pcd-link" onClick={() => onPanel('pagar')}>
+          Adiantar pagamento
+        </button>
+      )}
+
+      {!empty && invoice && (
+        <section className="card pcd-month" aria-label="Compras da fatura">
+          <button type="button" className="pcd-row" onClick={() => onPanel('despesas')}>
+            <span>
+              <b>{txs.length ? `${txs.length} ${txs.length === 1 ? 'compra' : 'compras'}` : 'Compras'}</b>
+              <small>em {monthName(invoice.reference_month)}</small>
+            </span>
+            <b className="num">
+              {brl(invoice.total_cents)} <span className="chev"><Icon.right /></span>
+            </b>
+          </button>
+          {whoTotal > 0 && (
+            <div className="who-split">
+              <small>Quem gastou</small>
+              <div className="who-bar" role="img" aria-label={whoRows.map((r) => `${r.name} ${Math.round((r.cents / whoTotal) * 100)}%`).join(', ')}>
+                {whoRows.map((r, i) => (
+                  <i key={r.name} style={{ width: `${(r.cents / whoTotal) * 100}%`, background: COLORS[Math.min(i, COLORS.length - 1)] }} />
+                ))}
+              </div>
+              <div className="who-legend">
+                {whoRows.map((r, i) => (
+                  <span key={r.name}>
+                    <i className="sw" style={{ background: COLORS[Math.min(i, COLORS.length - 1)] }} />
+                    {r.name} <b>{Math.round((r.cents / whoTotal) * 100)}%</b> · {brl(r.cents)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <button type="button" className="info-btn" aria-expanded={checking} onClick={() => setChecking((v) => !v)}>
+            {checking ? '▾' : '▸'} Conferir com o banco
+          </button>
+          {checking && (
+            <div className="pcd-confer">
+              <MoneyInput label="Valor da fatura no app do banco" value={bank} onChange={setBank} />
+              {diff != null && (
+                <small className={diff === 0 ? 'ok' : 'late'}>
+                  {diff === 0
+                    ? '✓ Confere com o app'
+                    : diff > 0
+                      ? `O banco cobra ${brl(diff)} a mais que o app. Pode faltar lançar uma compra.`
+                      : `O app tem ${brl(-diff)} a mais que o banco. Pode haver um lançamento a mais.`}
+                </small>
+              )}
+              {diff != null && diff !== 0 && (
+                <button type="button" className="btn ghost sm" onClick={() => onPanel('reajustar')}>
+                  Reajustar fatura
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="card pcd-data" aria-label="Dados do cartão">
+        <button type="button" className="pcd-row" aria-expanded={dataOpen} onClick={() => setDataOpen((v) => !v)}>
+          <b>Dados do cartão</b>
+          <span className={`chev${dataOpen ? ' open' : ''}`} aria-hidden>
             <Icon.right />
           </span>
         </button>
-        <div className="row" style={{ gap: 0 }}>
-          <Link className="kebab" to="/lancar" state={{ from: location.pathname + location.search, cardId: card.id }} aria-label={`Nova compra no ${card.name}`}>
-            <Icon.plus />
-          </Link>
-          <button type="button" className="kebab" aria-label="Despesas associadas" onClick={() => onPanel('despesas')}>
-            <Icon.list />
-          </button>
-          <button type="button" className="kebab" aria-label={`Gráfico do ${card.name}`} onClick={() => onPanel('evolucao')}>
-            <Icon.trend />
-          </button>
-          <CardMenu name={card.name} onPick={onPanel} />
-        </div>
-      </div>
-
-      <div className="cc-3">
-        <div>
-          <small>Limite</small>
-          <b className="num">{brl(card.limit_cents)}</b>
-        </div>
-        <button type="button" className="cc-mid" onClick={() => onPanel('historico')}>
-          <small>Em aberto</small>
-          <b className="num">
-            {brl(card.committed_cents)} <span className="chev"><Icon.right /></span>
-          </b>
-        </button>
-        <div className="right">
-          <small>Lim. disponível</small>
-          <b className="num pos">{brl(card.available_cents)}</b>
-        </div>
-      </div>
-      <div className="row" style={{ gap: 10 }}>
-        <div className="bar grow" style={{ height: 14, borderRadius: 7 }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Limite usado">
-          <i style={{ width: `${Math.min(100, pct)}%`, background: barColor }} />
-        </div>
-        <b className="num" style={{ fontSize: 13 }}>
-          {pct}%
-        </b>
-      </div>
-      {level !== 'ok' && (
-        <small className={level === 'crit' ? 'late' : 'soon'}>
-          {level === 'crit' ? 'Limite quase no fim' : 'Mais de 80% do limite usado'}
-        </small>
-      )}
-
-      <div className="cc-3">
-        <div>
-          <small>Conta</small>
-          <b className="bank-inline">
-            {accountName && <BankMark name={accountName} size={16} />}
-            {accountName ?? 'Escolher na hora'}
-          </b>
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <small>Fechamento</small>
-          <b className="num">{invoice ? dayMonth(invoice.closing_date) : '–'}</b>
-          {closeIn != null && closeIn >= 0 && <small className={closeIn <= 3 ? 'soon' : undefined}>{when(closeIn)}</small>}
-        </div>
-        <div className="right">
-          <small>Vencimento</small>
-          <b className="num">{invoice ? dayMonth(invoice.due_date) : '–'}</b>
-          {dueIn != null && <small className={dueIn < 0 ? 'late' : dueIn <= 3 ? 'soon' : undefined}>{when(dueIn)}</small>}
-        </div>
-      </div>
-      <small className="best-day">
-        Melhor dia de compra: dia {card.closing_day}
-        {card.closing_day > 28 ? ' (ou o último do mês)' : ''}
-      </small>
-
-      {invoice && (
-        <button type="button" className="cc-inv" aria-label={`Lançamentos da fatura de ${monthName(invoice.reference_month)}`} onClick={() => onPanel('despesas')}>
-          <div className="hd">
-            <b style={{ fontSize: 18 }}>Fatura</b>
-            <b className={`num ${invoice.remaining_cents > 0 ? 'neg' : 'pos'}`} style={{ fontSize: 20 }}>
-              {brl(invoice.remaining_cents)}
-            </b>
+        {dataOpen && (
+          <div className="pcd-info">
+            <div className="pcd-tile">
+              <small>Fecha / vence</small>
+              <b className="num">
+                dia {card.closing_day} / dia {card.due_day}
+              </b>
+            </div>
+            <div className="pcd-tile">
+              <small>Melhor dia de compra</small>
+              <b className="num">Dia {card.closing_day}</b>
+              {card.closing_day > 28 && <small>ou o último do mês</small>}
+            </div>
+            <div className="pcd-tile">
+              <small>Paga com</small>
+              <b className="bank-inline">
+                {accountName && <BankMark name={accountName} size={16} />}
+                {accountName ?? 'Escolher na hora'}
+              </b>
+            </div>
+            <button type="button" className="pcd-tile click" onClick={() => onPanel('historico')}>
+              <small>Total comprometido</small>
+              <b className="num">
+                {brl(card.committed_cents)} <span className="chev"><Icon.right /></span>
+              </b>
+            </button>
           </div>
-          <div className="hd">
-            <span>Pagamentos realizados</span>
-            <span className={`num${invoice.paid_cents + invoice.credit_in_cents > 0 ? ' pos' : ''}`}>{brl(invoice.paid_cents + invoice.credit_in_cents)}</span>
-          </div>
-          <div className="hd">
-            <span>Despesas do mês</span>
-            <span className="num neg">
-              {brl(invoice.total_cents)} <span className="chev"><Icon.right /></span>
-            </span>
-          </div>
-        </button>
-      )}
-
-      <button type="button" className="btn ghost block cc-see" onClick={() => onPanel('despesas')}>
-        <Icon.list /> Ver lançamentos{invoice ? ` de ${monthName(invoice.reference_month)}` : ''}
-      </button>
-
-      <div className="hd">
-        {invoice && invoice.remaining_cents > 0 ? (
-          <span className={`badge ${invoice.state === 'overdue' ? 'red' : 'quiet'}`}>
-            <span style={{ width: 14, height: 14, display: 'inline-flex' }}>{invoice.state === 'overdue' ? <Icon.alert /> : <Icon.clock />}</span>
-            {invoice.state === 'overdue' ? 'Atrasada' : 'A pagar'}
-          </span>
-        ) : invoice ? (
-          <span className={`badge ${stateBadge(invoice.state)}`}>
-            {invoice.state === 'paid' && (
-              <span style={{ width: 14, height: 14, display: 'inline-flex' }}>
-                <Icon.check />
-              </span>
-            )}
-            {invoice.state_label}
-          </span>
-        ) : (
-          <span />
         )}
-        <button type="button" className={invoice && invoice.remaining_cents > 0 ? 'btn sm' : 'btn ghost sm'} onClick={() => onPanel('pagar')}>
-          {invoice && invoice.remaining_cents > 0 ? `Pagar ${brl(invoice.remaining_cents)}` : 'Pagamento antecipado'}
-        </button>
-      </div>
+      </section>
+
+      {pct >= 80 && <small className={pct >= 95 ? 'late' : 'soon'}>{pct >= 95 ? 'Limite quase no fim' : 'Mais de 80% do limite usado'}</small>}
       {card.credit_cents > 0 && <small>Crédito de pagamento antecipado: {brl(card.credit_cents)}</small>}
-    </section>
+      <div className="lanc-note">
+        <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
+          ⓘ Como o cartão conta
+        </button>
+        {noteOpen && <small>Compras no cartão entram na fatura pelo fechamento. Pagar a fatura tira da conta, mas não conta como despesa.</small>}
+      </div>
+    </div>
   );
 }
 
@@ -729,12 +783,18 @@ export function CartoesPage() {
   const [newCard, setNewCard] = useState(false);
   const [panel, setPanel] = useState<{ card: Card; kind: Panel } | null>(null);
   const [selectedTx, setSelectedTx] = useState<Tx | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [railKey, setRailKey] = useState(0);
 
   const openedFromLink = Number(params.get('card')) || null;
   useEffect(() => {
     if (!openedFromLink || !cards.data) return;
     const c = cards.data.find((x) => x.id === openedFromLink);
-    if (c) setPanel({ card: c, kind: 'despesas' });
+    if (c) {
+      setPanel({ card: c, kind: 'despesas' });
+      setActiveId(c.id);
+      setRailKey((k) => k + 1);
+    }
     const next = new URLSearchParams(params);
     next.delete('card');
     setParams(next, { replace: true });
@@ -760,6 +820,7 @@ export function CartoesPage() {
   const setMonth = (m: string) => setParams({ mes: m });
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
   const p = panel;
+  const activeCard = cards.data?.find((c) => c.id === activeId) ?? cards.data?.[0];
   const selected = selectedTx;
 
   if (cards.isLoading) return <main className="page"><Loading /></main>;
@@ -767,17 +828,15 @@ export function CartoesPage() {
   return (
     <main className="page" {...swipe}>
       <div className="hd">
-        <div>
-          <h1>Cartões de crédito</h1>
-          <small className="num">
-            {brl(totalDue)} a pagar em {monthName(month)}
-          </small>
-        </div>
+        <h1>Cartões</h1>
         <button className="btn sm" onClick={() => setNewCard(true)}>
           + Cartão
         </button>
       </div>
       <MonthNav month={month} onChange={setMonth} />
+      <small className="num pc-due">
+        {brl(totalDue)} a pagar em {monthName(month)}
+      </small>
       <ErrorText error={cards.error ?? archive.error ?? remove.error ?? unarchive.error} />
 
       {!cards.data?.length ? (
@@ -789,7 +848,19 @@ export function CartoesPage() {
           </button>
         </section>
       ) : (
-        cards.data.map((c) => <CardBlock key={c.id} card={c} invoice={invoiceOf(c.id)} accountName={accountName(c.default_pay_account_id)} onPanel={(kind) => setPanel({ card: c, kind })} />)
+        <>
+          <CardRail
+            key={railKey}
+            cards={cards.data}
+            month={month}
+            detailed
+            initialId={activeId ?? undefined}
+            invoiceOf={(c) => invoiceOf(c.id)}
+            onActive={(c) => setActiveId(c.id)}
+            onOpen={(c) => setPanel({ card: c, kind: 'despesas' })}
+          />
+          {activeCard && <CardDetails key={activeCard.id} card={activeCard} invoice={invoiceOf(activeCard.id)} accountName={accountName(activeCard.default_pay_account_id)} onPanel={(kind) => setPanel({ card: activeCard, kind })} />}
+        </>
       )}
 
       {archivedCards.length > 0 && (
@@ -809,7 +880,6 @@ export function CartoesPage() {
         </section>
       )}
 
-      <small>Compras no cartão entram na fatura pelo fechamento. Pagar a fatura tira da conta, mas não conta como despesa.</small>
 
       {newCard && <CardForm onClose={() => setNewCard(false)} />}
       {p?.kind === 'editar' && <CardForm card={p.card} onClose={() => setPanel(null)} />}

@@ -1484,10 +1484,22 @@ table.year thead th:first-child {
   box-shadow: 8px 0 10px -8px color-mix(in srgb, var(--ink) 40%, transparent);
 }
 table.year .s th {
-  background: var(--green-soft);
+  background: var(--surface-alt);
   text-align: left;
-  color: var(--green-text);
+  color: var(--ink);
   position: static;
+  letter-spacing: 0.02em;
+}
+/* Receitas em verde e despesas em vermelho, misturados com a superfície do tema (claro ou escuro). */
+table.year .s.in th {
+  background: color-mix(in srgb, var(--chart-inc) 16%, var(--surface));
+  color: var(--pos);
+  box-shadow: inset 4px 0 0 var(--chart-inc);
+}
+table.year .s.out th {
+  background: color-mix(in srgb, var(--chart-exp) 14%, var(--surface));
+  color: var(--exp);
+  box-shadow: inset 4px 0 0 var(--chart-exp);
 }
 table.year .s th span {
   position: sticky;
@@ -1508,10 +1520,11 @@ table.year .t td {
 }
 table.year .sd td {
   font-weight: 800;
-  background: var(--green-soft);
+  background: var(--surface-alt);
+  border-top: 2px solid var(--shadow);
 }
 table.year .sd td:first-child {
-  background: var(--green-soft);
+  background: var(--surface-alt);
 }
 table.year .child td:first-child {
   padding-left: 30px;
@@ -2585,7 +2598,8 @@ a.kebab {
 .sum-card.pos { background: linear-gradient(160deg, var(--green-soft), var(--surface) 70%); border-color: var(--green-border); }
 .sum-card.neg { background: linear-gradient(160deg, var(--danger-bg), var(--surface) 70%); }
 .sum-top { display: flex; justify-content: space-between; align-items: center; }
-.sum-top small { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: capitalize; }
+.sum-top small { font-size: 13px; font-weight: 600; color: var(--muted); }
+.sum-top small::first-letter { text-transform: uppercase; }
 .sum-pill {
   display: inline-flex;
   align-items: center;
@@ -3317,3 +3331,121 @@ nav.tabbar button.tab:active {
 .page.wide .sum-tile.in b { color: var(--pos); }
 .page.wide .sum-tile.out b { color: var(--exp); }
 .page.wide .month-nav > b { text-transform: capitalize; }
+
+/* ---------- Cartões: cartão + detalhes ---------- */
+.pcard-use { display: flex; flex-direction: column; gap: 5px; }
+.pcard-use-bar { display: block; height: 4px; border-radius: 999px; background: color-mix(in srgb, currentColor 25%, transparent); overflow: hidden; }
+.pcard-use-bar i { display: block; height: 100%; border-radius: inherit; background: currentColor; }
+.pcard-use[data-level="warn"] .pcard-use-bar i { background: #ffc94a; }
+.pcard-use[data-level="crit"] .pcard-use-bar i { background: #ff6b5e; }
+.pcard-use small { font-size: 10px; letter-spacing: 0.02em; text-transform: none; }
+button.pcard { border: 0; font: inherit; text-align: left; cursor: pointer; }
+.pcard-rail.one { padding-left: 16px; padding-right: 16px; }
+.pcd { display: flex; flex-direction: column; gap: 12px; }
+.pcd-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pcd-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 8px 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pcd-act svg { width: 22px; height: 22px; color: var(--green-text); }
+.pcd-act:active { background: var(--surface-alt); }
+.pcd-invoice { gap: 10px; }
+.pcd-amt { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.pcd-amt.neg { color: var(--neg); }
+.pcd-amt.pos { color: var(--pos); }
+.pcd-lines { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; border-top: 1px solid var(--line-soft); }
+.pcd-lines > * {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+.pcd-lines > button { cursor: pointer; }
+.pcd-lines span { color: var(--muted); }
+.pcd-lines b { color: var(--ink); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+.pcd-lines b.pos { color: var(--pos); }
+.pcd-lines .chev, .pcd-tile .chev { display: inline-flex; color: var(--muted); }
+.pcd-lines .chev svg, .pcd-tile .chev svg { width: 16px; height: 16px; }
+.pcd-info { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+.pcd-tile { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+.pcd-tile.click { cursor: pointer; }
+.pcd-tile b { font-size: 15px; font-weight: 700; }
+.pcd-tile b.pos { color: var(--pos); }
+
+/* ---------- Cartões: situação da fatura ---------- */
+.pcd-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.pcd-status svg { width: 20px; height: 20px; flex: none; }
+.pcd-status.late { background: var(--danger-bg); color: var(--neg); }
+.pcd-status.ok { background: var(--green-soft); color: var(--pos); }
+.pcd-status.info { background: var(--surface-alt); color: var(--ink); font-weight: 600; }
+.pcd-link { align-self: center; min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--green-text); font-weight: 700; font-size: 14px; text-decoration: underline; cursor: pointer; }
+.pcd-month, .pcd-data { gap: 10px; }
+.pcd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pcd-row > span { display: flex; flex-direction: column; gap: 1px; }
+.pcd-row .chev { display: inline-flex; color: var(--muted); transition: transform 0.15s; }
+.pcd-row .chev.open { transform: rotate(90deg); }
+.pcd-row .chev svg { width: 16px; height: 16px; }
+.pcd-confer { display: flex; flex-direction: column; gap: 8px; }
+.pcd-confer small.ok { color: var(--pos); font-weight: 700; }
+.pcd-confer small.late { color: var(--neg); font-weight: 600; }
+
+/* ---------- Cabeçalhos padronizados (todas as telas) ---------- */
+/* Mesma altura e mesma fonte em todas as telas: os controles abaixo não "pulam" ao trocar de aba. */
+main.page > .hd:first-child,
+main.page > .title-row:first-child,
+main.page > h1:first-child {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+main.page.page h1 { font-size: 20px; font-weight: 700; line-height: 1.2; }
+.page.wide .hd h1 { text-align: left; }
+.hd.month-nav { min-height: 52px; }
+.pc-due { text-align: center; }
+.hd .inp.grow { flex: 1; min-width: 0; }
+.home-actions { display: flex; align-items: center; gap: 4px; }
+main.page { gap: 12px; }
+
+/* Setas fora do cartão: ficam ao lado dos pontinhos e não cobrem o valor. */
+.pcard-nav { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.pcard-nav .pcard-arrow { position: relative; top: auto; transform: none; width: 36px; height: 36px; box-shadow: none; }
+.pcard-nav .pcard-arrow:active { transform: scale(0.92); }

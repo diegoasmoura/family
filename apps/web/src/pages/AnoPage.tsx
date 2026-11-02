@@ -372,7 +372,7 @@ export function AnoPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="s">
+                <tr className="s in">
                   <th colSpan={cols}>
                     <span>Receitas</span>
                   </th>
@@ -385,7 +385,7 @@ export function AnoPage() {
                     </td>
                   </tr>
                 )}
-                <tr className="s">
+                <tr className="s out">
                   <th colSpan={cols}>
                     <span>Despesas</span>
                   </th>
