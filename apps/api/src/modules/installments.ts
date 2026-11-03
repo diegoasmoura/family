@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { addMonthsToDate, dateInMonth, monthOf, splitInstallments } from '@fin/domain';
-import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, parse, update, zCents, zDate, zId, zUuid, type Ctx } from '../core';
+import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, parse, update, zCents, zDate, zFlag, zId, zUuid, type Ctx } from '../core';
 import { invoiceForCardPurchase } from './cards';
 import { assertCategory } from './categories';
 import { assertHouseholdUser, assertPaymentTarget } from './transactions';
@@ -34,7 +34,19 @@ export const planBody = z.object({
   purchased_on: zDate.optional(),
   first_paid: z.boolean().optional(),
   for_user_id: zId.nullable().optional(),
+  ...contractFields(),
 });
+
+/** Campos do contrato (financiamento ou empréstimo). Só valem para parcelamento em conta. */
+function contractFields() {
+  return {
+    is_contract: zFlag.optional(),
+    lender: z.string().trim().max(80).nullish(),
+    contracted_cents: zCents.nullish(),
+    monthly_rate_bp: z.number().int().min(0).max(100000).nullish(),
+  };
+}
+const CARD_NOT_CONTRACT = 'Compra parcelada no cartão não é contrato';
 
 /**
  * Cada parcela vira um lançamento vinculado ao plano.
@@ -46,6 +58,7 @@ export async function createPlan(ctx: Ctx, input: z.input<typeof planBody>) {
   const existing = await findByUuid(ctx, 'installment_plans', body.client_uuid);
   if (existing) return { plan: await loadPlan(ctx, existing.id), created: false };
   const { card } = await assertPaymentTarget(ctx, 'expense', body.account_id, body.card_id);
+  if (card && body.is_contract) throw badRequest(CARD_NOT_CONTRACT);
   await assertCategory(ctx, body.category_id, 'expense');
   const forUserId = await assertHouseholdUser(ctx, body.for_user_id ?? null);
   let parts: number[];
@@ -68,6 +81,10 @@ export async function createPlan(ctx: Ctx, input: z.input<typeof planBody>) {
       account_id: card ? null : body.account_id,
       category_id: body.category_id ?? null,
       purchased_on: purchasedOn,
+      is_contract: body.is_contract ?? 0,
+      lender: body.lender || null,
+      contracted_cents: body.contracted_cents ?? null,
+      monthly_rate_bp: body.monthly_rate_bp ?? null,
       created_by: ctx.userId,
       created_at: now,
       updated_at: now,
@@ -119,6 +136,58 @@ export function installmentsRouter(): Router {
     res.json(rows.map((p) => ({ ...p, active_count: num(p.active_count), settled_count: num(p.settled_count), remaining_cents: num(p.remaining_cents) })));
   });
 
+  /**
+   * Aba Contratos: os parcelamentos em conta marcados como contrato, com quanto falta,
+   * a próxima prestação e quando termina. As prestações em si continuam sendo despesas normais.
+   */
+  r.get('/contracts', async (req, res) => {
+    const ctx = req.ctx;
+    const m = monthOf(ctx.today);
+    const plans = await ctx.db.all(
+      `${SELECT} WHERE p.household_id = ? AND p.deleted_at IS NULL AND p.is_contract = 1 AND p.account_id IS NOT NULL ORDER BY p.purchased_on, p.id`,
+      [m, m, ctx.householdId],
+    );
+    const ids = plans.map((p) => Number(p.id));
+    const items = ids.length
+      ? await ctx.db.all<{ plan_id: number; installment_no: number; amount_cents: number; paid_on: string | null; due: string; competence_month: string }>(
+          `SELECT plan_id, installment_no, amount_cents, paid_on, COALESCE(due_on, occurred_on) AS due, competence_month
+             FROM transactions WHERE deleted_at IS NULL AND plan_id IN (${ids.map(() => '?').join(', ')})
+            ORDER BY installment_no`,
+          ids,
+        )
+      : [];
+    const contracts = plans.map((p) => {
+      const mine = items.filter((t) => Number(t.plan_id) === Number(p.id));
+      const open = mine.filter((t) => !t.paid_on);
+      const next = open[0];
+      return {
+        id: Number(p.id),
+        description: p.description,
+        lender: p.lender ?? null,
+        account_id: Number(p.account_id),
+        account_name: p.account_name,
+        category_name: p.category_name ?? null,
+        installments: num(p.installments),
+        total_cents: num(p.total_cents),
+        contracted_cents: p.contracted_cents == null ? null : num(p.contracted_cents),
+        monthly_rate_bp: p.monthly_rate_bp == null ? null : num(p.monthly_rate_bp),
+        active_count: num(p.active_count),
+        paid_count: mine.length - open.length,
+        paid_cents: mine.filter((t) => t.paid_on).reduce((a, t) => a + num(t.amount_cents), 0),
+        remaining_cents: open.reduce((a, t) => a + num(t.amount_cents), 0),
+        month_cents: mine.filter((t) => t.competence_month === m).reduce((a, t) => a + num(t.amount_cents), 0),
+        next: next ? { installment_no: num(next.installment_no), due_on: next.due, amount_cents: num(next.amount_cents), overdue: next.due < ctx.today } : null,
+        ends_on: mine.length ? mine[mine.length - 1].due : null,
+      };
+    });
+    res.json({
+      month: m,
+      remaining_cents: contracts.reduce((a, c) => a + c.remaining_cents, 0),
+      month_cents: contracts.reduce((a, c) => a + c.month_cents, 0),
+      contracts,
+    });
+  });
+
   r.get('/:id', async (req, res) => {
     const id = idParam(req.params.id);
     const plan = await loadPlan(req.ctx, id);
@@ -130,6 +199,21 @@ export function installmentsRouter(): Router {
   r.post('/', async (req, res) => {
     const result = await createPlan(req.ctx, req.body);
     res.status(result.created ? 201 : 200).json({ plan: result.plan });
+  });
+
+  /** Marca ou desmarca como contrato e guarda credor, valor contratado e juros. */
+  r.patch('/:id', async (req, res) => {
+    const id = idParam(req.params.id);
+    const plan = await owned<{ card_id: number | null }>(req.ctx, 'installment_plans', id, 'Parcelamento');
+    const body = parse(z.object(contractFields()), req.body);
+    if (plan.card_id && body.is_contract) throw badRequest(CARD_NOT_CONTRACT);
+    const patch: Record<string, unknown> = { updated_at: nowIso() };
+    if (body.is_contract !== undefined) patch.is_contract = body.is_contract;
+    if (body.lender !== undefined) patch.lender = body.lender || null;
+    if (body.contracted_cents !== undefined) patch.contracted_cents = body.contracted_cents;
+    if (body.monthly_rate_bp !== undefined) patch.monthly_rate_bp = body.monthly_rate_bp;
+    await update(req.ctx.db, 'installment_plans', id, patch);
+    res.json(await loadPlan(req.ctx, id));
   });
 
   /**

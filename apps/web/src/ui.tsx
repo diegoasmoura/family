@@ -4,7 +4,7 @@ import {
   House, List, CreditCard, Calendar, EllipsisVertical, Ellipsis, Check, Clock,
   CircleAlert, Search, X, ChevronDown, ChevronLeft, ChevronRight, Flame, ChartColumn,
   TrendingUp, Plus, Lock, LockOpen, CircleCheckBig, Sun, Moon, Eye, EyeOff,
-  LayoutGrid, ArrowDown, ArrowUp, ArrowUpRight, ArrowDownLeft, UnfoldVertical, FoldVertical, Info,
+  LayoutGrid, ArrowDown, ArrowUp, ArrowUpRight, ArrowDownLeft, UnfoldVertical, FoldVertical, Info, FileText,
 } from 'lucide-react';
 import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
@@ -65,6 +65,7 @@ export const Icon = {
   home: () => <House aria-hidden />,
   list: () => <List aria-hidden />,
   card: () => <CreditCard aria-hidden />,
+  contract: () => <FileText aria-hidden />,
   year: () => <Calendar aria-hidden />,
   kebab: () => <EllipsisVertical aria-hidden />,
   more: () => <Ellipsis aria-hidden />,

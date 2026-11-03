@@ -3221,3 +3221,9 @@ main.page { gap: 12px; }
 .rec-bar { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; }
 .rec-bar i { flex-basis: 0; min-width: 4px; }
 .lanc-note .info-btn svg, button.info-btn svg { width: 14px; height: 14px; }
+
+/* Contratos: resumo com dois números lado a lado (quanto falta e quanto pesa no mês). */
+.contract-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.contract-sum > div { display: flex; flex-direction: column; gap: 4px; }
+.contract-sum b { font-size: 20px; }
+.card.contract { display: flex; flex-direction: column; gap: 8px; text-align: left; }

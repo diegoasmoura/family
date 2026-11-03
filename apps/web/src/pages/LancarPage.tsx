@@ -51,6 +51,8 @@ export function LancarPage() {
     return cardId ? { type: 'card', id: Number(cardId) } : null;
   });
   const [installments, setInstallments] = useState<number | null>(2);
+  // Financiamento ou empréstimo: parcelamento em conta marcado, que aparece na aba Contratos.
+  const [contract, setContract] = useState(() => Boolean((location.state as any)?.contract));
   const [amountBasis, setAmountBasis] = useState<'total' | 'installment'>('installment');
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState('');
@@ -72,12 +74,16 @@ export function LancarPage() {
 
   const defaultTarget: Target = useMemo(() => {
     const last = readLastTarget();
+    // Contrato é sempre em conta: não sugere cartão.
+    if (contract && accounts.data?.accounts.length) {
+      return last?.type === 'account' && accounts.data.accounts.some((a) => a.id === last.id) ? last : { type: 'account', id: accounts.data.accounts[0].id };
+    }
     if (last?.type === 'card' && kind === 'expense' && cards.data?.some((c) => c.id === last.id)) return last;
     if (last?.type === 'account' && accounts.data?.accounts.some((a) => a.id === last.id)) return last;
     if (kind === 'expense' && cards.data?.length) return { type: 'card', id: cards.data[0].id };
     if (accounts.data?.accounts.length) return { type: 'account', id: accounts.data.accounts[0].id };
     return null;
-  }, [kind, cards.data, accounts.data]);
+  }, [kind, cards.data, accounts.data, contract]);
   const chosen = target && !(kind === 'income' && target.type === 'card') ? target : defaultTarget;
   const chosenCard = chosen?.type === 'card' ? cards.data?.find((c) => c.id === chosen.id) : card;
   const paid = paidOverride ?? date <= today;
@@ -113,7 +119,10 @@ export function LancarPage() {
       const where = chosen.type === 'card' ? { card_id: chosen.id } : { account_id: chosen.id };
       const base = { description: description.trim(), category_id: categoryId, for_user_id: forUser, ...where };
       if (effectiveMode === 'installment' && installments != null) {
-        await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } });
+        const isContract = contract && chosen.type === 'account';
+        await api('/installments', {
+          body: { ...base, description: base.description || (isContract ? 'Contrato' : 'Parcelado'), total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid, is_contract: isContract },
+        });
         return;
       }
       if (effectiveMode === 'fixed') {
@@ -240,6 +249,12 @@ export function LancarPage() {
               ))}
             </div>
             {hint && <p className="parcel-hint">{hint}</p>}
+            {chosen?.type === 'account' && (
+              <label className="toggle">
+                <span>É financiamento ou empréstimo (aparece em Contratos)</span>
+                <input type="checkbox" checked={contract} onChange={(e) => setContract(e.target.checked)} />
+              </label>
+            )}
           </section>
         )}
 

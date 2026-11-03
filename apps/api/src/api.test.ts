@@ -569,6 +569,38 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(card.available_cents).toBe(1410000 - 270000);
     });
 
+    it('contrato é um parcelamento em conta marcado: resumo, marcar e desmarcar, e cartão não pode', async () => {
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Carro', total_cents: 60000, installments: 6, account_id: ids.bradesco, purchased_on: '2026-10-05', first_paid: true,
+          is_contract: true, lender: 'Banco X', contracted_cents: 50000, monthly_rate_bp: 149,
+        }),
+        201,
+      );
+      expect(plan).toMatchObject({ is_contract: 1, lender: 'Banco X', contracted_cents: 50000, monthly_rate_bp: 149 });
+      expect((await agent.post('/api/installments').send({ description: 'TV', total_cents: 30000, installments: 3, card_id: ids.ultra, is_contract: true })).status).toBe(400);
+
+      const view = await ok(await agent.get('/api/installments/contracts'));
+      expect(view.contracts).toHaveLength(1);
+      expect(view.contracts[0]).toMatchObject({
+        description: 'Carro', lender: 'Banco X', installments: 6, paid_count: 1, paid_cents: 10000, remaining_cents: 50000, month_cents: 10000,
+        next: { installment_no: 2, due_on: '2026-11-05', amount_cents: 10000, overdue: false }, ends_on: '2027-03-05',
+      });
+      expect(view).toMatchObject({ remaining_cents: 50000, month_cents: 10000 });
+      // A prestação continua sendo uma despesa normal do mês: aparece uma vez no Extrato.
+      const month = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=all'));
+      expect(month.items.filter((t: any) => t.description === 'Carro')).toHaveLength(1);
+
+      const other = (await ok(await agent.post('/api/installments').send({ description: 'Fies', total_cents: 9000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-20' }), 201)).plan;
+      await ok(await agent.patch(`/api/installments/${other.id}`).send({ is_contract: true, lender: 'Fies' }));
+      expect((await ok(await agent.get('/api/installments/contracts'))).contracts.map((c: any) => c.description)).toEqual(['Carro', 'Fies']);
+      await ok(await agent.patch(`/api/installments/${plan.id}`).send({ is_contract: false }));
+      expect((await ok(await agent.get('/api/installments/contracts'))).contracts.map((c: any) => c.description)).toEqual(['Fies']);
+
+      const cardPlan = (await ok(await agent.post('/api/installments').send({ description: 'Sofá', total_cents: 30000, installments: 3, card_id: ids.ultra, purchased_on: '2026-10-01' }), 201)).plan;
+      expect((await agent.patch(`/api/installments/${cardPlan.id}`).send({ is_contract: true })).status).toBe(400);
+    });
+
     it('cancela só o restante ainda não pago', async () => {
       const { plan } = await ok(
         await agent.post('/api/installments').send({ description: 'Sofá', total_cents: 30000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-01', first_paid: true }),

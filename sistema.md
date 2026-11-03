@@ -10,11 +10,11 @@ O corte é **960px** de largura da janela.
 
 ### Celular (até 959px)
 
-A barra fica fixa embaixo, com altura **76px** (`--nav-h`). Só tem abas, sem botão **+**: Início, Extrato, Cartões e Ano (Contratos, para financiamentos e empréstimos, entra depois de Cartões). As abas dividem a largura igualmente. No celular o nome fica em 11px e numa linha; os nomes são curtos de propósito (até 9 letras), para nenhum dominar a barra. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. Mais não entra nessa barra: no Início, o ícone de três pontos fica à direita do olho e abre `/mais`. A aba Extrato continua no endereço `/lancamentos`, para não quebrar links e atalhos salvos.
+A barra fica fixa embaixo, com altura **76px** (`--nav-h`). Só tem abas, sem botão **+**: Início, Extrato, Cartões, Contratos e Ano. As abas dividem a largura igualmente. No celular o nome fica em 11px e numa linha; os nomes são curtos de propósito (até 9 letras), para nenhum dominar a barra. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. Mais não entra nessa barra: no Início, o ícone de três pontos fica à direita do olho e abre `/mais`. A aba Extrato continua no endereço `/lancamentos`, para não quebrar links e atalhos salvos.
 
 O conteúdo fica centralizado. As telas que não estão na barra (Calendário e tudo o que abre a partir de Mais) têm um botão Voltar à esquerda do título. Ele volta para a tela anterior; se a pessoa abriu o endereço direto, Calendário cai no Início e as outras caem em Mais. No computador esse botão some, porque a coluna da esquerda já leva a Mais.
 
-**Cabeçalho das telas (padrão).** A primeira linha tem 56px de altura em todas as telas: à esquerda o botão Voltar (só nas telas internas, inclusive Mais no celular) e o título em 20px negrito; à direita as ações, 44px de altura e cantos de 14px. Nas abas da barra, a última ação é o **+** (44×44, verde cheio, o único verde cheio da tela), que cria o que a aba mostra: no Início e no Ano abre o Novo lançamento; no Extrato abre o Novo lançamento já em Despesa ou Receita, conforme a faixa da tela; em Cartões abre uma folha com “Compra no cartão {nome}” (o cartão que está na tela) e “Novo cartão” — sem cartão cadastrado, vai direto para Novo cartão. As outras ações têm contorno: ícones (olho, busca, resumo, configurar, Mais) ou, nas telas internas, o botão de criar **“+ Item”** em texto verde (Meta, Conta, Categoria, Fixa, Parcelada). Abaixo, sempre nesta ordem e só quando existem: Eu / Nós, o mês (ou o ano), o seletor de conteúdo e um texto de apoio curto (13px, cinza, à esquerda). Os seletores têm o mesmo desenho em todo o app; onde a escolha é Despesas ou Receitas, o lado ativo fica vermelho ou verde, com o ícone de seta. “+ Fixa” e “+ Parcelada” abrem o Lançar já nesse modo e, ao fechar, voltam para a tela de origem.
+**Cabeçalho das telas (padrão).** A primeira linha tem 56px de altura em todas as telas: à esquerda o botão Voltar (só nas telas internas, inclusive Mais no celular) e o título em 20px negrito; à direita as ações, 44px de altura e cantos de 14px. Nas abas da barra, a última ação é o **+** (44×44, verde cheio, o único verde cheio da tela), que cria o que a aba mostra: no Início e no Ano abre o Novo lançamento; no Extrato abre o Novo lançamento já em Despesa ou Receita, conforme a faixa da tela; em Cartões abre uma folha com “Compra no cartão {nome}” (o cartão que está na tela) e “Novo cartão” — sem cartão cadastrado, vai direto para Novo cartão; em Contratos abre “Adicionar contrato”. As outras ações têm contorno: ícones (olho, busca, resumo, configurar, Mais) ou, nas telas internas, o botão de criar **“+ Item”** em texto verde (Meta, Conta, Categoria, Fixa, Parcelada). Abaixo, sempre nesta ordem e só quando existem: Eu / Nós, o mês (ou o ano), o seletor de conteúdo e um texto de apoio curto (13px, cinza, à esquerda). Os seletores têm o mesmo desenho em todo o app; onde a escolha é Despesas ou Receitas, o lado ativo fica vermelho ou verde, com o ícone de seta. “+ Fixa” e “+ Parcelada” abrem o Lançar já nesse modo e, ao fechar, voltam para a tela de origem.
 
 | Tela | Teto da coluna | Padding lateral | Largura útil no teto | Fundo extra |
 |---|---|---|---|---|
@@ -28,7 +28,7 @@ No celular, o bloco do Início (saudação, Eu/Nós, saldo, receitas e despesas)
 
 ### Computador (a partir de 960px)
 
-A barra vira coluna fixa à esquerda, com **220px** de largura. O aplicativo ganha `padding-left: 220px`. A ordem visual da coluna é: a marca “Finanças do casal”, Início, Extrato, Cartões, Ano e Mais. Não há botão de Novo lançamento na coluna: o **+** fica no cabeçalho de cada aba, como no celular. O item ativo fica com fundo verde claro. Cada item da coluna tem no mínimo 48px de altura.
+A barra vira coluna fixa à esquerda, com **220px** de largura. O aplicativo ganha `padding-left: 220px`. A ordem visual da coluna é: a marca “Finanças do casal”, Início, Extrato, Cartões, Contratos, Ano e Mais. Não há botão de Novo lançamento na coluna: o **+** fica no cabeçalho de cada aba, como no celular. O item ativo fica com fundo verde claro. Cada item da coluna tem no mínimo 48px de altura.
 
 | Tela | Teto da coluna | Padding lateral | Largura útil no teto |
 |---|---|---|---|
@@ -138,6 +138,16 @@ Não existem mais, na Início: “Meta: gastar menos que recebe”, “Próximos
 Depois de rolar bastante, aparece um botão para voltar ao topo.
 
 O saldo do resumo é de todas as contas: saldo inicial, mais o que já entrou e saiu até hoje, incluindo pagamentos de fatura e transferências. O previsto até o fim do mês inclui o que ainda está planejado e as faturas em aberto, na conta marcada para pagar o cartão.
+
+## Contratos
+
+Financiamentos e empréstimos (o carro, o Fies). Um contrato é um **parcelamento em conta marcado** (`installment_plans.is_contract`), não um cadastro à parte: as prestações são os lançamentos do parcelamento e já contam como despesa de cada mês, no Extrato, no Início e no Ano. A aba só olha esses parcelamentos de outro jeito. É da casa inteira, como Cartões, e não muda com Eu / Nós.
+
+Cabeçalho: título “Contratos” e o **+**, com o texto de apoio “Financiamentos e empréstimos. As prestações já contam nas despesas de cada mês.” Um resumo com dois números: **Falta pagar** (soma das prestações ainda não pagas de todos os contratos) e **Prestações em {mês}** (o mês de hoje). Cada contrato é um cartão com nome, credor e conta, “Falta R$ X”, a barra de progresso, “N de M pagas · termina em {mês ano}” e a próxima prestação (data e valor, ou “Atrasada”). Se houver, uma linha com valor contratado, juros ao mês e o total das prestações. Tocar abre a ficha: credor, valor contratado, juros ao mês (texto como “1,49”) e **Deixar de ser contrato**, que só tira a marca (as prestações ficam e continuam em Parcelamentos).
+
+O **+** abre “Adicionar contrato”: **Novo financiamento ou empréstimo** abre o Lançar já em Parcelada, com a caixa “É financiamento ou empréstimo” ligada e uma conta como destino (contrato é sempre em conta); abaixo, os parcelamentos em conta com parcela em aberto, para marcar como contrato com um toque. No Lançar, essa caixa aparece no parcelado sempre que o destino é uma conta. Compra parcelada no cartão não pode ser contrato (a API recusa).
+
+Sem contrato, a tela mostra um quadro tracejado com “Adicionar contrato”. O dinheiro que o empréstimo deposita não é receita (premissas.md): para o saldo subir sem somar como receita, lance como receita com “Contar na soma” desligado. API: `GET /installments/contracts` e `PATCH /installments/:id` (`is_contract`, `lender`, `contracted_cents`, `monthly_rate_bp`).
 
 ## Extrato
 
@@ -344,3 +354,4 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - No Início, “Despesas por recorrência” é uma barra empilhada com a lista de valores; o único donut é o de categorias.
 - Revisão feita com a ideia do guia “unslop” (Damir Sokolovsky, @heydamir, CC BY 4.0).
 - O **+** saiu da barra de baixo (e da coluna do computador) e foi para o cabeçalho de cada aba, sempre o último à direita e o único verde cheio da tela; ele cria o que a aba mostra (em Cartões, uma folha com Compra no cartão e Novo cartão, no lugar do antigo “+ Cartão”). “Lançamentos” virou **Extrato** na barra e no título (o endereço continua `/lancamentos`), para os nomes da barra ficarem curtos e abrir espaço para a aba **Contratos** (financiamentos e empréstimos), que entra depois de Cartões.
+- Nova aba **Contratos** (financiamentos e empréstimos), entre Cartões e Ano: um parcelamento em conta marcado como contrato, com credor, valor contratado e juros opcionais. A aba mostra quanto falta, a próxima prestação e quando termina; as prestações continuam sendo despesas normais do mês.

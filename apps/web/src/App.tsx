@@ -15,6 +15,7 @@ import { HomePage } from "./pages/HomePage";
 import { LancamentosPage } from "./pages/LancamentosPage";
 import { LancarPage } from "./pages/LancarPage";
 import { CartoesPage } from "./pages/CartoesPage";
+import { ContratosPage } from "./pages/ContratosPage";
 import { AnoPage } from "./pages/AnoPage";
 import { MaisPage } from "./pages/MaisPage";
 import { ContasPage } from "./pages/ContasPage";
@@ -47,6 +48,7 @@ function TabBar() {
       {tab("/lancamentos", "Extrato", "Extrato", <Icon.list />)}
       {/* Sem + na barra: cada aba tem o seu + no cabeçalho (NewButton). */}
       {tab("/cartoes", "Cartões", "Cartões", <Icon.card />)}
+      {tab("/contratos", "Contratos", "Contratos", <Icon.contract />)}
       {tab("/ano", "Ano", "Ano", <Icon.year />)}
       {tab("/mais", "Mais", "Mais", <Icon.more />, false, "desk-only")}
     </nav>
@@ -136,6 +138,7 @@ export function App() {
             <Route path="/lancamentos" element={<LancamentosPage />} />
             <Route path="/lancar" element={<LancarPage />} />
             <Route path="/cartoes" element={<CartoesPage />} />
+            <Route path="/contratos" element={<ContratosPage />} />
             <Route path="/ano" element={<AnoPage />} />
             <Route path="/mais" element={<MaisPage me={me.data} />} />
             <Route path="/contas" element={<ContasPage me={me.data} />} />
