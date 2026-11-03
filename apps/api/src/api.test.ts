@@ -130,6 +130,53 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await agent.post('/api/transfers').send({ from_account_id: ids.bradesco, to_account_id: ids.bradesco, amount_cents: 1 })).status).toBe(400);
     });
 
+    it('recomeçar do zero: as contas valem a partir do dia 1º do mês, o histórico fica e só o administrador faz', async () => {
+      const conta = (await ok(await agent.post('/api/accounts').send({ name: 'Conta velha', type: 'checking', initial_balance_cents: 500000, initial_balance_on: '2026-08-01' }), 201)).id;
+      const lanc = (body: Record<string, unknown> & { kind: string }) => agent.post('/api/transactions').send({ account_id: conta, ...(body.kind === 'expense' ? { category_id: ids.cat['Mercado'] } : {}), ...body });
+      await ok(await lanc({ kind: 'income', amount_cents: 300000, occurred_on: '2026-08-10' }), 201);
+      await ok(await lanc({ kind: 'expense', amount_cents: 100000, occurred_on: '2026-09-05' }), 201);
+      await ok(await lanc({ kind: 'expense', amount_cents: 40000, occurred_on: '2026-09-20', due_on: '2026-09-20', paid: false, description: 'Conta velha em aberto' }), 201);
+      await ok(await lanc({ kind: 'expense', amount_cents: 25000, occurred_on: '2026-10-03' }), 201);
+      await ok(await agent.put(`/api/accounts/${conta}/closing`).send({ month: '2026-09', closing_cents: 123456 }));
+      expect((await balanceOf(conta, '2026-10')).current_balance_cents + 0).not.toBe(0);
+      const setembroAntes = await ok(await agent.get('/api/dashboard?month=2026-09&person=all'));
+
+      // prévia: o que fica para trás
+      const prev = await ok(await agent.get('/api/accounts/restart/preview?month=2026-10'));
+      expect(prev.date).toBe('2026-10-01');
+      expect(prev.accounts.find((a: any) => a.id === conta).ignored_movements).toBe(2); // receita de ago e despesa de set
+      expect(prev.pending_expenses).toEqual({ count: 1, total_cents: 40000 });
+
+      // recomeçar com saldo zero
+      const res = await ok(await agent.post('/api/accounts/restart').send({ month: '2026-10', accounts: [{ id: conta, balance_cents: 0 }] }));
+      expect(res).toMatchObject({ date: '2026-10-01', accounts: 1, deleted_pending: 0 });
+      const depois = await balanceOf(conta, '2026-10');
+      expect(depois.current_balance_cents).toBe(-25000); // zero + só o que aconteceu a partir de 1º de outubro
+      expect(depois.forecast_balance_cents).toBe(-25000); // a conta velha em aberto não pesa mais no saldo
+      expect((await balanceOf(conta, '2026-09')).month_closing_cents).toBeNull(); // a correção de setembro perdeu o sentido
+
+      // o histórico continua: relatórios e lista de setembro não mudam
+      const setembroDepois = await ok(await agent.get('/api/dashboard?month=2026-09&person=all'));
+      expect(setembroDepois.expense.total_cents).toBe(setembroAntes.expense.total_cents);
+      const lista = await ok(await agent.get('/api/transactions?month=2026-09&kind=expense&person=all'));
+      expect(lista.items.some((t: any) => t.description === 'Conta velha em aberto')).toBe(true);
+
+      // apagar as pendências antigas é opcional
+      const limpa = await ok(await agent.post('/api/accounts/restart').send({ month: '2026-10', accounts: [{ id: conta, balance_cents: 100000 }], delete_pending: true }));
+      expect(limpa.deleted_pending).toBe(1);
+      expect((await balanceOf(conta, '2026-10')).current_balance_cents).toBe(75000);
+      const semPendencia = await ok(await agent.get('/api/transactions?month=2026-09&kind=expense&person=all'));
+      expect(semPendencia.items.some((t: any) => t.description === 'Conta velha em aberto')).toBe(false);
+
+      // só administrador; e não dá para recomeçar no futuro
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'j@x.com', password: 'senha-segura' }), 201);
+      const member = request.agent(app);
+      await ok(await member.post('/api/auth/login').send({ email: 'j@x.com', password: 'senha-segura' }));
+      expect((await member.get('/api/accounts/restart/preview?month=2026-10')).status).toBe(403);
+      expect((await member.post('/api/accounts/restart').send({ month: '2026-10', accounts: [{ id: conta, balance_cents: 0 }] })).status).toBe(403);
+      expect((await agent.get('/api/accounts/restart/preview?month=2026-12')).status).toBe(400);
+    });
+
     it('arquivar conta guarda o histórico e a tira da lista', async () => {
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 100, account_id: ids.nubank }), 201);
       await ok(await agent.patch(`/api/accounts/${ids.nubank}`).send({ archived: 1 }));

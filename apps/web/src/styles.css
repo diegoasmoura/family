@@ -3560,3 +3560,11 @@ main.page { gap: 12px; }
 .pcd-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 16px; }
 .year-chart .year-wide { width: 100%; }
 .btn.danger-text { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 45%, var(--line)); }
+
+/* ---------- Recomeçar do zero ---------- */
+.restart-acc { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; }
+.restart-left { gap: 8px; }
+.restart-left ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--ink); }
+.restart-left li { line-height: 1.35; }
+.restart-intro { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.restart-intro b { display: inline; color: var(--ink); }

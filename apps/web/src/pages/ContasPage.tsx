@@ -8,7 +8,8 @@ import { useSwipe } from '../useSwipe';
 import type { Transfer } from '../types';
 import { AccountForm, typeLabel } from '../AccountForm';
 import { DeleteConfirm } from '../DeleteConfirm';
-import { addMonths } from '@fin/domain';
+import { RestartSheet } from '../RestartSheet';
+import { addMonths, monthOf } from '@fin/domain';
 
 function ClosingForm({ account, month, onClose }: { account: Account; month: string; onClose: () => void }) {
   const { toast } = useAppState();
@@ -117,7 +118,7 @@ function TransferForm({ accounts, onClose }: { accounts: Account[]; onClose: () 
 }
 
 export function ContasPage({ me }: { me: Me }) {
-  const { month, setMonth, toast } = useAppState();
+  const { month, setMonth, toast, today } = useAppState();
   const q = useApi<{ accounts: Account[]; current_cents: number; forecast_cents: number }>(`/accounts?month=${month}`);
   const transfers = useApi<Transfer[]>(`/transfers?month=${month}`);
   const withArchived = useApi<{ accounts: Account[] }>(`/accounts?month=${month}&archived=1`);
@@ -125,6 +126,7 @@ export function ContasPage({ me }: { me: Me }) {
   const [editing, setEditing] = useState<Account | 'new' | null>(null);
   const [closing, setClosing] = useState<Account | null>(null);
   const [deleting, setDeleting] = useState<Account | null>(null);
+  const [restarting, setRestarting] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const removeAccount = useAction((a: Account) => api(`/accounts/${a.id}`, { method: 'DELETE' }), () => toast('Conta excluída'));
   const reactivate = useAction((a: Account) => api(`/accounts/${a.id}`, { method: 'PATCH', body: { archived: 0 } }), () => toast('Conta reativada'));
@@ -212,6 +214,11 @@ export function ContasPage({ me }: { me: Me }) {
               Nova transferência
             </button>
           )}
+          {me.role === 'admin' && q.data.accounts.length > 0 && month <= monthOf(today) && (
+            <button className="btn ghost block" onClick={() => setRestarting(true)}>
+              Recomeçar do zero em {monthName(month)}
+            </button>
+          )}
           {transfers.data && transfers.data.length > 0 && (
             <section className="card">
               <h2>Transferências do mês</h2>
@@ -241,6 +248,7 @@ export function ContasPage({ me }: { me: Me }) {
         </>
       )}
       {editing && <AccountForm account={editing === 'new' ? undefined : editing} isAdmin={me.role === 'admin'} onClose={() => setEditing(null)} />}
+      {restarting && <RestartSheet month={month} onClose={() => setRestarting(false)} />}
       {deleting && (
         <DeleteConfirm
           kind="accounts"

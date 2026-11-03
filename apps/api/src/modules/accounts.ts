@@ -144,6 +144,97 @@ async function accountImpact(ctx: Ctx, id: number) {
 export function accountsRouter(): Router {
   const r = Router();
 
+  /** "Recomeçar": o mês escolhido, no máximo o atual (recomeçar no futuro ignoraria o que já aconteceu). */
+  const restartDate = (ctx: Ctx, month: string) => {
+    if (month > monthOf(ctx.today)) throw badRequest('Escolha o mês atual ou um anterior para recomeçar');
+    return `${month}-01`;
+  };
+
+  /**
+   * Prévia do "Recomeçar do zero": o que fica para trás quando as contas passam a valer a partir do dia 1º do
+   * mês. Tudo antes dessa data continua no histórico, mas deixa de contar para o saldo.
+   */
+  r.get('/restart/preview', async (req, res) => {
+    requireAdmin(req.ctx);
+    const month = parse(zMonth, req.query.month);
+    const date = restartDate(req.ctx, month);
+    const { accounts } = await balances(req.ctx, monthOf(req.ctx.today));
+    const { byAccount } = await loadMovements(req.ctx);
+    const list = accounts
+      .filter((a) => !a.archived)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        current_balance_cents: a.current_balance_cents,
+        // pago ou recebido antes da data: deixa de contar para o saldo
+        ignored_movements: (byAccount.get(a.id) ?? []).filter((m) => m.realized && m.date < date && m.date >= a.initial_balance_on).length,
+      }));
+    const pending = await req.ctx.db.all(
+      `SELECT kind, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS total FROM transactions
+        WHERE household_id = ? AND account_id IS NOT NULL AND status = 'planned' AND deleted_at IS NULL AND COALESCE(due_on, occurred_on) < ?
+        GROUP BY kind`,
+      [req.ctx.householdId, date],
+    );
+    const sum = (kind: string) => ({ count: num(pending.find((p) => p.kind === kind)?.n ?? 0), total_cents: num(pending.find((p) => p.kind === kind)?.total ?? 0) });
+    const cards = await req.ctx.db.all<Card>('SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0', [req.ctx.householdId]);
+    let invoiceCount = 0;
+    let invoiceCents = 0;
+    for (const card of cards) {
+      for (const b of await cardInvoiceBalances(req.ctx, card.id)) {
+        if (b.remaining_cents > 0 && b.due_date < date) {
+          invoiceCount += 1;
+          invoiceCents += b.remaining_cents;
+        }
+      }
+    }
+    res.json({
+      month,
+      date,
+      accounts: list,
+      pending_expenses: sum('expense'),
+      pending_incomes: sum('income'),
+      card_invoices: { count: invoiceCount, remaining_cents: invoiceCents },
+    });
+  });
+
+  /**
+   * Recomeçar do zero: cada conta passa a ter o saldo informado no dia 1º do mês. O histórico (lançamentos,
+   * relatórios, faturas) não é apagado; só deixa de contar para o saldo. Opcionalmente apaga as contas a pagar e a
+   * receber que ficaram em aberto antes dessa data. Correções de fim de mês anteriores perdem o sentido e saem.
+   */
+  r.post('/restart', async (req, res) => {
+    requireAdmin(req.ctx);
+    const body = parse(
+      z.object({
+        month: zMonth,
+        accounts: z.array(z.object({ id: zId, balance_cents: z.number().int() })).min(1),
+        delete_pending: z.boolean().default(false),
+      }),
+      req.body,
+    );
+    const date = restartDate(req.ctx, body.month);
+    for (const a of body.accounts) await owned(req.ctx, 'accounts', a.id, 'Conta');
+    const now = nowIso();
+    let deletedPending = 0;
+    await req.ctx.db.tx(async (db) => {
+      for (const a of body.accounts) {
+        await update(db, 'accounts', a.id, { initial_balance_cents: a.balance_cents, initial_balance_on: date, updated_at: now });
+        await db.run('DELETE FROM account_month_closings WHERE account_id = ? AND month < ?', [a.id, body.month]);
+      }
+      if (body.delete_pending) {
+        const ids = body.accounts.map((a) => a.id);
+        const marks = ids.map(() => '?').join(', ');
+        const res2 = await db.run(
+          `UPDATE transactions SET deleted_at = ?, updated_at = ?
+            WHERE household_id = ? AND account_id IN (${marks}) AND status = 'planned' AND deleted_at IS NULL AND COALESCE(due_on, occurred_on) < ?`,
+          [now, now, req.ctx.householdId, ...ids, date],
+        );
+        deletedPending = res2.changes;
+      }
+    });
+    res.json({ month: body.month, date, accounts: body.accounts.length, deleted_pending: deletedPending });
+  });
+
   r.get('/', async (req, res) => {
     const month = parse(zMonth.optional(), req.query.month);
     const result = await balances(req.ctx, month);
