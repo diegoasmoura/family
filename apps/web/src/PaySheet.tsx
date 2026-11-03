@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { api, useAction, useApi, type Account, type Card } from './api';
 import { useAppState } from './state';
+import { withPerson } from './people';
 import { ErrorText, Loading, MoneyInput, Sheet, brl, monthName } from './ui';
 import { AccountForm } from './AccountForm';
 
 function useInvoiceDetail(card: Card, month: string) {
-  return useApi<any>(`/cards/${card.id}/invoices/${month}`);
+  const { person } = useAppState();
+  return useApi<any>(withPerson(`/cards/${card.id}/invoices/${month}`, person));
 }
 
 export function PaySheet({ card, month, onClose }: { card: Card; month: string; onClose: () => void }) {

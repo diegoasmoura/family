@@ -973,6 +973,27 @@ describe.each(targets)('API (%s)', (dialect, url) => {
   });
 
   describe('cartões e faturas', () => {
+    it('no Eu cada um vê só o próprio cartão; no Nós aparecem os dois', async () => {
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'jhersyka@x.com', password: 'senha-segura' }), 201);
+      const users = await ok(await agent.get('/api/users'));
+      const hers = users.find((u: { email: string }) => u.email === 'jhersyka@x.com');
+      const member = request.agent(app);
+      await ok(await member.post('/api/auth/login').send({ email: 'jhersyka@x.com', password: 'senha-segura' }));
+      const nubank = await ok(await member.post('/api/cards').send({ name: 'Nubank', closing_day: 3, due_day: 10, limit_cents: 100000, for_user_id: hers.id }), 201);
+
+      const herList = await ok(await member.get('/api/cards?person=me'));
+      expect(herList.map((c: { name: string }) => c.name)).toEqual(['Nubank']);
+      const hisList = await ok(await agent.get('/api/cards?person=me'));
+      expect(hisList.map((c: { name: string }) => c.name)).toEqual(['Ultra']);
+      const both = await ok(await member.get('/api/cards?person=all'));
+      expect(both.map((c: { name: string }) => c.name).sort()).toEqual(['Nubank', 'Ultra']);
+      expect((await member.get(`/api/cards/${ids.ultra}/invoices/2026-10?person=me`)).status).toBe(404);
+      expect((await agent.get(`/api/cards/${nubank.id}/invoices/2026-10?person=me`)).status).toBe(404);
+      const house = await ok(await member.post('/api/cards').send({ name: 'Casa', closing_day: 1, due_day: 10, for_user_id: null }), 201);
+      expect((await ok(await member.get('/api/cards?person=me'))).map((c: { id: number }) => c.id)).not.toContain(house.id);
+      expect((await ok(await member.get('/api/cards?person=all'))).map((c: { id: number }) => c.id)).toContain(house.id);
+    });
+
     it('TESTE CRÍTICO: compra de R$ 500 + pagamento de R$ 500 = despesa de R$ 500 e saída de caixa de R$ 500', async () => {
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Mercado', amount_cents: 50000, occurred_on: '2026-09-05', card_id: ids.ultra }), 201);
 

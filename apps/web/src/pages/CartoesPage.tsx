@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MONTHS_SHORT_PT, addMonths, monthLabel } from '@fin/domain';
-import { api, useAction, useApi, type Account, type Card, type Invoice, type Tx } from '../api';
+import { api, useAction, useApi, type Account, type Card, type Invoice, type Me, type Tx } from '../api';
 import { CATEGORY_COLORS, CategoryIcon, paintColor } from '../categories';
 import { useAppState } from '../state';
+import { ForWhom, PersonFilter, withPerson } from '../people';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
 import { BrandPicker } from '../brands';
@@ -47,7 +48,10 @@ export function CardLogo({ card, size = 48 }: { card: Pick<Card, 'id' | 'name' |
 function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
   const { toast } = useAppState();
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
+  const me = useApi<Me>('/auth/me');
   const [newAccount, setNewAccount] = useState(false);
+  const [owner, setOwner] = useState<number | null | undefined>(card ? (card.for_user_id ?? null) : undefined);
+  const forUser = owner !== undefined ? owner : (me.data?.id ?? null);
   const [form, setForm] = useState({
     name: card?.name ?? '',
     brand: card?.brand ?? '',
@@ -58,7 +62,7 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
     color: card?.color ?? null,
   });
   const save = useAction(
-    () => (card ? api(`/cards/${card.id}`, { method: 'PATCH', body: form }) : api('/cards', { body: form })),
+    () => (card ? api(`/cards/${card.id}`, { method: 'PATCH', body: { ...form, for_user_id: forUser } }) : api('/cards', { body: { ...form, for_user_id: forUser } })),
     () => {
       toast(card ? 'Cartão atualizado' : 'Cartão criado');
       onClose();
@@ -99,6 +103,8 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
           {day('due_day', 'Vencimento')}
         </div>
         <MoneyInput label="Limite" value={form.limit_cents} onChange={(v) => setForm((f) => ({ ...f, limit_cents: v }))} />
+        <small>De quem</small>
+        <ForWhom value={forUser} onChange={setOwner} />
         <label className="f">
           <span>Conta padrão para pagar a fatura</span>
           <select value={form.default_pay_account_id ?? ''} onChange={(e) => setForm((f) => ({ ...f, default_pay_account_id: e.target.value ? Number(e.target.value) : null }))}>
@@ -125,7 +131,8 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
 }
 
 function useInvoiceDetail(card: Card, month: string) {
-  return useApi(`/cards/${card.id}/invoices/${month}`);
+  const { person } = useAppState();
+  return useApi(withPerson(`/cards/${card.id}/invoices/${month}`, person));
 }
 
 function untilLabel(t: Tx) {
@@ -346,8 +353,8 @@ function axisMoney(cents: number) {
 }
 
 function EvolucaoSheet({ card, month, onPick, onClose }: { card: Card; month: string; onPick: (m: string) => void; onClose: () => void }) {
-  const { today } = useAppState();
-  const q = useApi<Invoice[]>(`/cards/${card.id}/invoices?from=${addMonths(month, -11)}&to=${month}`);
+  const { today, person } = useAppState();
+  const q = useApi<Invoice[]>(withPerson(`/cards/${card.id}/invoices?from=${addMonths(month, -11)}&to=${month}`, person));
   const [picked, setPicked] = useState<string | null>(null);
   const [W, setW] = useState(320);
   const box = useRef<HTMLDivElement>(null);
@@ -454,7 +461,8 @@ function EvolucaoSheet({ card, month, onPick, onClose }: { card: Card; month: st
 }
 
 function HistoricoSheet({ card, month, onPick, onClose }: { card: Card; month: string; onPick: (m: string) => void; onClose: () => void }) {
-  const q = useApi<Invoice[]>(`/cards/${card.id}/invoices?from=${addMonths(month, -12)}&to=${addMonths(month, 3)}`);
+  const { person } = useAppState();
+  const q = useApi<Invoice[]>(withPerson(`/cards/${card.id}/invoices?from=${addMonths(month, -12)}&to=${addMonths(month, 3)}`, person));
   return (
     <Sheet title={`Faturas · ${card.name}`} onClose={onClose}>
       {!q.data ? (
@@ -581,8 +589,8 @@ function CardMenu({ name, invoicePaid, onPick }: { name: string; invoicePaid?: b
 
 function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invoice?: Invoice; accountName?: string; onPanel: (p: Panel) => void }) {
   const location = useLocation();
-  const { today } = useAppState();
-  const detail = useApi<any>(invoice?.id ? `/cards/${card.id}/invoices/${invoice.reference_month}` : null);
+  const { today, person } = useAppState();
+  const detail = useApi<any>(invoice?.id ? withPerson(`/cards/${card.id}/invoices/${invoice.reference_month}`, person) : null);
   const users = useApi<{ id: number; name: string }[]>('/users');
   const [dataOpen, setDataOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -788,12 +796,12 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
 }
 
 export function CartoesPage() {
-  const { toast, month: appMonth } = useAppState();
+  const { toast, month: appMonth, person } = useAppState();
   const [params, setParams] = useSearchParams();
   const month = params.get('mes') ?? appMonth;
-  const cards = useApi<Card[]>('/cards');
-  const archived = useApi<Card[]>('/cards?archived=1');
-  const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(`/cards/month/${month}`);
+  const cards = useApi<Card[]>(withPerson('/cards', person));
+  const archived = useApi<Card[]>(withPerson('/cards?archived=1', person));
+  const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(withPerson(`/cards/month/${month}`, person));
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
   const [newCard, setNewCard] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -851,6 +859,7 @@ export function CartoesPage() {
         {/* Sem cartão ainda, o + já é "Novo cartão"; com cartão, pergunta entre compra (o mais comum) e cartão novo. */}
         <NewButton label="Adicionar" onClick={() => (cards.data?.length ? setAddOpen(true) : setNewCard(true))} />
       </div>
+      <PersonFilter />
       <MonthNav month={month} onChange={setMonth} />
       <PullToRefresh ptr={ptr} />
       <small className="pc-due">
@@ -860,8 +869,8 @@ export function CartoesPage() {
 
       {!cards.data?.length ? (
         <section className="card dashed">
-          <b>Nenhum cartão ainda</b>
-          <small>Cadastre um cartão para que as compras entrem na fatura certa pelo fechamento.</small>
+          <b>{person === 'me' ? 'Nenhum cartão no seu nome' : 'Nenhum cartão ainda'}</b>
+          <small>{person === 'me' ? 'Em Nós aparecem os cartões da casa. O seu entra aqui quando o titular for você.' : 'Cadastre um cartão para que as compras entrem na fatura certa pelo fechamento.'}</small>
           <button className="btn" onClick={() => setNewCard(true)}>
             Adicionar cartão
           </button>

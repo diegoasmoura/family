@@ -11,6 +11,11 @@ export function personParam(person: PersonScope): string {
   return person === 'all' ? 'all' : person === 'me' ? 'me' : String(person);
 }
 
+export function withPerson(path: string, person: PersonScope): string {
+  const join = path.includes('?') ? '&' : '?';
+  return `${path}${join}person=${personParam(person)}`;
+}
+
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
 }

@@ -34,7 +34,7 @@ import {
   zUuid,
   type Ctx,
 } from '../core';
-import { decorateTransactions } from './transactions';
+import { assertHouseholdUser, decorateTransactions, personFilter } from './transactions';
 
 export interface Card {
   id: number;
@@ -47,6 +47,7 @@ export interface Card {
   default_pay_account_id: number | null;
   color: string | null;
   archived: number;
+  for_user_id: number | null;
 }
 
 /** Cria ou localiza a fatura do cartão para o mês de vencimento. */
@@ -160,6 +161,23 @@ async function loadCard(ctx: Ctx, id: number): Promise<Card> {
   return owned<Card>(ctx, 'credit_cards', id, 'Cartão');
 }
 
+/** No Eu, só o cartão da pessoa. Da casa e o da outra pessoa não entram. */
+async function loadVisibleCard(ctx: Ctx, id: number, personRaw: unknown): Promise<Card> {
+  const card = await loadCard(ctx, id);
+  const personId = await personFilter(ctx, personRaw);
+  if (personId != null && Number(card.for_user_id) !== personId) throw notFound('Cartão');
+  return card;
+}
+
+async function listedCards(ctx: Ctx, personRaw: unknown, extraSql: string): Promise<Card[]> {
+  const personId = await personFilter(ctx, personRaw);
+  const who = personId == null ? '' : ' AND for_user_id = ?';
+  return ctx.db.all<Card>(
+    `SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL ${extraSql}${who} ORDER BY name`,
+    personId == null ? [ctx.householdId] : [ctx.householdId, personId],
+  );
+}
+
 async function invoiceWithCard(ctx: Ctx, invoiceId: number) {
   const inv = await ctx.db.get(
     `SELECT i.*, c.household_id FROM invoices i JOIN credit_cards c ON c.id = i.card_id WHERE i.id = ? AND c.household_id = ?`,
@@ -215,6 +233,7 @@ const cardBody = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .nullish(),
+  for_user_id: zId.nullable().optional(),
 });
 
 /** Quanto existe ligado ao cartão (o que a exclusão leva junto). */
@@ -233,17 +252,13 @@ export function cardsRouter(): Router {
 
   r.get('/', async (req, res) => {
     const where = req.query.archived === '1' ? '' : 'AND archived = 0';
-    const cards = await req.ctx.db.all<Card>(`SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL ${where} ORDER BY name`, [
-      req.ctx.householdId,
-    ]);
+    const cards = await listedCards(req.ctx, req.query.person, where);
     res.json(await Promise.all(cards.map((c) => cardSummary(req.ctx, c))));
   });
 
   /** Totais agregados de todos os cartões ativos. */
   r.get('/summary', async (req, res) => {
-    const cards = await req.ctx.db.all<Card>('SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0', [
-      req.ctx.householdId,
-    ]);
+    const cards = await listedCards(req.ctx, req.query.person, 'AND archived = 0');
     const list = await Promise.all(cards.map((c) => cardSummary(req.ctx, c)));
     const sum = (f: (c: (typeof list)[number]) => number) => list.reduce((a, c) => a + f(c), 0);
     res.json({
@@ -263,6 +278,7 @@ export function cardsRouter(): Router {
     const existing = await findByUuid(req.ctx, 'credit_cards', body.client_uuid);
     if (existing) return void res.json(existing);
     if (body.default_pay_account_id) await owned(req.ctx, 'accounts', body.default_pay_account_id, 'Conta');
+    const forUserId = body.for_user_id === undefined ? req.ctx.userId : await assertHouseholdUser(req.ctx, body.for_user_id);
     const now = nowIso();
     const id = await insert(req.ctx.db, 'credit_cards', {
       client_uuid: body.client_uuid ?? newUuid(),
@@ -274,6 +290,7 @@ export function cardsRouter(): Router {
       limit_cents: body.limit_cents ?? null,
       default_pay_account_id: body.default_pay_account_id ?? null,
       color: body.color ?? null,
+      for_user_id: forUserId,
       created_at: now,
       updated_at: now,
     });
@@ -295,6 +312,7 @@ export function cardsRouter(): Router {
       }
     }
     if (body.default_pay_account_id) await owned(req.ctx, 'accounts', body.default_pay_account_id, 'Conta');
+    if (body.for_user_id !== undefined) body.for_user_id = await assertHouseholdUser(req.ctx, body.for_user_id);
     await update(req.ctx.db, 'credit_cards', id, { ...body, updated_at: nowIso() });
     res.json(await cardSummary(req.ctx, await loadCard(req.ctx, id)));
   });
@@ -332,9 +350,7 @@ export function cardsRouter(): Router {
   /** Fatura do mês de cada cartão ativo, sem criar faturas vazias. */
   r.get('/month/:month', async (req, res) => {
     const month = parse(zMonth, req.params.month);
-    const cards = await req.ctx.db.all<Card>('SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0 ORDER BY name', [
-      req.ctx.householdId,
-    ]);
+    const cards = await listedCards(req.ctx, req.query.person, 'AND archived = 0');
     const out = [];
     for (const card of cards) out.push({ card_id: Number(card.id), invoice: (await invoiceWindow(req.ctx, card, month, month))[0] });
     res.json(out);
@@ -342,7 +358,7 @@ export function cardsRouter(): Router {
 
   /** Faturas de uma janela de meses; meses sem fatura aparecem zerados. */
   r.get('/:id/invoices', async (req, res) => {
-    const card = await loadCard(req.ctx, idParam(req.params.id));
+    const card = await loadVisibleCard(req.ctx, idParam(req.params.id), req.query.person);
     const month = monthOf(req.ctx.today);
     const from = parse(zMonth.optional(), req.query.from) ?? addMonths(month, -1);
     const to = parse(zMonth.optional(), req.query.to) ?? addMonths(month, 3);
@@ -351,7 +367,7 @@ export function cardsRouter(): Router {
 
   /** Localiza (ou cria) a fatura de um mês para permitir pagamento antecipado. */
   r.get('/:id/invoices/:month', async (req, res) => {
-    const card = await loadCard(req.ctx, idParam(req.params.id));
+    const card = await loadVisibleCard(req.ctx, idParam(req.params.id), req.query.person);
     const month = parse(zMonth, req.params.month);
     const invoiceId = await ensureInvoice(req.ctx.db, card, month);
     res.json(await invoiceDetail(req.ctx, invoiceId));

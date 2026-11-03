@@ -132,6 +132,7 @@ export interface Card {
   default_pay_account_id: number | null;
   color: string | null;
   archived: number;
+  for_user_id: number | null;
   committed_cents: number;
   available_cents: number;
   used_ratio: number;

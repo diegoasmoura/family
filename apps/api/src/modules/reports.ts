@@ -381,9 +381,10 @@ export function dashboardRouter(): Router {
       { key: 'variable', name: 'Variáveis', color: '#e08b84', total_cents: num(rhythm?.variable_cents) },
     ];
 
-    const cards = await ctx.db.all<Card>('SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0 ORDER BY name', [
-      ctx.householdId,
-    ]);
+    const cards = await ctx.db.all<Card>(
+      `SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0${personId == null ? '' : ' AND for_user_id = ?'} ORDER BY name`,
+      personId == null ? [ctx.householdId] : [ctx.householdId, personId],
+    );
     let invoice = null;
     for (const card of cards) {
       const all = await cardInvoiceBalances(ctx, card.id);

@@ -6,7 +6,7 @@ import { CategoryPicker } from '../categories';
 import { useAppState } from '../state';
 import { BankMark } from '../banks';
 import { AccountForm } from '../AccountForm';
-import { ForWhom, useForWhom } from '../people';
+import { ForWhom, useForWhom, withPerson } from '../people';
 import { ErrorText, Icon, MoneyInput, Seg, brl, monthName } from '../ui';
 import { ContractLaunch } from '../ContractLaunch';
 
@@ -36,7 +36,7 @@ function rememberTarget(t: NonNullable<Target>) {
 export function LancarPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { today, toast } = useAppState();
+  const { today, toast, person } = useAppState();
   const back = () => navigate((location.state as any)?.from ?? '/', { replace: true });
 
   // O + do Extrato abre já em Receita quando a tela está em Receitas.
@@ -68,7 +68,7 @@ export function LancarPage() {
   const frequent = useApi<Category[]>(`/categories/frequent?kind=${kind}`);
   const sugg = useApi<{ description: string; category_id: number | null }[]>(`/transactions/suggestions?kind=${kind}`);
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
-  const cards = useApi<Card[]>('/cards');
+  const cards = useApi<Card[]>(withPerson('/cards', person));
 
   const card = target?.type === 'card' ? cards.data?.find((c) => c.id === target.id) : undefined;
   const effectiveMode: Mode = kind === 'income' && mode === 'installment' ? 'single' : mode;

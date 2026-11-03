@@ -10,7 +10,7 @@ import { ErrorText, Icon, MonthNav, NewButton, PullToRefresh, Sheet, SkeletonCar
 import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { CardRail } from "../CardFace";
 import { CategoryIcon } from "../categories";
-import { PersonFilter, personParam } from "../people";
+import { PersonFilter, personParam, withPerson } from "../people";
 import { useAppState, type PersonScope } from "../state";
 
 const LAYOUT_KEY = "fin-home-layout";
@@ -94,9 +94,9 @@ export function HomePage({ me }: { me: Me }) {
   const { month, setMonth, today, person } = useAppState();
   const q = useApi(`/dashboard?month=${month}&person=${personParam(person)}`);
   const budgets = useApi(`/budgets?month=${month}`);
-  const cards = useApi<Card[]>("/cards");
+  const cards = useApi<Card[]>(withPerson("/cards", person));
   // A fatura de cada cartão é a do mês escolhido, não a "atual" do cartão.
-  const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(`/cards/month/${month}`);
+  const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(withPerson(`/cards/month/${month}`, person));
   const [catName, setCatName] = useState<string | null>(null);
   const [classify, setClassify] = useState<string | null>(null);
   const [evoRef, evoSeen] = useInView<HTMLDivElement>();

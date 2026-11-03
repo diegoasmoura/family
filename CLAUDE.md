@@ -48,7 +48,7 @@ Produção (NAS): `docker compose up -d --build` com `.env` baseado em `.env.exa
 - **Toda consulta filtra por `household_id = ctx.householdId`**; exclusão é soft (`deleted_at`). Excluir cartão/conta apaga em cascata (compras, parcelamentos, fixas, transferências e pagamentos de fatura ligados) numa transação, depois de uma confirmação que mostra a contagem (`GET /cards|accounts/:id/impact`); guardar o histórico é **arquivar** (`PATCH archived`), um botão separado.
 - "Hoje" vem de `ctx.today` (fuso da casa; `FIXED_TODAY` fixa em dev/testes) — não use `new Date()` para regra de vencimento.
 - Recorrências são materializadas sob demanda: `ensureRecurrences(ctx, untilMonth)` é chamado por lançamentos/relatórios antes de ler um mês.
-- Filtro Eu/Nós: consultas recebem `personId` e filtram por `for_user_id` (ver `modules/queries.ts`).
+- Filtro Eu/Nós: consultas recebem `personId` e filtram por `for_user_id` (ver `modules/queries.ts`). A lista de cartões usa o `for_user_id` do próprio cartão: no Eu entra só o titular; Da casa e o cartão da outra pessoa ficam no Nós. Pagar a fatura continua saindo da conta da casa.
 - `config.ts` lê env (`DATABASE_URL`, `SESSION_SECRET`, `COOKIE_SECURE`, `ALLOW_REGISTER`, `WEBAUTHN_RP_ID/ORIGIN`). Sessão é JWT no cookie httpOnly `fin_session`. Erros 500 são logados sem o corpo da requisição (não registrar valores nem senhas).
 - `api.test.ts` testa via supertest contra `createApp` com banco em memória e `TODAY` fixo.
 
