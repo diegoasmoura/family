@@ -26,13 +26,7 @@ export function AuthPage() {
 
   return (
     <main className="auth">
-      <div className="logo" aria-hidden>
-        R$
-      </div>
-      <h1 style={{ fontSize: 26 }}>Finanças do casal</h1>
-      <p className="muted" style={{ margin: 0 }}>
-        Quanto temos, quanto já foi, quanto ainda vai e como o mês vai fechar.
-      </p>
+      <h1 style={{ fontSize: 26 }}>Diário</h1>
       {canRegister && (
         <Seg
           label="Acesso"

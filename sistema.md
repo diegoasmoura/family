@@ -10,7 +10,7 @@ O corte é **960px** de largura da janela.
 
 ### Celular (até 959px)
 
-A barra fica fixa embaixo, com altura **76px** (`--nav-h`). Só tem abas, sem botão **+**: Início, Extrato, Cartões, Contratos e Ano. As abas dividem a largura igualmente. No celular o nome fica em 11px e numa linha; os nomes são curtos de propósito (até 9 letras), para nenhum dominar a barra. O item ativo só fica verde, sem fundo. A marca “Finanças do casal” fica escondida. Mais não entra nessa barra: no Início, o ícone de três pontos fica à direita do olho e abre `/mais`. A aba Extrato continua no endereço `/lancamentos`, para não quebrar links e atalhos salvos.
+A barra fica fixa embaixo, com altura **76px** (`--nav-h`). Só tem abas, sem botão **+**: Início, Extrato, Cartões, Contratos e Ano. As abas dividem a largura igualmente. No celular o nome fica em 11px e numa linha; os nomes são curtos de propósito (até 9 letras), para nenhum dominar a barra. O item ativo só fica verde, sem fundo. A marca “Diário” fica escondida. Abrir o app, recarregar ou voltar do segundo plano pede a digital deste celular ou a senha antes de mostrar as abas. A sessão de 30 dias continua. Mais não entra nessa barra: no Início, o ícone de três pontos fica à direita do olho e abre `/mais`. A aba Extrato continua no endereço `/lancamentos`, para não quebrar links e atalhos salvos.
 
 O conteúdo fica centralizado. As telas que não estão na barra (Calendário e tudo o que abre a partir de Mais) têm um botão Voltar à esquerda do título. Ele volta para a tela anterior; se a pessoa abriu o endereço direto, Calendário cai no Início e as outras caem em Mais. No computador esse botão some, porque a coluna da esquerda já leva a Mais.
 
@@ -28,7 +28,7 @@ No celular, o bloco do Início (saudação, Eu/Nós, saldo, receitas e despesas)
 
 ### Computador (a partir de 960px)
 
-A barra vira coluna fixa à esquerda, com **220px** de largura. O aplicativo ganha `padding-left: 220px`. A ordem visual da coluna é: a marca “Finanças do casal”, Início, Extrato, Cartões, Contratos, Ano e Mais. Não há botão de Novo lançamento na coluna: o **+** fica no cabeçalho de cada aba, como no celular. O item ativo fica com fundo verde claro. Cada item da coluna tem no mínimo 48px de altura.
+A barra vira coluna fixa à esquerda, com **220px** de largura. O aplicativo ganha `padding-left: 220px`. A ordem visual da coluna é: a marca “Diário”, Início, Extrato, Cartões, Contratos, Ano e Mais. Não há botão de Novo lançamento na coluna: o **+** fica no cabeçalho de cada aba, como no celular. O item ativo fica com fundo verde claro. Cada item da coluna tem no mínimo 48px de altura.
 
 | Tela | Teto da coluna | Padding lateral | Largura útil no teto |
 |---|---|---|---|

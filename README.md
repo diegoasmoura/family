@@ -1,6 +1,6 @@
-# Finanças do casal
+# Diário
 
-App de controle financeiro do casal: saldo atual e previsto, despesas e receitas, fixas, parceladas e contratos, cartões e faturas, orçamento, visão anual, metas e gamificação.
+O nome visível no celular e no computador é Diário. Por baixo, é o app de controle financeiro do casal: saldo atual e previsto, despesas e receitas, fixas, parceladas e contratos, cartões e faturas, orçamento, visão anual, metas e gamificação.
 
 Estrutura:
 
@@ -54,7 +54,7 @@ Na visão anual, Realizado inclui o que já foi lançado e também a conta que a
 
 O cartão usa a logo do banco e a bandeira (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club e Maestro). Uma bandeira fora dessa lista entra em Outra.
 
-Depois do primeiro login com senha, o celular pode oferecer entrar com a digital ou o Face ID que já estão no aparelho. Cada um ativa no próprio celular. Em Casa e usuários dá para desligar o aparelho atual. A senha continua valendo. O botão só aparece em https com nome.
+Depois do primeiro login com senha, o celular pode oferecer entrar com a digital ou o Face ID que já estão no aparelho. Cada um ativa no próprio celular. Em Casa e usuários dá para desligar o aparelho atual. A senha continua valendo. O botão só aparece em https com nome. Cada vez que o app abre, recarrega ou volta do segundo plano, pede essa digital ou a senha, mesmo com a sessão de 30 dias ainda válida.
 
 Depois das duas pessoas, coloque `ALLOW_REGISTER=false` no `.env` e suba de novo. A senha se troca em Casa e usuários; o administrador da casa também redefine a senha de um membro. Não há recuperação por e-mail.
 

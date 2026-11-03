@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, type ReactNode } from "react";
+import { Component, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   NavLink,
   Navigate,
@@ -6,9 +6,10 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
-import { ApiError, useAction, useApi, type Me } from "./api";
+import { useQueryClient } from "@tanstack/react-query";
+import { api, ApiError, useAction, useApi, type Me } from "./api";
 import { AppStateProvider } from "./state";
-import { canUsePasskey, dismissPasskeyOffer, passkeyOfferDismissed, registerPasskey, savedPasskeyId } from "./passkey";
+import { canUsePasskey, dismissPasskeyOffer, loginWithPasskey, passkeyOfferDismissed, registerPasskey, savedPasskeyId } from "./passkey";
 import { ErrorText, Icon, Loading, Sheet } from "./ui";
 import { AuthPage } from "./pages/AuthPage";
 import { HomePage } from "./pages/HomePage";
@@ -42,7 +43,7 @@ function TabBar() {
   );
   return (
     <nav className="tabbar" aria-label="Navegação principal">
-      <span className="brand">Finanças do casal</span>
+      <span className="brand">Diário</span>
       {tab("/", "Início", "Início", <Icon.home />, true)}
       {/* O endereço continua /lancamentos (links e atalhos salvos); só o nome mudou para Extrato. */}
       {tab("/lancamentos", "Extrato", "Extrato", <Icon.list />)}
@@ -98,6 +99,59 @@ function PasskeyOffer() {
   );
 }
 
+function LockScreen({ me, onUnlock }: { me: Me; onUnlock: () => void }) {
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const digital = canUsePasskey() && !!savedPasskeyId();
+  const passkey = useAction(loginWithPasskey, (user) => {
+    if (user) onUnlock();
+  });
+  const login = useAction(
+    (pw: string) => api("/auth/login", { body: { email: me.email, password: pw } }),
+    () => onUnlock(),
+  );
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    login.mutate(password);
+  };
+  const first = me.name.trim().split(/\s+/)[0] || me.name;
+  return (
+    <main className="auth">
+      <h1 style={{ fontSize: 26 }}>Diário</h1>
+      <p className="muted" style={{ margin: 0 }}>
+        Confirme que é você.
+      </p>
+      <p style={{ margin: 0, fontWeight: 700 }}>{first}</p>
+      {digital && (
+        <button className="btn big" type="button" disabled={passkey.isPending} onClick={() => passkey.mutate(undefined)}>
+          Digital
+        </button>
+      )}
+      <form className="stack" onSubmit={submit}>
+        <label className="f">
+          <span>Senha</span>
+          <span className="pw">
+            <input
+              type={show ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+            <button type="button" className="ic" aria-label={show ? "Ocultar senha" : "Mostrar senha"} aria-pressed={show} onClick={() => setShow((s) => !s)}>
+              {show ? <Icon.eyeOff /> : <Icon.eye />}
+            </button>
+          </span>
+        </label>
+        <ErrorText error={passkey.error ?? login.error} />
+        <button className="btn big" disabled={login.isPending || !password}>
+          Entrar
+        </button>
+      </form>
+    </main>
+  );
+}
+
 function OfflineBanner() {
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   useEffect(() => {
@@ -116,6 +170,18 @@ function OfflineBanner() {
 export function App() {
   const me = useApi<Me>("/auth/me", { retry: false, staleTime: 60_000 });
   const location = useLocation();
+  const qc = useQueryClient();
+  const [unlocked, setUnlocked] = useState(false);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState !== "hidden") return;
+      setUnlocked(false);
+      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "/auth/me" });
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [qc]);
 
   if (me.isLoading) return <Loading />;
   if (me.error && !(me.error instanceof ApiError && me.error.status === 401)) {
@@ -126,6 +192,7 @@ export function App() {
     );
   }
   if (!me.data) return <AuthPage />;
+  if (!unlocked) return <LockScreen me={me.data} onUnlock={() => setUnlocked(true)} />;
 
   return (
     <AppStateProvider today={me.data.today}>

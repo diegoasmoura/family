@@ -120,9 +120,13 @@ O avatar é um quadrado. Sem desenho escolhido, mostra as iniciais do nome numa 
 
 ## Acesso
 
+O nome visível, no ícone e na tela de entrar, é **Diário**.
+
 Entrar pede e-mail e senha. A sessão é o cookie `fin_session`, por 30 dias, só pelo servidor. Em HTTP no endereço de casa, `COOKIE_SECURE=false`. Atrás de HTTPS, `COOKIE_SECURE=true`.
 
-Digital e Face ID exigem página HTTPS com nome (não um IP puro). A chave privada fica no aparelho. O servidor guarda o id, a chave pública e o rótulo. O login em si continua sendo e-mail e senha; a digital se ativa em Casa e usuários, ou na oferta depois do login. Fora de casa, o túnel precisa de `WEBAUTHN_RP_ID` (o nome, sem https) e `WEBAUTHN_ORIGIN` (a página inteira, com https).
+Abrir a página, recarregar ou voltar do segundo plano pede de novo a digital deste celular ou a senha, antes de mostrar qualquer aba. A sessão de 30 dias continua. Navegar entre as telas não pede.
+
+Digital e Face ID exigem página HTTPS com nome (não um IP puro). A chave privada fica no aparelho. O servidor guarda o id, a chave pública e o rótulo. A digital se ativa em Casa e usuários, ou na oferta depois do login. Sem ela, o cadeado pede a senha. Fora de casa, o túnel precisa de `WEBAUTHN_RP_ID` (o nome, sem https) e `WEBAUTHN_ORIGIN` (a página inteira, com https).
 
 O fuso da casa define o “hoje” dos vencimentos. O padrão é `America/Sao_Paulo`.
 

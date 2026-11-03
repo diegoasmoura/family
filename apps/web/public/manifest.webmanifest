@@ -1,6 +1,6 @@
 {
-  "name": "Finanças do casal",
-  "short_name": "Finanças",
+  "name": "Diário",
+  "short_name": "Diário",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

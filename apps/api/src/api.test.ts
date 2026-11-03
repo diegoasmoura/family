@@ -76,6 +76,31 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await a.get('/api/auth/me')).status).toBe(401);
     });
 
+    it('a sessão vai no cookie HttpOnly e o logout apaga', async () => {
+      const res = await request(app).post('/api/auth/login').send({ email: 'diego@x.com', password: 'senha-segura' });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeUndefined();
+      expect(JSON.stringify(res.body)).not.toContain('eyJ');
+      const set = res.headers['set-cookie'];
+      const cookie = (Array.isArray(set) ? set : [set]).join(';');
+      expect(cookie).toMatch(/fin_session=/);
+      expect(cookie).toMatch(/HttpOnly/);
+      expect(cookie).toMatch(/SameSite=Lax/);
+      const out = await request(app).post('/api/auth/logout');
+      const cleared = out.headers['set-cookie'];
+      const gone = (Array.isArray(cleared) ? cleared : [cleared]).join(';');
+      expect(gone).toMatch(/fin_session=/);
+      expect(gone).toMatch(/Expires=Thu, 01 Jan 1970/);
+    });
+
+    it('a 31ª tentativa de login na janela é recusada', async () => {
+      const isolated = createApp(db, { ...loadConfig({}), fixedToday: TODAY });
+      for (let i = 0; i < 30; i++) {
+        expect((await request(isolated).post('/api/auth/login').send({ email: 'ninguem@x.com', password: 'x' })).status).toBe(401);
+      }
+      expect((await request(isolated).post('/api/auth/login').send({ email: 'ninguem@x.com', password: 'x' })).status).toBe(429);
+    });
+
     it('isola households', async () => {
       const other = await register('outra@x.com', 'Outra casa');
       expect((await other.get(`/api/accounts/${ids.bradesco}/balance`)).status).toBe(404);
