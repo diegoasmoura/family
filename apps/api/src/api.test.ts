@@ -168,6 +168,22 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const semPendencia = await ok(await agent.get('/api/transactions?month=2026-09&kind=expense&person=all'));
       expect(semPendencia.items.some((t: any) => t.description === 'Conta velha em aberto')).toBe(false);
 
+      // tirar dos totais o que é de antes: continua na lista, sai dos relatórios, e saldo e fatura não mudam
+      const agostoAntes = await ok(await agent.get('/api/dashboard?month=2026-08&person=all'));
+      expect(agostoAntes.income.total_cents).toBe(300000);
+      const prev2 = await ok(await agent.get('/api/accounts/restart/preview?month=2026-10'));
+      expect(prev2.old_in_reports.incomes).toEqual({ count: 1, total_cents: 300000 });
+      expect(prev2.old_in_reports.expenses.count).toBeGreaterThanOrEqual(1); // a despesa paga de setembro
+      const saldoAntes = (await balanceOf(conta, '2026-10')).current_balance_cents;
+      const out = await ok(await agent.post('/api/accounts/restart').send({ month: '2026-10', accounts: [{ id: conta, balance_cents: 100000 }], hide_old_from_reports: true }));
+      expect(out.hidden_from_reports).toBeGreaterThanOrEqual(2);
+      expect((await ok(await agent.get('/api/dashboard?month=2026-08&person=all'))).income.total_cents).toBe(0);
+      expect((await ok(await agent.get('/api/dashboard?month=2026-09&person=all'))).expense.total_cents).toBe(0);
+      expect((await ok(await agent.get('/api/dashboard?month=2026-10&person=all'))).expense.total_cents).toBe(25000); // o mês do recomeço continua contando
+      const set = await ok(await agent.get('/api/transactions?month=2026-09&kind=expense&person=all'));
+      expect(set.items.some((t: any) => t.amount_cents === 100000)).toBe(true); // continua na lista
+      expect((await balanceOf(conta, '2026-10')).current_balance_cents).toBe(saldoAntes); // o saldo não olha esse campo
+
       // só administrador; e não dá para recomeçar no futuro
       await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'j@x.com', password: 'senha-segura' }), 201);
       const member = request.agent(app);

@@ -176,6 +176,13 @@ export function accountsRouter(): Router {
       [req.ctx.householdId, date],
     );
     const sum = (kind: string) => ({ count: num(pending.find((p) => p.kind === kind)?.n ?? 0), total_cents: num(pending.find((p) => p.kind === kind)?.total ?? 0) });
+    const old = await req.ctx.db.all(
+      `SELECT kind, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS total FROM transactions
+        WHERE household_id = ? AND deleted_at IS NULL AND include_in_reports = 1 AND competence_month < ?
+        GROUP BY kind`,
+      [req.ctx.householdId, month],
+    );
+    const oldSum = (kind: string) => ({ count: num(old.find((o) => o.kind === kind)?.n ?? 0), total_cents: num(old.find((o) => o.kind === kind)?.total ?? 0) });
     const cards = await req.ctx.db.all<Card>('SELECT * FROM credit_cards WHERE household_id = ? AND deleted_at IS NULL AND archived = 0', [req.ctx.householdId]);
     let invoiceCount = 0;
     let invoiceCents = 0;
@@ -194,13 +201,15 @@ export function accountsRouter(): Router {
       pending_expenses: sum('expense'),
       pending_incomes: sum('income'),
       card_invoices: { count: invoiceCount, remaining_cents: invoiceCents },
+      old_in_reports: { expenses: oldSum('expense'), incomes: oldSum('income') },
     });
   });
 
   /**
    * Recomeçar do zero: cada conta passa a ter o saldo informado no dia 1º do mês. O histórico (lançamentos,
    * relatórios, faturas) não é apagado; só deixa de contar para o saldo. Opcionalmente apaga as contas a pagar e a
-   * receber que ficaram em aberto antes dessa data. Correções de fim de mês anteriores perdem o sentido e saem.
+   * receber que ficaram em aberto antes dessa data, e/ou tirar dos totais tudo que é de competência anterior (continua
+   * na lista). Correções de fim de mês anteriores perdem o sentido e saem.
    */
   r.post('/restart', async (req, res) => {
     requireAdmin(req.ctx);
@@ -209,6 +218,7 @@ export function accountsRouter(): Router {
         month: zMonth,
         accounts: z.array(z.object({ id: zId, balance_cents: z.number().int() })).min(1),
         delete_pending: z.boolean().default(false),
+        hide_old_from_reports: z.boolean().default(false),
       }),
       req.body,
     );
@@ -216,6 +226,7 @@ export function accountsRouter(): Router {
     for (const a of body.accounts) await owned(req.ctx, 'accounts', a.id, 'Conta');
     const now = nowIso();
     let deletedPending = 0;
+    let hidden = 0;
     await req.ctx.db.tx(async (db) => {
       for (const a of body.accounts) {
         await update(db, 'accounts', a.id, { initial_balance_cents: a.balance_cents, initial_balance_on: date, updated_at: now });
@@ -231,8 +242,18 @@ export function accountsRouter(): Router {
         );
         deletedPending = res2.changes;
       }
+      if (body.hide_old_from_reports) {
+        // "Contar na soma" desligado: continua na lista e na fatura, mas sai dos totais (Início, Visão anual, orçamento).
+        // O saldo das contas e o valor das faturas não olham esse campo, então não mudam.
+        const res3 = await db.run(
+          `UPDATE transactions SET include_in_reports = 0, updated_at = ?
+            WHERE household_id = ? AND deleted_at IS NULL AND include_in_reports = 1 AND competence_month < ?`,
+          [now, req.ctx.householdId, body.month],
+        );
+        hidden = res3.changes;
+      }
     });
-    res.json({ month: body.month, date, accounts: body.accounts.length, deleted_pending: deletedPending });
+    res.json({ month: body.month, date, accounts: body.accounts.length, deleted_pending: deletedPending, hidden_from_reports: hidden });
   });
 
   r.get('/', async (req, res) => {

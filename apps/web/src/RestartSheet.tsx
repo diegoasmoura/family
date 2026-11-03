@@ -13,6 +13,7 @@ interface Preview {
   pending_expenses: { count: number; total_cents: number };
   pending_incomes: { count: number; total_cents: number };
   card_invoices: { count: number; remaining_cents: number };
+  old_in_reports: { expenses: { count: number; total_cents: number }; incomes: { count: number; total_cents: number } };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -27,6 +28,7 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
   const q = useApi<Preview>(`/accounts/restart/preview?month=${month}`, { staleTime: 0, gcTime: 0 });
   const [balances, setBalances] = useState<Record<number, number | null>>({});
   const [deletePending, setDeletePending] = useState(false);
+  const [hideOld, setHideOld] = useState(false);
   const { confirm, dialog } = useConfirm();
   const when = monthLabel(month);
 
@@ -37,10 +39,15 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
           month,
           accounts: (q.data?.accounts ?? []).map((a) => ({ id: a.id, balance_cents: balances[a.id] ?? 0 })),
           delete_pending: deletePending,
+          hide_old_from_reports: hideOld,
         },
       }),
-    (r: { deleted_pending: number }) => {
-      toast(r.deleted_pending > 0 ? `Contas recomeçadas em ${when.toLowerCase()}. ${plural(r.deleted_pending, 'conta atrasada apagada', 'contas atrasadas apagadas')}` : `Contas recomeçadas em ${when.toLowerCase()}`);
+    (r: { deleted_pending: number; hidden_from_reports: number }) => {
+      const extra = [
+        r.deleted_pending > 0 ? plural(r.deleted_pending, 'conta atrasada apagada', 'contas atrasadas apagadas') : '',
+        r.hidden_from_reports > 0 ? `${plural(r.hidden_from_reports, 'lançamento tirado', 'lançamentos tirados')} dos totais` : '',
+      ].filter(Boolean);
+      toast(`Contas recomeçadas em ${when.toLowerCase()}${extra.length ? `. ${extra.join(' · ')}` : ''}`);
       onClose();
     },
   );
@@ -55,6 +62,7 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
   const d = q.data;
   const ignored = d.accounts.reduce((sum, a) => sum + a.ignored_movements, 0);
   const pending = d.pending_expenses.count + d.pending_incomes.count;
+  const oldCount = d.old_in_reports.expenses.count + d.old_in_reports.incomes.count;
 
   return (
     <>
@@ -95,6 +103,13 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
                 {plural(d.pending_incomes.count, 'conta a receber', 'contas a receber')} em aberto de antes ({brl(d.pending_incomes.total_cents)}) continua aparecendo como atrasada, mas não entra no saldo.
               </li>
             )}
+            {oldCount > 0 && (
+              <li>
+                {d.old_in_reports.expenses.count > 0 && `${plural(d.old_in_reports.expenses.count, 'despesa', 'despesas')} (${brl(d.old_in_reports.expenses.total_cents)})`}
+                {d.old_in_reports.expenses.count > 0 && d.old_in_reports.incomes.count > 0 && ' e '}
+                {d.old_in_reports.incomes.count > 0 && `${plural(d.old_in_reports.incomes.count, 'receita', 'receitas')} (${brl(d.old_in_reports.incomes.total_cents)})`} de antes continuam somando nos totais (Início, Visão anual e orçamento) como histórico.
+              </li>
+            )}
             {d.card_invoices.count > 0 && (
               <li>
                 {plural(d.card_invoices.count, 'fatura de cartão em aberto', 'faturas de cartão em aberto')} ({brl(d.card_invoices.remaining_cents)}) não é alterada. Para limpar, pague em Cartões ou exclua o cartão.
@@ -102,6 +117,14 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
             )}
           </ul>
         </section>
+
+        {oldCount > 0 && (
+          <label className="toggle">
+            <span>Tirar dos totais o que é de antes (continua na lista)</span>
+            <input type="checkbox" checked={hideOld} onChange={(e) => setHideOld(e.target.checked)} />
+          </label>
+        )}
+        {hideOld && <small>Os lançamentos continuam em Lançamentos, só deixam de somar nos relatórios; o saldo e as faturas não mudam. Para voltar atrás, ligue “Contar na soma” em cada lançamento.</small>}
 
         {pending > 0 && (
           <label className="toggle">
@@ -118,7 +141,7 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
           disabled={save.isPending || d.accounts.length === 0}
           onClick={() =>
             confirm(
-              `Recomeçar em ${when.toLowerCase()}? ${plural(d.accounts.length, 'conta passa', 'contas passam')} a valer a partir de ${dmy(d.date)}.${deletePending ? ` As ${plural(pending, 'conta atrasada', 'contas atrasadas')} de antes serão apagadas.` : ''} Isso não dá para desfazer pelo app.`,
+              `Recomeçar em ${when.toLowerCase()}? ${plural(d.accounts.length, 'conta passa', 'contas passam')} a valer a partir de ${dmy(d.date)}.${deletePending ? ` As ${plural(pending, 'conta atrasada', 'contas atrasadas')} de antes serão apagadas.` : ''}${hideOld ? ` ${plural(oldCount, 'lançamento', 'lançamentos')} de antes sairão dos totais.` : ''} Isso não dá para desfazer pelo app.`,
               () => save.mutate(undefined),
             )
           }
