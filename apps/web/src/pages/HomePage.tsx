@@ -470,7 +470,11 @@ export function HomePage({ me }: { me: Me }) {
             </div>
             <div className="rec-rows">
               {d.recurrence.map((item: { key: string; name: string; color: string; total_cents: number }) => (
-                <Link key={item.key} className="rec-row" to={item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : "/lancamentos"}>
+                <Link
+                  key={item.key}
+                  className="rec-row"
+                  to={item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : item.key === "contract" ? "/contratos" : "/lancamentos"}
+                >
                   <i className="sw" style={{ background: item.color }} />
                   <span>{item.name}</span>
                   <b className="num">

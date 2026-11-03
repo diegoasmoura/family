@@ -90,6 +90,10 @@ Na fixa e no parcelamento em conta, mudar o valor ou o dia pergunta se vale só 
 
 Quando a prestação é dividida, cada prestação vira uma linha por pessoa, cada uma com a parte dela e com a conta de onde essa parte sai. No Eu entra só a linha de quem está logado. No Nós as duas somam a prestação. O plano guarda uma conta só, a da primeira pessoa, porque o cadastro exige uma; o saldo usa a conta da linha. Mudar a divisão ou a conta reescreve as prestações em aberto; as já pagas ficam como estão. No contrato não existe “Da casa”: é de uma pessoa ou dividido. Compra no cartão não se divide assim.
 
+Uma pessoa pode quitar sozinha todas as partes ainda abertas de uma prestação dividida, inclusive antes do vencimento. Isso não muda a responsabilidade: a parte continua sendo de quem era e o histórico separa **de quem é** de **quem pagou**. O total sai da conta escolhida por quem paga. A competência e o vencimento não mudam; a data informada é a data efetiva do pagamento. O valor realmente cobrado é informado manualmente e repartido pela divisão da prestação; desconto ou acréscimo muda só essa prestação, entra em Poupado/A mais e não recalcula Price, SAC nem as seguintes. Desfazer restaura a quitação inteira, nunca apenas uma das linhas.
+
+O total gravado na criação do parcelamento não muda quando o valor de uma parcela em aberto muda. Poupado é esse total menos a soma das parcelas que ainda existem, e só conta quando nenhuma foi cancelada. Se a soma ficou maior, é “a mais”. Juros de atraso entram na quitação, pelo valor realmente cobrado: a diferença reduz o poupado e, se a soma passar do total da criação, o rótulo vira “a mais”. Cada quitação seguinte recalcula esse número. A lista não reescreve o valor de parcela já paga.
+
 ## Transferência e dinheiro que sai da casa
 
 Transferência move saldo entre duas contas do aplicativo. Não é receita nem despesa, e o total da casa não muda. Não serve para registrar um PIX para quem não usa o app.

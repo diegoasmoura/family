@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { monthLabel, monthOf } from '@fin/domain';
+import { monthLabel, monthOf, splitByShares } from '@fin/domain';
 import { api, useAction, useApi, type Account } from '../api';
 import { AccountForm } from '../AccountForm';
 import { useAppState } from '../state';
@@ -8,7 +8,6 @@ import {
   ContractIcon,
   ContractTypePicker,
   SplitPicker,
-  accountPhrase,
   parseRate,
   rateText,
   splitBody,
@@ -18,7 +17,8 @@ import {
   type ContractType,
   type Split,
 } from '../contracts';
-import { Bar, ErrorText, Loading, MoneyInput, NewButton, Sheet, brl, shortDate } from '../ui';
+import { PlanSchedule } from '../PlanSchedule';
+import { Bar, Confirm, ErrorText, Icon, Loading, MoneyInput, NewButton, Sheet, brl, shortDate } from '../ui';
 
 /**
  * Contratos: financiamentos e empréstimos. Cada contrato é um parcelamento em conta marcado
@@ -42,6 +42,7 @@ interface Contract {
   months_left: number;
   paid_cents: number;
   remaining_cents: number;
+  saved_cents: number | null;
   month_cents: number;
   next: { installment_no: number; due_on: string; amount_cents: number; overdue: boolean } | null;
   ends_on: string | null;
@@ -55,11 +56,6 @@ interface ContractsView {
 
 /** "2031-10-03" → "out". */
 const shortMonth = (iso: string) => monthLabel(monthOf(iso)).slice(0, 3).toLowerCase();
-const yearsAndMonths = (n: number) => {
-  const y = Math.floor(n / 12);
-  const m = n % 12;
-  return [y ? `${y} ${y === 1 ? 'ano' : 'anos'}` : '', m ? `${m} ${m === 1 ? 'mês' : 'meses'}` : ''].filter(Boolean).join(' e ');
-};
 
 function ContractForm({ contract, onClose }: { contract: Contract; onClose: () => void }) {
   const { toast } = useAppState();
@@ -163,81 +159,200 @@ function ContractForm({ contract, onClose }: { contract: Contract; onClose: () =
   );
 }
 
-function ContractCard({ c, onOpen }: { c: Contract; onOpen: () => void }) {
+type ContractMenuAction = 'edit' | 'open' | 'cancel' | 'unmark' | 'delete';
+
+function prestacoes(count: number) {
+  return `${count} ${count === 1 ? 'prestação' : 'prestações'}`;
+}
+
+function ContractMenu({ contract, onPick }: { contract: Contract; onPick: (action: ContractMenuAction) => void }) {
+  const [open, setOpen] = useState(false);
+  const actions: [ContractMenuAction, string, boolean?][] = [
+    ['edit', 'Editar dados'],
+    ['open', 'Ver parcelas'],
+    ...(contract.remaining_cents > 0 ? [['cancel', 'Cancelar o que falta'] as [ContractMenuAction, string, boolean?]] : []),
+    ['unmark', 'Deixar de ser contrato'],
+    ['delete', 'Excluir financiamento', true],
+  ];
+  return (
+    <>
+      <button
+        type="button"
+        className="contract-more"
+        aria-label={`Mais ações de ${contract.description}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <Icon.kebab />
+      </button>
+      {open && (
+        <Sheet title={contract.description} onClose={() => setOpen(false)}>
+          <div className="list contract-menu">
+            {actions.map(([action, label, danger]) => (
+              <button
+                key={action}
+                type="button"
+                className={`r${danger ? ' danger' : ''}`}
+                onClick={() => {
+                  setOpen(false);
+                  onPick(action);
+                }}
+              >
+                <div className="m"><span className="t">{label}</span></div>
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+    </>
+  );
+}
+
+function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; onMenu: (action: ContractMenuAction) => void }) {
   const users = useHouseUsers();
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
-  const from = accountPhrase(c.shares, users, accounts.data?.accounts ?? [], c.account_name);
+  const accountList = accounts.data?.accounts ?? [];
   const ratio = c.active_count ? c.paid_count / c.active_count : 0;
   const extra = c.contracted_cents != null ? c.total_cents - c.contracted_cents : null;
+  const nextParts = c.next && c.shares
+    ? splitByShares(c.next.amount_cents, c.shares.map((share) => share.bp))
+    : null;
+  const accountName = (id?: number | null) => accountList.find((account) => account.id === id)?.name ?? null;
+  const people = c.shares && nextParts
+    ? c.shares.map((share, index) => ({
+        id: share.user_id,
+        name: (users.find((user) => user.id === share.user_id)?.name ?? 'Pessoa').split(/\s+/)[0],
+        pct: Math.round(share.bp / 100),
+        amount: nextParts[index],
+        account: accountName(share.account_id),
+      }))
+    : null;
+  const sharedAccount = people && people.length > 0 && people.every((person) => person.account && person.account === people[0].account) ? people[0].account : null;
+  const who = splitLabel(c.shares, c.for_user_id, users);
+  const ends = c.ends_on ? `termina ${shortMonth(c.ends_on)}/${c.ends_on.slice(0, 4)}` : '';
+  const source = sharedAccount ?? (!people ? c.account_name : null);
   return (
-    <button type="button" className="card click contract" onClick={onOpen}>
-      <div className="contract-top">
-        <ContractIcon type={c.contract_type} />
-        <div className="contract-name">
-          <b>{c.description}</b>
-          <small>{[c.lender, splitLabel(c.shares, c.for_user_id, users)].filter(Boolean).join(' · ')}</small>
-          {from && <small>{from}</small>}
-        </div>
-      </div>
-      <div className="contract-left">
-        <small>Falta</small>
-        <b className="num">{brl(c.remaining_cents)}</b>
-      </div>
-      <Bar ratio={ratio} />
-      <small className="contract-progress">
-        {Math.round(ratio * 100)}% quitado · {c.paid_count} de {c.active_count} pagas
-      </small>
-      <dl className="contract-facts">
-        {c.next && (
-          <div className={c.next.overdue ? 'neg' : undefined}>
-            <dt>{c.next.overdue ? 'Atrasada' : 'Próxima'}</dt>
-            <dd>
-              {shortDate(c.next.due_on)} · <span className="money">{brl(c.next.amount_cents)}</span>
-            </dd>
+    <article className="card contract">
+      <ContractMenu contract={c} onPick={onMenu} />
+      <button type="button" className="contract-open" onClick={onOpen}>
+        <div className="contract-top">
+          <ContractIcon type={c.contract_type} />
+          <div className="contract-name">
+            <b>{c.description}</b>
+            <small>
+              {[c.lender || who, source ? `sai de ${source}` : ''].filter(Boolean).join(' · ')}
+            </small>
           </div>
-        )}
-        {c.ends_on && (
-          <div>
-            <dt>Termina</dt>
-            <dd>
-              {shortMonth(c.ends_on)} {c.ends_on.slice(0, 4)}
-              {c.months_left > 0 ? ` · faltam ${yearsAndMonths(c.months_left)}` : ''}
-            </dd>
+        </div>
+        <div className="contract-due">
+          <small>Falta pagar</small>
+          <b className="num">{brl(c.remaining_cents)}</b>
+        </div>
+        <Bar ratio={ratio} />
+        <small className="contract-progress">
+          {Math.round(ratio * 100)}% · {c.paid_count} de {c.active_count} pagas{ends ? ` · ${ends}` : ''}
+        </small>
+        <div className="contract-outcome">
+          <span>
+            <small>Pago até agora</small>
+            <b className="num">{brl(c.paid_cents)}</b>
+          </span>
+          {c.saved_cents != null && c.saved_cents !== 0 && (
+            <span className={c.saved_cents > 0 ? 'pos' : 'neg'}>
+              <small>{c.saved_cents > 0 ? 'Poupado' : 'A mais'}</small>
+              <b className="num">{brl(Math.abs(c.saved_cents))}</b>
+            </span>
+          )}
+        </div>
+        {c.next && (
+          <div className={`contract-nextcompact${c.next.overdue ? ' late' : ''}`}>
+            <div className="contract-nexthead">
+              <span>{c.next.overdue ? 'Atrasada' : 'Próxima'} · {shortDate(c.next.due_on)}</span>
+              <b className="num">{brl(c.next.amount_cents)}</b>
+            </div>
+            {people ? (
+              <ul className="contract-shares">
+                {people.map((person) => (
+                  <li key={person.id}>
+                    <span className="who">{person.name} <small>{person.pct}%</small></span>
+                    <b className="num">{brl(person.amount)}</b>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <small className="contract-next-owner">{who}</small>
+            )}
           </div>
         )}
         {extra != null && extra > 0 && (
-          <div>
-            <dt>Juros</dt>
-            <dd>
-              <span className="money">{brl(extra)}</span> a mais ({Math.round((extra / (c.contracted_cents || 1)) * 100)}%)
-              {c.monthly_rate_bp != null ? ` · ${rateText(c.monthly_rate_bp)}% ao mês` : ''}
-            </dd>
-          </div>
+          <small className="contract-progress">
+            Juros <b className="num">{brl(extra)}</b> a mais ({Math.round((extra / (c.contracted_cents || 1)) * 100)}%)
+            {c.monthly_rate_bp != null ? ` · ${rateText(c.monthly_rate_bp)}% ao mês` : ''}
+          </small>
         )}
         {extra == null && c.monthly_rate_bp != null && (
-          <div>
-            <dt>Juros</dt>
-            <dd>{rateText(c.monthly_rate_bp)}% ao mês</dd>
-          </div>
+          <small className="contract-progress">Juros {rateText(c.monthly_rate_bp)}% ao mês</small>
         )}
-        <div>
-          <dt>Já pago</dt>
-          <dd>
-            <span className="money">{brl(c.paid_cents)}</span> de <span className="money">{brl(c.total_cents)}</span>
-          </dd>
-        </div>
-      </dl>
-    </button>
+      </button>
+    </article>
   );
+}
+
+function confirmText(contract: Contract, action: 'cancel' | 'delete') {
+  const kept = contract.paid_count === 1
+    ? ' A prestação já paga continua no Extrato e no saldo.'
+    : contract.paid_count > 1
+      ? ` As ${prestacoes(contract.paid_count)} já pagas continuam no Extrato e no saldo.`
+      : '';
+  const removedPaid = contract.paid_count === 1
+    ? ` A prestação já paga (${brl(contract.paid_cents)}) deixa de contar no saldo.`
+    : contract.paid_count > 1
+      ? ` As ${prestacoes(contract.paid_count)} já pagas (${brl(contract.paid_cents)}) deixam de contar no saldo.`
+      : '';
+  if (action === 'cancel') {
+    const open = contract.active_count - contract.paid_count;
+    return `Cancelar ${open === 1 ? 'a prestação ainda não paga' : `as ${prestacoes(open)} ainda não pagas`} de “${contract.description}”?${kept}`;
+  }
+  return `Excluir “${contract.description}”? ${contract.active_count === 1 ? 'A prestação sai' : `As ${prestacoes(contract.active_count)} saem`} do Extrato, do Início, do Ano e de Parcelamentos.${removedPaid} Use só se o contrato foi lançado por engano.`;
 }
 
 export function ContratosPage() {
   const navigate = useNavigate();
+  const { toast } = useAppState();
   const q = useApi<ContractsView>('/installments/contracts');
-  const [open, setOpen] = useState<Contract | null>(null);
+  const [schedule, setSchedule] = useState<Contract | null>(null);
+  const [form, setForm] = useState<Contract | null>(null);
+  const [pending, setPending] = useState<{ contract: Contract; action: 'cancel' | 'delete' } | null>(null);
+  const act = useAction(
+    ({ contract, action }: { contract: Contract; action: 'cancel' | 'unmark' | 'delete' }) =>
+      action === 'cancel'
+        ? api(`/installments/${contract.id}/cancel`, { body: {} })
+        : action === 'unmark'
+          ? api(`/installments/${contract.id}`, { method: 'PATCH', body: { is_contract: false } })
+          : api(`/installments/${contract.id}`, { method: 'DELETE' }),
+    (_res, vars) => {
+      toast(
+        vars.action === 'cancel'
+          ? 'Parcelas restantes canceladas'
+          : vars.action === 'unmark'
+            ? 'Voltou a ser um parcelamento comum'
+            : 'Financiamento excluído',
+      );
+      setPending(null);
+      if (schedule?.id === vars.contract.id) setSchedule(null);
+      if (form?.id === vars.contract.id) setForm(null);
+    },
+  );
   const d = q.data;
   // O + abre o Lançar já no modo contrato (Novo ou Já lançado).
   const add = () => navigate('/lancar', { state: { from: '/contratos', contract: true } });
+  const onMenu = (contract: Contract, action: ContractMenuAction) => {
+    if (action === 'edit') setForm(contract);
+    else if (action === 'open') setSchedule(contract);
+    else if (action === 'unmark') act.mutate({ contract, action });
+    else setPending({ contract, action });
+  };
   return (
     <main className="page">
       <div className="hd">
@@ -245,7 +360,7 @@ export function ContratosPage() {
         <NewButton label="Novo contrato" onClick={add} />
       </div>
       <p className="page-desc">Financiamentos e empréstimos. As prestações já contam nas despesas de cada mês.</p>
-      <ErrorText error={q.error} />
+      <ErrorText error={q.error ?? act.error} />
       {!d ? (
         <Loading />
       ) : d.contracts.length === 0 ? (
@@ -270,12 +385,27 @@ export function ContratosPage() {
           </section>
           <div className="stack">
             {d.contracts.map((c) => (
-              <ContractCard key={c.id} c={c} onOpen={() => setOpen(c)} />
+              <ContractCard key={c.id} c={c} onOpen={() => setSchedule(c)} onMenu={(action) => onMenu(c, action)} />
             ))}
           </div>
         </>
       )}
-      {open && <ContractForm contract={open} onClose={() => setOpen(null)} />}
+      {schedule && (
+        <PlanSchedule
+          planId={schedule.id}
+          onClose={() => setSchedule(null)}
+          onEditPlan={() => setForm(schedule)}
+        />
+      )}
+      {form && <ContractForm contract={form} onClose={() => setForm(null)} />}
+      {pending && (
+        <Confirm
+          danger
+          text={confirmText(pending.contract, pending.action)}
+          onConfirm={() => act.mutate(pending)}
+          onClose={() => setPending(null)}
+        />
+      )}
     </main>
   );
 }

@@ -139,6 +139,11 @@ describe('parcelamento', () => {
     expect(splitByShares(1001, [5000, 5000]).reduce((a, b) => a + b, 0)).toBe(1001);
     expect(() => splitByShares(1000, [5000, 4000])).toThrow();
   });
+  it('reparte o valor efetivo de uma quitação sem perder centavos nem a proporção', () => {
+    expect(splitByShares(9001, [5000, 5000])).toEqual([4501, 4500]);
+    expect(splitByShares(8333, [6000, 4000])).toEqual([5000, 3333]);
+    expect(splitByShares(8333, [6000, 4000]).reduce((a, b) => a + b, 0)).toBe(8333);
+  });
 });
 
 describe('fatura', () => {

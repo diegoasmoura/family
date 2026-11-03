@@ -14,6 +14,7 @@ O que mudou depois desta especificação:
 - A Início mostra, nesta ordem: resumo (saldo, previsto, receitas e despesas), próximos vencimentos, despesas por categoria, fluxo de caixa em barras horizontais, evolução das despesas no mês, despesas por recorrência, faturas e o ano mês a mês. O olho e "Configurar resumo" ficam salvos só no celular.
 - Nos próximos vencimentos, a fatura do cartão aparece somada no dia do vencimento e não sai da lista por causa de outras contas. Tocar na rosca ou na barra do ano abre o detalhe. Outros, quando é uma das maiores categorias, pode ser reclassificado gasto a gasto.
 - Na visão anual, a conta a pagar entra no mês do vencimento. A compra no cartão entra no mês da fatura. A célula fica verde e em negrito quando o valor já foi pago ou recebido por inteiro.
+- A aba Contratos mostra financiamentos e empréstimos da casa inteira. O card traz quanto falta, o valor realmente pago, o poupado ou o valor a mais, e a próxima prestação com a parte de cada pessoa. Juros de atraso informados na quitação recalculam o poupado. No Início, essa despesa fica na faixa Contratos, separada das parceladas. O comportamento vigente está em `premissas.md` e `sistema.md`.
 
 ---
 

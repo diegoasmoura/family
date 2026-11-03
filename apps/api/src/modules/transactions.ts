@@ -40,6 +40,7 @@ import { normalizeSplit, splitFields } from './split';
 
 export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
        pc.name AS parent_category_name, pc.color AS parent_category_color, p.installments AS plan_installments, fu.name AS for_user_name,
+       pu.name AS paid_by_user_name, spa.name AS settlement_previous_account_name,
        inv.due_date AS invoice_due_on,
        CASE WHEN t.invoice_id IS NULL THEN 0
             WHEN COALESCE((SELECT SUM(pmt.amount_cents) FROM invoice_payments pmt WHERE pmt.invoice_id = t.invoice_id AND pmt.deleted_at IS NULL), 0)
@@ -65,7 +66,9 @@ export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_na
   LEFT JOIN categories c ON c.id = t.category_id
   LEFT JOIN categories pc ON pc.id = c.parent_id
   LEFT JOIN installment_plans p ON p.id = t.plan_id
-  LEFT JOIN users fu ON fu.id = t.for_user_id`;
+  LEFT JOIN users fu ON fu.id = t.for_user_id
+  LEFT JOIN users pu ON pu.id = t.paid_by_user_id
+  LEFT JOIN accounts spa ON spa.id = t.settlement_previous_account_id`;
 
 /** `all` não filtra. `me` e um id filtram pela pessoa: entra o que é dela e o que é Nosso (com a parte dela). */
 export async function personFilter(ctx: Ctx, raw: unknown): Promise<number | null> {
@@ -451,6 +454,7 @@ export function transactionsRouter(): Router {
     const id = idParam(req.params.id);
     const tx = await loadTx(req.ctx, id);
     if (tx.card_id && !tx.recurrence_id) throw badRequest('Compra no cartão é quitada pelo pagamento da fatura');
+    if (tx.settlement_uuid) throw badRequest('Desfaça a quitação da prestação inteira pela agenda do contrato');
     await update(req.ctx.db, 'transactions', id, { status: 'planned', paid_on: null, updated_at: nowIso() });
     res.json(await loadTx(req.ctx, id));
   });

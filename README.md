@@ -1,6 +1,6 @@
 # Finanças do casal
 
-App de controle financeiro do casal: saldo atual e previsto, despesas e receitas, fixas e parceladas, cartões e faturas, orçamento, visão anual, metas e gamificação.
+App de controle financeiro do casal: saldo atual e previsto, despesas e receitas, fixas, parceladas e contratos, cartões e faturas, orçamento, visão anual, metas e gamificação.
 
 Estrutura:
 
@@ -46,9 +46,9 @@ docker compose up -d --build
 
 O app fica em `http://IP-DO-NAS:3003`, só na rede de casa. A primeira pessoa usa "Criar casa" (fuso `America/Sao_Paulo`) e, em Mais → Casa e usuários, adiciona a outra como membro da mesma casa. Os dois entram com o próprio e-mail.
 
-Início, Lançamentos, Calendário e a visão anual abrem em **Eu**: só o que foi marcado como da pessoa logada. A faixa tem só Eu e Nós, no mesmo tamanho nas quatro telas. **Nós** soma os dois e mostra os dois avatares; Eu mostra só o de quem está logado. O que fica "da casa" (fatura, aluguel) aparece em Nós. Cartões, contas, orçamento e metas continuam da casa inteira.
+Início, Lançamentos, Calendário e a visão anual abrem em **Eu**: só o que foi marcado como da pessoa logada. A faixa tem só Eu e Nós, no mesmo tamanho nas quatro telas. **Nós** soma os dois e mostra os dois avatares; Eu mostra só o de quem está logado. O que fica "da casa" (fatura, aluguel) aparece em Nós. Cartões, Contratos, contas, orçamento e metas continuam da casa inteira.
 
-No Início, a ordem é o resumo do mês (sobra ou falta, o que entrou e saiu, e o saldo do mês), os cartões em carrossel com a fatura do mês escolhido, despesas por categoria (em Nós, com a divisão de quem gastou), evolução das despesas, despesas por recorrência (fixas, parceladas e variáveis), e o ano mês a mês. O olho esconde os valores neste celular. No fim da tela, “Ordem dos cards” fica recolhido; ao abrir, reordena ou oculta esses cards, também só neste celular. Tocar numa fatia da rosca abre a categoria; tocar numa coluna do ano troca o mês. Se Outros estiver entre as maiores despesas, Classificar troca a categoria de cada gasto daquele mês. O total da rosca de categorias é o mesmo das despesas do resumo.
+No Início, a ordem é o resumo do mês (sobra ou falta, o que entrou e saiu, e o saldo do mês), os cartões em carrossel com a fatura do mês escolhido, despesas por categoria (em Nós, com a divisão de quem gastou), evolução das despesas, despesas por recorrência (fixas, parceladas, contratos e variáveis) e o ano mês a mês. Contratos não entram na faixa de parceladas. O olho esconde os valores neste celular. No fim da tela, “Ordem dos cards” fica recolhido; ao abrir, reordena ou oculta esses cards, também só neste celular. Tocar numa fatia da rosca abre a categoria; tocar numa coluna do ano troca o mês. Se Outros estiver entre as maiores despesas, Classificar troca a categoria de cada gasto daquele mês. O total da rosca de categorias é o mesmo das despesas do resumo.
 
 Na visão anual, Realizado inclui o que já foi lançado e também a conta que ainda está a pagar, no mês do vencimento. A compra no cartão entra no mês da fatura. O número fica verde e em negrito quando o valor da célula já foi pago ou recebido por inteiro; se só uma parte foi paga, a célula fica na cor normal. Previsto acrescenta o que ainda é só previsão no cartão.
 
@@ -85,5 +85,6 @@ Use Cloudflare Tunnel (ou Tailscale) em vez de abrir porta no roteador. Com o tu
 - Pagamento acima da fatura vira crédito na próxima.
 - Status (pago, atrasado, próximo, previsto) é sempre calculado a partir das datas.
 - Fixas são geradas até dois meses à frente; mudar o valor afeta só as ocorrências futuras não editadas.
+- Contrato é um parcelamento em conta. A prestação dividida vira uma linha por pessoa. Quitar informa o valor realmente cobrado; desconto aumenta o poupado e juros de atraso diminuem esse poupado, ou viram “a mais” se a soma passar do total lançado. As prestações seguintes não são recalculadas.
 - Excluir é reversível; contas e cartões com histórico são arquivados.
 - Lançamentos usam `client_uuid`, então reenviar o mesmo formulário não duplica.

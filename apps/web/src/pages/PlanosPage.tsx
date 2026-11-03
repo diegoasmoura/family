@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
+import { PlanSchedule } from '../PlanSchedule';
 import { useAppState } from '../state';
-import { HistoryChart, historyFromInstallments } from '../HistoryChart';
+import { HistoryChart } from '../HistoryChart';
 import { BackButton, Bar, Confirm, ErrorText, Icon, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import type { InstallmentPlan, Recurrence } from '../types';
@@ -148,10 +149,9 @@ export function RecorrenciasPage() {
 }
 
 export function ParcelamentosPage() {
-  const { today, toast } = useAppState();
+  const { toast } = useAppState();
   const q = useApi<InstallmentPlan[]>('/installments');
   const [openId, setOpenId] = useState<number | null>(null);
-  const detail = useApi<{ items: Parameters<typeof historyFromInstallments>[0] }>(openId ? `/installments/${openId}` : null);
   const openPlan = q.data?.find((plan) => plan.id === openId) ?? null;
   const [confirm, setConfirm] = useState<{ plan: InstallmentPlan; action: 'cancel' | 'delete' } | null>(null);
   const act = useAction(
@@ -160,6 +160,7 @@ export function ParcelamentosPage() {
     (_r, v) => {
       toast(v.action === 'cancel' ? 'Parcelas restantes canceladas' : 'Parcelamento excluído');
       setConfirm(null);
+      if (v.action === 'delete') setOpenId(null);
     },
   );
   return (
@@ -209,19 +210,22 @@ export function ParcelamentosPage() {
         </div>
       )}
       {openPlan && (
-        <Sheet title={openPlan.description} onClose={() => setOpenId(null)}>
-          {!detail.data ? <Loading /> : <HistoryChart points={historyFromInstallments(detail.data.items, today)} />}
-          <div className="row">
-            {openPlan.remaining_cents > 0 && (
-              <button className="btn ghost sm" onClick={() => setConfirm({ plan: openPlan, action: 'cancel' })}>
-                Cancelar restante
+        <PlanSchedule
+          planId={openPlan.id}
+          onClose={() => setOpenId(null)}
+          footer={
+            <div className="row">
+              {openPlan.remaining_cents > 0 && (
+                <button className="btn ghost sm" onClick={() => setConfirm({ plan: openPlan, action: 'cancel' })}>
+                  Cancelar restante
+                </button>
+              )}
+              <button className="btn danger sm" onClick={() => setConfirm({ plan: openPlan, action: 'delete' })}>
+                Excluir
               </button>
-            )}
-            <button className="btn danger sm" onClick={() => setConfirm({ plan: openPlan, action: 'delete' })}>
-              Excluir
-            </button>
-          </div>
-        </Sheet>
+            </div>
+          }
+        />
       )}
       {confirm && (
         <Confirm

@@ -365,16 +365,19 @@ export function dashboardRouter(): Router {
 
     const rhythm = await ctx.db.get(
       `SELECT
-         SUM(CASE WHEN t.plan_id IS NOT NULL THEN ${amt.sql} ELSE 0 END) AS installment_cents,
+         SUM(CASE WHEN t.plan_id IS NOT NULL AND COALESCE(p.is_contract, 0) = 0 THEN ${amt.sql} ELSE 0 END) AS installment_cents,
+         SUM(CASE WHEN t.plan_id IS NOT NULL AND p.is_contract = 1 THEN ${amt.sql} ELSE 0 END) AS contract_cents,
          SUM(CASE WHEN t.plan_id IS NULL AND t.recurrence_id IS NOT NULL THEN ${amt.sql} ELSE 0 END) AS fixed_cents,
          SUM(CASE WHEN t.plan_id IS NULL AND t.recurrence_id IS NULL THEN ${amt.sql} ELSE 0 END) AS variable_cents
        FROM transactions t
+       LEFT JOIN installment_plans p ON p.id = t.plan_id AND p.household_id = t.household_id
        WHERE ${spendWhere}`,
-      [...amt.params, ...amt.params, ...amt.params, ...catParams],
+      [...amt.params, ...amt.params, ...amt.params, ...amt.params, ...catParams],
     );
     const recurrence = [
       { key: 'fixed', name: 'Fixas', color: '#6aa4e0', total_cents: num(rhythm?.fixed_cents) },
       { key: 'installment', name: 'Parceladas', color: '#e6c15a', total_cents: num(rhythm?.installment_cents) },
+      { key: 'contract', name: 'Contratos', color: '#9b8bd8', total_cents: num(rhythm?.contract_cents) },
       { key: 'variable', name: 'Variáveis', color: '#e08b84', total_cents: num(rhythm?.variable_cents) },
     ];
 

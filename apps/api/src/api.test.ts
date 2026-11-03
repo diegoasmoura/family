@@ -580,16 +580,34 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(plan).toMatchObject({ is_contract: 1, lender: 'Banco X', contracted_cents: 50000, monthly_rate_bp: 149 });
       expect((await agent.post('/api/installments').send({ description: 'TV', total_cents: 30000, installments: 3, card_id: ids.ultra, is_contract: true })).status).toBe(400);
 
+      const detail = await ok(await agent.get(`/api/installments/${plan.id}`));
+      expect(detail).toMatchObject({
+        lender: 'Banco X',
+        contracted_cents: 50000,
+        monthly_rate_bp: 149,
+        account_name: 'Bradesco',
+      });
+      expect(detail.items[0]).toMatchObject({
+        account_name: 'Bradesco',
+        plan_installments: 6,
+        display_status: 'paid',
+        status_label: 'Pago',
+        paid_on: '2026-10-05',
+      });
+
       const view = await ok(await agent.get('/api/installments/contracts'));
       expect(view.contracts).toHaveLength(1);
       expect(view.contracts[0]).toMatchObject({
         description: 'Carro', lender: 'Banco X', installments: 6, paid_count: 1, paid_cents: 10000, remaining_cents: 50000, month_cents: 10000,
-        next: { installment_no: 2, due_on: '2026-11-05', amount_cents: 10000, overdue: false }, ends_on: '2027-03-05',
+        saved_cents: 0, next: { installment_no: 2, due_on: '2026-11-05', amount_cents: 10000, overdue: false }, ends_on: '2027-03-05',
       });
       expect(view).toMatchObject({ remaining_cents: 50000, month_cents: 10000 });
       // A prestação continua sendo uma despesa normal do mês: aparece uma vez no Extrato.
       const month = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=all'));
       expect(month.items.filter((t: any) => t.description === 'Carro')).toHaveLength(1);
+      const dashboard = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
+      expect(dashboard.recurrence.find((item: any) => item.key === 'contract')).toMatchObject({ name: 'Contratos', total_cents: 10000 });
+      expect(dashboard.recurrence.find((item: any) => item.key === 'installment').total_cents).toBe(0);
 
       const other = (await ok(await agent.post('/api/installments').send({ description: 'Fies', total_cents: 9000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-20' }), 201)).plan;
       await ok(await agent.patch(`/api/installments/${other.id}`).send({ is_contract: true, lender: 'Fies' }));
@@ -697,6 +715,106 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(after.find((t: any) => t.installment_no === 2 && t.for_user_id === hers.id).account_id).toBe(ids.bradesco);
     });
 
+    it('uma pessoa quita a prestação dividida inteira com desconto, sem assumir a parte da outra, e pode desfazer', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'quita@x.com', password: 'senha-segura' }), 201);
+      const hers = (await ok(await agent.get('/api/users'))).find((u: any) => u.email === 'quita@x.com');
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Carro dividido',
+          total_cents: 20003,
+          installments: 2,
+          account_id: ids.bradesco,
+          purchased_on: '2026-10-20',
+          is_contract: true,
+          shares: [
+            { user_id: me.id, bp: 5000, account_id: ids.bradesco },
+            { user_id: hers.id, bp: 5000, account_id: ids.nubank },
+          ],
+        }),
+        201,
+      );
+      const paid = await ok(
+        await agent.post(`/api/installments/${plan.id}/settle-installment`).send({
+          installment_no: 2,
+          amount_cents: 9001,
+          paid_on: '2026-10-08',
+          payer_user_id: me.id,
+          account_id: ids.bradesco,
+        }),
+      );
+      expect(paid).toMatchObject({ installment_no: 2, expected_cents: 10001, paid_cents: 9001, lines: 2 });
+
+      let detail = await ok(await agent.get(`/api/installments/${plan.id}`));
+      let lines = detail.items.filter((t: any) => t.installment_no === 2);
+      expect(lines.map((t: any) => [t.for_user_id, t.split_bp, t.amount_cents])).toEqual([
+        [me.id, 5000, 4501],
+        [hers.id, 5000, 4500],
+      ]);
+      expect(lines.every((t: any) => t.account_id === ids.bradesco && t.paid_by_user_id === me.id && t.paid_by_user_name === 'Diego')).toBe(true);
+      expect(lines.map((t: any) => [t.settlement_expected_cents, t.settlement_previous_account_id, t.settlement_previous_account_name])).toEqual([
+        [5001, ids.bradesco, 'Bradesco'],
+        [5000, ids.nubank, 'Nubank'],
+      ]);
+      expect((await balanceOf(ids.bradesco)).current_balance_cents).toBe(450000 - 9001);
+      expect((await balanceOf(ids.nubank)).current_balance_cents).toBe(0);
+
+      // O valor pago não é reescrito e uma quitação conjunta não é desfeita pela metade.
+      await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 2, amount_cents: 8000 }));
+      detail = await ok(await agent.get(`/api/installments/${plan.id}`));
+      lines = detail.items.filter((t: any) => t.installment_no === 2);
+      expect(lines.map((t: any) => t.amount_cents)).toEqual([4501, 4500]);
+      expect((await agent.post(`/api/transactions/${lines[0].id}/unpay`).send({})).status).toBe(400);
+
+      const other = await register('outra-quita@x.com', 'Outra casa');
+      expect((await other.post(`/api/installments/${plan.id}/settle-installment`).send({
+        installment_no: 1, amount_cents: 10002, payer_user_id: me.id, account_id: ids.bradesco,
+      })).status).toBe(404);
+
+      const undone = await ok(await agent.post(`/api/installments/${plan.id}/unsettle-installment`).send({ settlement_uuid: paid.settlement_uuid }));
+      expect(undone.restored).toBe(2);
+      detail = await ok(await agent.get(`/api/installments/${plan.id}`));
+      lines = detail.items.filter((t: any) => t.installment_no === 2);
+      expect(lines.map((t: any) => [t.for_user_id, t.amount_cents, t.account_id, t.paid_on, t.paid_by_user_id])).toEqual([
+        [me.id, 5001, ids.bradesco, null, null],
+        [hers.id, 5000, ids.nubank, null, null],
+      ]);
+      expect((await balanceOf(ids.bradesco)).current_balance_cents).toBe(450000);
+      expect((await balanceOf(ids.nubank)).current_balance_cents).toBe(0);
+    });
+
+    it('quitar o restante preserva a parte já paga e registra quem pagou a parte aberta', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'restante@x.com', password: 'senha-segura' }), 201);
+      const hers = (await ok(await agent.get('/api/users'))).find((u: any) => u.email === 'restante@x.com');
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Apto restante', total_cents: 20000, installments: 2, account_id: ids.bradesco, purchased_on: '2026-10-20', is_contract: true,
+          shares: [
+            { user_id: me.id, bp: 5000, account_id: ids.bradesco },
+            { user_id: hers.id, bp: 5000, account_id: ids.nubank },
+          ],
+        }),
+        201,
+      );
+      const before = (await ok(await agent.get(`/api/installments/${plan.id}`))).items;
+      const mine = before.find((t: any) => t.installment_no === 1 && t.for_user_id === me.id);
+      await ok(await agent.post(`/api/transactions/${mine.id}/pay`).send({ paid_on: '2026-10-08' }));
+      let card = (await ok(await agent.get('/api/installments/contracts'))).contracts.find((item: any) => item.id === plan.id);
+      expect(card).toMatchObject({ paid_count: 0, paid_cents: 5000, remaining_cents: 15000, next: { installment_no: 1, amount_cents: 10000 } });
+      const settled = await ok(await agent.post(`/api/installments/${plan.id}/settle-installment`).send({
+        installment_no: 1, amount_cents: 4000, payer_user_id: me.id, account_id: ids.bradesco,
+      }));
+      expect(settled).toMatchObject({ expected_cents: 5000, paid_cents: 4000, lines: 1 });
+      const after = (await ok(await agent.get(`/api/installments/${plan.id}`))).items.filter((t: any) => t.installment_no === 1);
+      expect(after.find((t: any) => t.for_user_id === me.id)).toMatchObject({ amount_cents: 5000, paid_by_user_id: null });
+      expect(after.find((t: any) => t.for_user_id === hers.id)).toMatchObject({
+        amount_cents: 4000, account_id: ids.bradesco, paid_by_user_id: me.id, settlement_expected_cents: 5000,
+      });
+      card = (await ok(await agent.get('/api/installments/contracts'))).contracts.find((item: any) => item.id === plan.id);
+      expect(card).toMatchObject({ paid_count: 1, paid_cents: 9000, remaining_cents: 10000, saved_cents: 1000 });
+    });
+
     it('cancela só o restante ainda não pago', async () => {
       const { plan } = await ok(
         await agent.post('/api/installments').send({ description: 'Sofá', total_cents: 30000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-01', first_paid: true }),
@@ -749,7 +867,7 @@ describe.each(targets)('API (%s)', (dialect, url) => {
 
       const rows = await db.all('SELECT installment_no, amount_cents, due_on FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
       expect(rows.map((r) => [r.installment_no, Number(r.amount_cents), r.due_on])).toEqual([
-        [1, 7000, '2026-10-15'],
+        [1, 10000, '2026-10-15'],
         [2, 8000, '2026-11-15'],
         [3, 7000, '2026-12-15'],
       ]);
@@ -757,7 +875,7 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, day_of_month: 20, include_settled: true }));
       const moved = await db.all('SELECT installment_no, amount_cents, due_on, paid_on FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
       expect(moved.map((r) => [r.installment_no, Number(r.amount_cents), r.due_on, r.paid_on])).toEqual([
-        [1, 7000, '2026-10-20', '2026-10-20'],
+        [1, 10000, '2026-10-20', '2026-10-20'],
         [2, 8000, '2026-11-20', '2026-11-20'],
         [3, 7000, '2026-12-20', null],
       ]);
@@ -768,6 +886,15 @@ describe.each(targets)('API (%s)', (dialect, url) => {
         await agent.post('/api/installments').send({ description: 'Notebook', total_cents: 30000, installments: 3, card_id: ids.ultra, purchased_on: '2026-06-08' }),
         201,
       );
+      const detail = await ok(await agent.get(`/api/installments/${plan.id}`));
+      expect(detail.card_name).toBe('Ultra');
+      expect(detail.items[0]).toMatchObject({
+        card_name: 'Ultra',
+        invoice_due_on: '2026-08-06',
+        invoice_paid: 0,
+        display_status: 'overdue',
+        status_label: 'Atrasado',
+      });
       expect((await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, day_of_month: 10 })).status).toBe(400);
       await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 1, amount_cents: 9000 }));
       const rows = await db.all('SELECT installment_no, amount_cents, competence_month FROM transactions WHERE plan_id = ? ORDER BY installment_no', [plan.id]);
@@ -1172,7 +1299,7 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
       expect(dash.missions.find((m: any) => m.type === 'stay_under_budget')).toMatchObject({ target: 100000, progress: 72000 });
       expect(dash.categories[0]).toMatchObject({ name: 'Alimentação', total_cents: 72000 });
-      expect(dash.recurrence.map((r: { key: string; total_cents: number }) => r.key)).toEqual(['fixed', 'installment', 'variable']);
+      expect(dash.recurrence.map((r: { key: string; total_cents: number }) => r.key)).toEqual(['fixed', 'installment', 'contract', 'variable']);
       expect(dash.recurrence.reduce((sum: number, r: { total_cents: number }) => sum + r.total_cents, 0)).toBe(dash.expense.total_cents);
     });
 

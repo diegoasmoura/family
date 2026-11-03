@@ -6,7 +6,7 @@ import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, p
 import { invoiceForCardPurchase } from './cards';
 import { assertCategory } from './categories';
 import { normalizeSplit, splitFields } from './split';
-import { assertHouseholdUser, assertPaymentTarget } from './transactions';
+import { assertHouseholdUser, assertPaymentTarget, decorateTransactions, TX_SELECT } from './transactions';
 
 /** Tipos de contrato (a ilustração do card na aba Contratos). */
 const CONTRACT_TYPES = ['car', 'house', 'moto', 'study', 'loan', 'other'] as const;
@@ -80,7 +80,8 @@ async function attachShares(db: Db, plans: any[]) {
   if (!plans.length) return;
   const ids = plans.map((plan) => Number(plan.id));
   const rows = await db.all<ShareLine>(
-    `SELECT id, plan_id, installment_no, for_user_id, amount_cents, split_bp, paid_on, account_id
+    `SELECT id, plan_id, installment_no, for_user_id, amount_cents, split_bp, paid_on,
+            COALESCE(settlement_previous_account_id, account_id) AS account_id
        FROM transactions
       WHERE deleted_at IS NULL AND plan_id IN (${ids.map(() => '?').join(', ')})
       ORDER BY installment_no, id`,
@@ -337,7 +338,8 @@ export function installmentsRouter(): Router {
     const ids = plans.map((p) => Number(p.id));
     const items = ids.length
       ? await ctx.db.all<ShareLine & { due: string; competence_month: string }>(
-          `SELECT id, plan_id, installment_no, amount_cents, paid_on, for_user_id, split_bp, account_id,
+          `SELECT id, plan_id, installment_no, amount_cents, paid_on, for_user_id, split_bp,
+                  COALESCE(settlement_previous_account_id, account_id) AS account_id,
                   COALESCE(due_on, occurred_on) AS due, competence_month
              FROM transactions WHERE deleted_at IS NULL AND plan_id IN (${ids.map(() => '?').join(', ')})
             ORDER BY installment_no, id`,
@@ -356,6 +358,8 @@ export function installmentsRouter(): Router {
         .map(([no, lines]) => ({
           no,
           amount: lines.reduce((sum, line) => sum + num(line.amount_cents), 0),
+          paidAmount: lines.filter((line) => line.paid_on).reduce((sum, line) => sum + num(line.amount_cents), 0),
+          remainingAmount: lines.filter((line) => !line.paid_on).reduce((sum, line) => sum + num(line.amount_cents), 0),
           paid: lines.every((line) => line.paid_on),
           due: lines[0].due,
           month: lines[0].competence_month,
@@ -363,6 +367,7 @@ export function installmentsRouter(): Router {
       const open = inst.filter((item) => !item.paid);
       const next = open[0];
       const openNo = mine.find((line) => !line.paid_on)?.installment_no ?? mine.at(-1)?.installment_no;
+      const currentCents = inst.reduce((sum, item) => sum + item.amount, 0);
       return {
         id: Number(p.id),
         description: p.description,
@@ -380,8 +385,10 @@ export function installmentsRouter(): Router {
         active_count: inst.length,
         paid_count: inst.length - open.length,
         months_left: open.length,
-        paid_cents: inst.filter((item) => item.paid).reduce((sum, item) => sum + item.amount, 0),
-        remaining_cents: open.reduce((sum, item) => sum + item.amount, 0),
+        paid_cents: inst.reduce((sum, item) => sum + item.paidAmount, 0),
+        remaining_cents: inst.reduce((sum, item) => sum + item.remainingAmount, 0),
+        // Só compara com o plano inicial quando nenhuma prestação foi cancelada.
+        saved_cents: inst.length === num(p.installments) ? num(p.total_cents) - currentCents : null,
         month_cents: inst.filter((item) => item.month === m).reduce((sum, item) => sum + item.amount, 0),
         next: next ? { installment_no: next.no, due_on: next.due, amount_cents: next.amount, overdue: next.due < ctx.today } : null,
         ends_on: inst.length ? inst[inst.length - 1].due : null,
@@ -399,7 +406,11 @@ export function installmentsRouter(): Router {
     const id = idParam(req.params.id);
     const plan = await loadPlan(req.ctx, id);
     if (!plan || plan.deleted_at) throw badRequest('Parcelamento não encontrado');
-    const items = await req.ctx.db.all('SELECT * FROM transactions WHERE plan_id = ? ORDER BY installment_no, id', [id]);
+    const rows = await req.ctx.db.all(
+      `${TX_SELECT} WHERE t.plan_id = ? AND t.household_id = ? ORDER BY t.installment_no, t.id`,
+      [id, req.ctx.householdId],
+    );
+    const items = decorateTransactions(rows, req.ctx.today);
     res.json({ ...plan, items });
   });
 
@@ -468,6 +479,139 @@ export function installmentsRouter(): Router {
   });
 
   /**
+   * Quita de uma vez todas as partes ainda abertas de uma prestação em conta.
+   * "De quem é" não muda: só o dinheiro sai da conta escolhida e fica registrado
+   * quem efetivamente fez o pagamento.
+   */
+  r.post('/:id/settle-installment', async (req, res) => {
+    const id = idParam(req.params.id);
+    const plan = await owned<{ card_id: number | null; is_contract: number }>(req.ctx, 'installment_plans', id, 'Contrato');
+    if (!num(plan.is_contract)) throw badRequest('Esta operação é exclusiva de contratos');
+    if (plan.card_id) throw badRequest('Compra no cartão é quitada pelo pagamento da fatura');
+    const body = parse(
+      z.object({
+        installment_no: z.number().int().min(1).max(480),
+        amount_cents: zCents,
+        paid_on: zDate.optional(),
+        payer_user_id: zId,
+        account_id: zId,
+      }),
+      req.body,
+    );
+    await assertHouseholdUser(req.ctx, body.payer_user_id);
+    await assertPaymentTarget(req.ctx, 'expense', body.account_id, null);
+    const settled = await req.ctx.db.tx(async (db) => {
+      const rows = await db.all<{
+        id: number;
+        amount_cents: number;
+        account_id: number | null;
+        card_id: number | null;
+        paid_on: string | null;
+        split_bp: number | null;
+        overridden: number;
+      }>(
+        `SELECT id, amount_cents, account_id, card_id, paid_on, split_bp, overridden
+           FROM transactions
+          WHERE household_id = ? AND plan_id = ? AND installment_no = ? AND deleted_at IS NULL
+          ORDER BY id`,
+        [req.ctx.householdId, id, body.installment_no],
+      );
+      if (!rows.length) throw badRequest('Parcela não encontrada');
+      if (rows.some((row) => row.card_id != null)) throw badRequest('Compra no cartão é quitada pelo pagamento da fatura');
+      const open = rows.filter((row) => !row.paid_on);
+      if (!open.length) throw badRequest('Esta parcela já está paga');
+
+      let parts: number[];
+      if (open.length === 1) {
+        parts = [body.amount_cents];
+      } else {
+        const saved = open.every((row) => row.split_bp != null) && open.reduce((sum, row) => sum + num(row.split_bp), 0) === 10000;
+        const total = open.reduce((sum, row) => sum + num(row.amount_cents), 0);
+        const bps = saved
+          ? open.map((row) => num(row.split_bp))
+          : open.map((row) => Math.round((num(row.amount_cents) * 10000) / Math.max(1, total)));
+        if (!saved) bps[bps.length - 1] = 10000 - bps.slice(0, -1).reduce((sum, bp) => sum + bp, 0);
+        try {
+          parts = splitByShares(body.amount_cents, bps);
+        } catch (err) {
+          throw badRequest((err as Error).message);
+        }
+      }
+
+      const settlementUuid = newUuid();
+      const now = nowIso();
+      for (let index = 0; index < open.length; index++) {
+        const row = open[index];
+        await update(db, 'transactions', row.id, {
+          amount_cents: parts[index],
+          account_id: body.account_id,
+          status: 'posted',
+          paid_on: body.paid_on ?? req.ctx.today,
+          paid_by_user_id: body.payer_user_id,
+          settlement_expected_cents: num(row.amount_cents),
+          settlement_previous_account_id: row.account_id,
+          settlement_previous_overridden: num(row.overridden),
+          settlement_uuid: settlementUuid,
+          overridden: 1,
+          updated_at: now,
+        });
+      }
+      return {
+        settlement_uuid: settlementUuid,
+        installment_no: body.installment_no,
+        expected_cents: open.reduce((sum, row) => sum + num(row.amount_cents), 0),
+        paid_cents: body.amount_cents,
+        lines: open.length,
+      };
+    });
+    res.json({ ...settled, plan: await loadPlan(req.ctx, id) });
+  });
+
+  /** Desfaz uma quitação conjunta inteira, sem deixar a prestação pela metade. */
+  r.post('/:id/unsettle-installment', async (req, res) => {
+    const id = idParam(req.params.id);
+    await owned(req.ctx, 'installment_plans', id, 'Contrato');
+    const body = parse(z.object({ settlement_uuid: zUuid }), req.body);
+    const restored = await req.ctx.db.tx(async (db) => {
+      const rows = await db.all<{
+        id: number;
+        paid_on: string | null;
+        settlement_expected_cents: number | null;
+        settlement_previous_account_id: number | null;
+        settlement_previous_overridden: number | null;
+      }>(
+        `SELECT id, paid_on, settlement_expected_cents, settlement_previous_account_id, settlement_previous_overridden
+           FROM transactions
+          WHERE household_id = ? AND plan_id = ? AND settlement_uuid = ? AND deleted_at IS NULL
+          ORDER BY id`,
+        [req.ctx.householdId, id, body.settlement_uuid],
+      );
+      if (!rows.length) throw badRequest('Quitação não encontrada');
+      if (rows.some((row) => !row.paid_on || row.settlement_expected_cents == null || row.settlement_previous_account_id == null)) {
+        throw badRequest('Esta quitação não pode mais ser desfeita');
+      }
+      const now = nowIso();
+      for (const row of rows) {
+        await update(db, 'transactions', row.id, {
+          amount_cents: num(row.settlement_expected_cents),
+          account_id: num(row.settlement_previous_account_id),
+          status: 'planned',
+          paid_on: null,
+          paid_by_user_id: null,
+          settlement_expected_cents: null,
+          settlement_previous_account_id: null,
+          settlement_previous_overridden: null,
+          settlement_uuid: null,
+          overridden: num(row.settlement_previous_overridden),
+          updated_at: now,
+        });
+      }
+      return rows.length;
+    });
+    res.json({ restored, plan: await loadPlan(req.ctx, id) });
+  });
+
+  /**
    * Aplica valor e/ou dia nesta parcela e nas seguintes que ainda não foram pagas.
    * No cartão, a data segue a fatura. Parcela de fatura já passada também fica.
    */
@@ -513,7 +657,7 @@ export function installmentsRouter(): Router {
         const current = Number(row.installment_no) === body.from_installment;
         const paidAccount = row.account_id != null && row.paid_on != null;
         const pastCard = row.card_id != null && row.competence_month < currentMonth;
-        return !current && (paidAccount || pastCard);
+        return paidAccount || (!current && pastCard);
       };
       const groups = new Map<number, typeof rows>();
       for (const row of rows) {
@@ -552,7 +696,8 @@ export function installmentsRouter(): Router {
       let count = 0;
       for (const row of rows) {
         const skip = skipAmount(row);
-        const moveDay = body.day_of_month !== undefined && !row.card_id && (!skip || body.include_settled);
+        const current = Number(row.installment_no) === body.from_installment;
+        const moveDay = body.day_of_month !== undefined && !row.card_id && (current || !skip || body.include_settled);
         const nextAmount = amounts.get(Number(row.id));
         if (nextAmount === undefined && !moveDay) continue;
         const patch: Record<string, unknown> = { updated_at: now, overridden: 1 };

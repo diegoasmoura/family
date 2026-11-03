@@ -5,7 +5,7 @@ import {
   CircleAlert, Search, X, ChevronDown, ChevronLeft, ChevronRight, Flame, ChartColumn,
   TrendingUp, Plus, Lock, LockOpen, CircleCheckBig, Sun, Moon, Eye, EyeOff,
   LayoutGrid, ArrowDown, ArrowUp, ArrowUpRight, ArrowDownLeft, UnfoldVertical, FoldVertical, Info, FileText,
-  Car, Bike, GraduationCap, HandCoins,
+  CarFront, Bike, GraduationCap, HandCoins,
 } from 'lucide-react';
 import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
@@ -67,7 +67,7 @@ export const Icon = {
   list: () => <List aria-hidden />,
   card: () => <CreditCard aria-hidden />,
   contract: () => <FileText aria-hidden />,
-  car: () => <Car aria-hidden />,
+  car: () => <CarFront aria-hidden />,
   moto: () => <Bike aria-hidden />,
   study: () => <GraduationCap aria-hidden />,
   loan: () => <HandCoins aria-hidden />,
@@ -312,7 +312,12 @@ export function ErrorText({ error }: { error: unknown }) {
 }
 
 export function Loading() {
-  return <p className="empty">Carregando…</p>;
+  return (
+    <div className="loading" role="status" aria-live="polite">
+      <i aria-hidden />
+      <span>Carregando</span>
+    </div>
+  );
 }
 
 export function CategoryTags({ tx }: { tx: Pick<Tx, 'category_name' | 'parent_category_name'> }) {

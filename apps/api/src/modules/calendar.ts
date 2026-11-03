@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { lastDayOfMonth, monthOf } from '@fin/domain';
-import { num, parse, zMonth, type Ctx } from '../core';
+import { parse, zMonth, type Ctx } from '../core';
 import { cardInvoiceBalances, type Card } from './cards';
 import { personColor } from './couple';
 import { personWhere } from './queries';
