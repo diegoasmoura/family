@@ -5,9 +5,9 @@ import { badRequest, num, parse, zMonth, type Ctx } from '../core';
 import { balances } from './accounts';
 import { cardInvoiceBalances, relevantInvoice, type Card } from './cards';
 import { gamificationSummary, householdAvatars, syncMissions } from './gamification';
-import { monthTotals } from './queries';
+import { monthTotals, personAmount, personWhere } from './queries';
 import { ensureRecurrences } from './recurrences';
-import { TX_SELECT, decorateTransactions, monthView, personFilter } from './transactions';
+import { TX_SELECT, decorateTransactions, monthView, partOf, personFilter } from './transactions';
 
 interface Row {
   category_id: number | null;
@@ -27,13 +27,14 @@ interface Row {
 }
 
 /** Na conta, pago é `paid_on`. No cartão, pago é a fatura quitada — a mesma conta da lista. */
-const PAID_CENTS = `SUM(CASE
-        WHEN t.card_id IS NULL AND t.paid_on IS NOT NULL THEN t.amount_cents
+/** Quanto do valor já foi pago (conta paga ou fatura quitada). `amount` é o valor que conta (no Eu, a parte da pessoa). */
+const paidCents = (amount = 't.amount_cents') => `SUM(CASE
+        WHEN t.card_id IS NULL AND t.paid_on IS NOT NULL THEN ${amount}
         WHEN t.card_id IS NOT NULL AND t.invoice_id IS NOT NULL
              AND COALESCE((SELECT SUM(pmt.amount_cents) FROM invoice_payments pmt WHERE pmt.invoice_id = t.invoice_id AND pmt.deleted_at IS NULL), 0)
                  >= COALESCE((SELECT SUM(x.amount_cents) FROM transactions x WHERE x.invoice_id = t.invoice_id AND x.deleted_at IS NULL), 0)
                     + COALESCE(inv.adjustment_cents, 0)
-        THEN t.amount_cents
+        THEN ${amount}
         ELSE 0 END)`;
 
 const DESC = "COALESCE(NULLIF(TRIM(t.description), ''), '')";
@@ -45,9 +46,10 @@ const DESC = "COALESCE(NULLIF(TRIM(t.description), ''), '')";
 async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mode: 'realized' | 'planned', personId: number | null = null) {
   // No cartão, a compra já nasce efetivada na fatura. Na conta, o que ainda está a pagar também entra no mês do vencimento.
   const statusFilter = mode === 'realized' ? "AND (t.status = 'posted' OR t.card_id IS NULL)" : '';
-  const personSql = personId == null ? '' : 'AND t.for_user_id = ?';
-  const params: unknown[] = [ctx.householdId, kind, `${year}-01`, `${year}-12`];
-  if (personId != null) params.push(personId);
+  // No Eu, o que é Nosso entra com a parte da pessoa.
+  const amount = personAmount(personId, 't.');
+  const who = personWhere(personId, 't.');
+  const params: unknown[] = [...amount.params, ...amount.params, ...amount.params, ctx.householdId, kind, `${year}-01`, `${year}-12`, ...who.params];
   const rows = await ctx.db.all<{
     category_id: number | null;
     recurrence_id: number | null;
@@ -67,7 +69,7 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
     `SELECT t.category_id, t.recurrence_id, t.plan_id, ${DESC} AS description,
             COALESCE(r.description, p.description) AS origin_description, r.day_of_month, p.installments,
             t.card_id, cc.name AS card_name, t.account_id, ac.name AS account_name,
-            t.competence_month, SUM(t.amount_cents) AS total, ${PAID_CENTS} AS paid
+            t.competence_month, SUM(${amount.sql}) AS total, ${paidCents(amount.sql)} AS paid
        FROM transactions t
        LEFT JOIN recurrences r ON r.id = t.recurrence_id
        LEFT JOIN installment_plans p ON p.id = t.plan_id
@@ -75,7 +77,7 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
        LEFT JOIN accounts ac ON ac.id = t.account_id
        LEFT JOIN invoices inv ON inv.id = t.invoice_id
       WHERE t.household_id = ? AND t.kind = ? AND t.deleted_at IS NULL AND t.include_in_reports = 1
-        AND t.competence_month >= ? AND t.competence_month <= ? ${statusFilter} ${personSql}
+        AND t.competence_month >= ? AND t.competence_month <= ? ${statusFilter}${who.sql}
       GROUP BY t.category_id, t.recurrence_id, t.plan_id, ${DESC}, r.description, p.description, r.day_of_month, p.installments, t.card_id, cc.name, t.account_id, ac.name, t.competence_month`,
     params,
   );
@@ -247,9 +249,10 @@ export function reportsRouter(): Router {
     }
     if (q.mode === 'realized') where.push("(t.status = 'posted' OR t.card_id IS NULL)");
     const personId = await personFilter(req.ctx, req.query.person);
-    if (personId != null) {
-      where.push('t.for_user_id = ?');
-      params.push(personId);
+    const whoDrill = personWhere(personId, 't.');
+    if (whoDrill.sql) {
+      where.push(whoDrill.sql.replace(/^ AND /, ''));
+      params.push(...whoDrill.params);
     }
     if (q.category === 'none') where.push('t.category_id IS NULL');
     else if (q.category != null && q.tree === '1') {
@@ -284,8 +287,9 @@ export function reportsRouter(): Router {
       `${TX_SELECT} WHERE ${where.join(' AND ')} ORDER BY t.competence_month, COALESCE(t.due_on, t.occurred_on), t.id`,
       params,
     );
-    const transactions = decorateTransactions(rows, req.ctx.today);
-    res.json({ transactions, total_cents: transactions.reduce((a, t) => a + t.amount_cents, 0) });
+    // No Eu, o que é Nosso entra com a parte da pessoa (part_cents).
+    const transactions = decorateTransactions(rows, req.ctx.today).map((t) => ({ ...t, part_cents: partOf(t, personId) }));
+    res.json({ transactions, total_cents: transactions.reduce((a, t) => a + t.part_cents, 0) });
   });
 
   return r;
@@ -303,16 +307,17 @@ export function dashboardRouter(): Router {
 
     const totals = await monthTotals(ctx, month, personId);
     const bal = await balances(ctx, month);
-    const catParams: unknown[] = [ctx.householdId, month];
-    if (personId != null) catParams.push(personId);
+    // No Eu: o que é da pessoa e o que é Nosso, com a parte dela (amt); no Nós, tudo pelo valor inteiro.
+    const amt = personAmount(personId, 't.');
+    const who = personWhere(personId, 't.');
+    const catParams: unknown[] = [ctx.householdId, month, ...who.params];
 
     const catRows = await ctx.db.all(
-      `SELECT COALESCE(c.parent_id, c.id) AS id, SUM(t.amount_cents) AS total FROM transactions t
+      `SELECT COALESCE(c.parent_id, c.id) AS id, SUM(${amt.sql}) AS total FROM transactions t
          LEFT JOIN categories c ON c.id = t.category_id
-        WHERE t.household_id = ? AND t.competence_month = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
-          ${personId == null ? '' : 'AND t.for_user_id = ?'}
+        WHERE t.household_id = ? AND t.competence_month = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL${who.sql}
         GROUP BY COALESCE(c.parent_id, c.id) ORDER BY total DESC`,
-      catParams,
+      [...amt.params, ...catParams],
     );
     const names = new Map(
       (await ctx.db.all('SELECT id, name, color FROM categories WHERE household_id = ?', [ctx.householdId])).map((c) => [Number(c.id), c]),
@@ -326,14 +331,14 @@ export function dashboardRouter(): Router {
 
     // Quem gastou e composição por subcategoria: mesmos filtros do total de despesas, então a soma
     // fecha com ele (inclusive a compra de cartão), em Eu e em Nós.
-    const spendWhere = `t.household_id = ? AND t.competence_month = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
-          ${personId == null ? '' : 'AND t.for_user_id = ?'}`;
+    const spendWhere = `t.household_id = ? AND t.competence_month = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL${who.sql}`;
+    // user_id vazio é o Nosso.
     const byPersonRows = await ctx.db.all(
-      `SELECT t.for_user_id AS user_id, u.name AS name, SUM(t.amount_cents) AS total FROM transactions t
+      `SELECT t.for_user_id AS user_id, u.name AS name, SUM(${amt.sql}) AS total FROM transactions t
          LEFT JOIN users u ON u.id = t.for_user_id
         WHERE ${spendWhere}
         GROUP BY t.for_user_id, u.name ORDER BY total DESC`,
-      catParams,
+      [...amt.params, ...catParams],
     );
     const spent_by_person = byPersonRows.map((r) => ({
       user_id: r.user_id == null ? null : Number(r.user_id),
@@ -341,12 +346,12 @@ export function dashboardRouter(): Router {
       total_cents: num(r.total),
     }));
     const breakdownRows = await ctx.db.all(
-      `SELECT c.name AS name, c.color AS color, pc.name AS parent_name, SUM(t.amount_cents) AS total FROM transactions t
+      `SELECT c.name AS name, c.color AS color, pc.name AS parent_name, SUM(${amt.sql}) AS total FROM transactions t
          LEFT JOIN categories c ON c.id = t.category_id
          LEFT JOIN categories pc ON pc.id = c.parent_id
         WHERE ${spendWhere}
         GROUP BY c.id, c.name, c.color, pc.name`,
-      catParams,
+      [...amt.params, ...catParams],
     );
     // O pai é a categoria de cima (ou ela mesma); gasto lançado direto no pai aparece como "Geral".
     const category_breakdown = breakdownRows
@@ -360,13 +365,12 @@ export function dashboardRouter(): Router {
 
     const rhythm = await ctx.db.get(
       `SELECT
-         SUM(CASE WHEN plan_id IS NOT NULL THEN amount_cents ELSE 0 END) AS installment_cents,
-         SUM(CASE WHEN plan_id IS NULL AND recurrence_id IS NOT NULL THEN amount_cents ELSE 0 END) AS fixed_cents,
-         SUM(CASE WHEN plan_id IS NULL AND recurrence_id IS NULL THEN amount_cents ELSE 0 END) AS variable_cents
-       FROM transactions
-       WHERE household_id = ? AND competence_month = ? AND kind = 'expense' AND include_in_reports = 1 AND deleted_at IS NULL
-         ${personId == null ? '' : 'AND for_user_id = ?'}`,
-      catParams,
+         SUM(CASE WHEN t.plan_id IS NOT NULL THEN ${amt.sql} ELSE 0 END) AS installment_cents,
+         SUM(CASE WHEN t.plan_id IS NULL AND t.recurrence_id IS NOT NULL THEN ${amt.sql} ELSE 0 END) AS fixed_cents,
+         SUM(CASE WHEN t.plan_id IS NULL AND t.recurrence_id IS NULL THEN ${amt.sql} ELSE 0 END) AS variable_cents
+       FROM transactions t
+       WHERE ${spendWhere}`,
+      [...amt.params, ...amt.params, ...amt.params, ...catParams],
     );
     const recurrence = [
       { key: 'fixed', name: 'Fixas', color: '#6aa4e0', total_cents: num(rhythm?.fixed_cents) },
@@ -387,20 +391,17 @@ export function dashboardRouter(): Router {
     }
 
     const horizon = addDays(ctx.today, 30);
-    const upcomingParams: unknown[] = [ctx.householdId, horizon];
-    if (personId != null) upcomingParams.push(personId);
     const upcomingTx = await ctx.db.all(
-      `SELECT t.id, t.kind, t.description, t.amount_cents, COALESCE(t.due_on, t.occurred_on) AS due_on, t.installment_no, p.installments AS plan_installments,
+      `SELECT t.id, t.kind, t.description, ${amt.sql} AS amount_cents, COALESCE(t.due_on, t.occurred_on) AS due_on, t.installment_no, p.installments AS plan_installments,
               c.name AS category_name, c.icon AS category_icon, COALESCE(c.color, pc.color) AS category_color, c.parent_id AS category_parent_id
          FROM transactions t
          LEFT JOIN categories c ON c.id = t.category_id
          LEFT JOIN categories pc ON pc.id = c.parent_id
          LEFT JOIN installment_plans p ON p.id = t.plan_id
         WHERE t.household_id = ? AND t.status = 'planned' AND t.card_id IS NULL AND t.deleted_at IS NULL
-          AND COALESCE(t.due_on, t.occurred_on) <= ?
-          ${personId == null ? '' : 'AND t.for_user_id = ?'}
+          AND COALESCE(t.due_on, t.occurred_on) <= ?${who.sql}
         ORDER BY COALESCE(t.due_on, t.occurred_on), t.id LIMIT 8`,
-      upcomingParams,
+      [...amt.params, ctx.householdId, horizon, ...who.params],
     );
     const upcomingInvoices = [];
     for (const card of cards) {
@@ -433,14 +434,11 @@ export function dashboardRouter(): Router {
     ]
       .map((u) => ({ ...u, overdue: u.due_on < ctx.today }))
       .sort((a, b) => a.due_on.localeCompare(b.due_on) || a.description.localeCompare(b.description));
-    const futureParams: unknown[] = [ctx.householdId, month];
-    if (personId != null) futureParams.push(personId);
     const futureInstallments = await ctx.db.get(
-      `SELECT SUM(amount_cents) AS total FROM transactions
-        WHERE household_id = ? AND kind = 'expense' AND plan_id IS NOT NULL AND deleted_at IS NULL
-          AND include_in_reports = 1 AND competence_month > ?
-          ${personId == null ? '' : 'AND for_user_id = ?'}`,
-      futureParams,
+      `SELECT SUM(${amt.sql}) AS total FROM transactions t
+        WHERE t.household_id = ? AND t.kind = 'expense' AND t.plan_id IS NOT NULL AND t.deleted_at IS NULL
+          AND t.include_in_reports = 1 AND t.competence_month > ?${who.sql}`,
+      [...amt.params, ctx.householdId, month, ...who.params],
     );
 
     const goals = await ctx.db.all(
@@ -449,17 +447,14 @@ export function dashboardRouter(): Router {
     );
 
     const series = async (target: string) => {
-      const params: unknown[] = [ctx.householdId, target];
-      if (personId != null) params.push(personId);
       const rows = await ctx.db.all(
-        `SELECT t.amount_cents,
+        `SELECT ${amt.sql} AS amount_cents,
                 CASE WHEN t.card_id IS NOT NULL THEN i.due_date ELSE COALESCE(t.due_on, t.occurred_on) END AS date
            FROM transactions t
            LEFT JOIN invoices i ON i.id = t.invoice_id
           WHERE t.household_id = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
-            AND t.competence_month = ?
-            ${personId == null ? '' : 'AND t.for_user_id = ?'}`,
-        params,
+            AND t.competence_month = ?${who.sql}`,
+        [...amt.params, ctx.householdId, target, ...who.params],
       );
       const byDay = Array.from({ length: daysInMonth(target) }, () => 0);
       for (const row of rows) {

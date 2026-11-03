@@ -6,6 +6,7 @@ import {
   classifyRecurrence,
   deriveStatus,
   monthOf,
+  personPart,
   statusLabel,
   type DisplayStatus,
   type Kind,
@@ -34,6 +35,8 @@ import {
 import { cardInvoiceBalances, invoiceForCardPurchase, type Card } from './cards';
 import { assertCategory } from './categories';
 import { ensureRecurrences } from './recurrences';
+import { personWhere } from './queries';
+import { normalizeSplit, splitFields } from './split';
 
 export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
        pc.name AS parent_category_name, pc.color AS parent_category_color, p.installments AS plan_installments, fu.name AS for_user_name,
@@ -64,7 +67,7 @@ export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_na
   LEFT JOIN installment_plans p ON p.id = t.plan_id
   LEFT JOIN users fu ON fu.id = t.for_user_id`;
 
-/** `all` não filtra. `me` e um id restringem a for_user_id. Vazio (da casa) fica de fora. */
+/** `all` não filtra. `me` e um id filtram pela pessoa: entra o que é dela e o que é Nosso (com a parte dela). */
 export async function personFilter(ctx: Ctx, raw: unknown): Promise<number | null> {
   const value = parse(z.union([z.literal('all'), z.literal('me'), z.coerce.number().int().positive()]).optional(), raw === undefined || raw === '' ? 'all' : raw);
   if (!value || value === 'all') return null;
@@ -128,6 +131,7 @@ export const createTxBody = z.object({
   card_id: zId.nullish(),
   include_in_reports: zFlag.optional(),
   for_user_id: zId.nullable().optional(),
+  ...splitFields,
 });
 
 /**
@@ -143,6 +147,7 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
   const { card } = await assertPaymentTarget(ctx, body.kind, body.account_id, body.card_id);
   await assertCategory(ctx, body.category_id, body.kind);
   const forUserId = await assertHouseholdUser(ctx, body.for_user_id ?? null);
+  const split = await normalizeSplit(ctx, forUserId, body.split_user_id, body.split_bp);
   const occurredOn = body.occurred_on ?? ctx.today;
 
   const id = await ctx.db.tx(async (db) => {
@@ -171,6 +176,7 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
       category_id: body.category_id ?? null,
       include_in_reports: body.include_in_reports ?? 1,
       for_user_id: forUserId,
+      ...split,
       created_by: ctx.userId,
       created_at: now,
       updated_at: now,
@@ -183,9 +189,21 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
 
 type Bucket = Record<string, number>;
 
+/** Valor que conta para a pessoa (no Nós, o valor inteiro). */
+export function partOf(t: any, personId: number | null): number {
+  const amount = Number(t.amount_cents);
+  if (personId == null) return amount;
+  return personPart(amount, personId, {
+    forUserId: t.for_user_id == null ? null : Number(t.for_user_id),
+    splitUserId: t.split_user_id == null ? null : Number(t.split_user_id),
+    splitBp: t.split_bp == null ? null : Number(t.split_bp),
+    createdBy: Number(t.created_by),
+  });
+}
+
 function summarize(items: any[], kind: Kind) {
   const included = items.filter((t) => t.include_in_reports);
-  const sum = (list: any[]) => list.reduce((acc, t) => acc + t.amount_cents, 0);
+  const sum = (list: any[]) => list.reduce((acc, t) => acc + (t.part_cents ?? t.amount_cents), 0);
   const by = (status: DisplayStatus) => sum(included.filter((t) => t.display_status === status));
   const total = sum(included);
   const notSummed = sum(items.filter((t) => !t.include_in_reports));
@@ -278,15 +296,14 @@ export function foldInvoiceAdjustment(lines: ReturnType<typeof invoiceLines>, ad
 /** Lista do mês. Despesas de cartão aparecem agrupadas na linha da fatura. */
 export async function monthView(ctx: Ctx, month: string, kind: Kind, personId: number | null = null) {
   await ensureRecurrences(ctx, month < monthOf(ctx.today) ? monthOf(ctx.today) : month);
-  const params: unknown[] = [ctx.householdId, kind, month];
-  const personSql = personId == null ? '' : ' AND t.for_user_id = ?';
-  if (personId != null) params.push(personId);
+  const who = personWhere(personId, 't.');
   const rows = await ctx.db.all(
-    `${TX_SELECT} WHERE t.household_id = ? AND t.kind = ? AND t.competence_month = ? AND t.deleted_at IS NULL${personSql}
+    `${TX_SELECT} WHERE t.household_id = ? AND t.kind = ? AND t.competence_month = ? AND t.deleted_at IS NULL${who.sql}
       ORDER BY COALESCE(t.due_on, t.occurred_on), t.id`,
-    params,
+    [ctx.householdId, kind, month, ...who.params],
   );
-  const items = decorateTransactions(rows, ctx.today);
+  // No Eu, o que é Nosso entra com a parte da pessoa (part_cents); amount_cents continua sendo o total, para editar.
+  const items = decorateTransactions(rows, ctx.today).map((t) => ({ ...t, part_cents: partOf(t, personId) }));
   const summary = summarize(items, kind);
 
   let invoices: any[] = [];
@@ -315,15 +332,15 @@ export async function monthView(ctx: Ctx, month: string, kind: Kind, personId: n
     invoices,
     summary,
     // "Pago" é só caixa de conta: compra de cartão só entra aqui quando a fatura quita (vira display_status 'paid').
-    settled_cents: items.filter((t) => !t.card_id && t.paid_on && t.include_in_reports).reduce((a, t) => a + t.amount_cents, 0),
+    settled_cents: items.filter((t) => !t.card_id && t.paid_on && t.include_in_reports).reduce((a, t) => a + t.part_cents, 0),
     // "A pagar": caixa de conta ainda não paga, mais compra de cartão já lançada (status 'posted') cuja fatura ainda não quitou.
     pending_cents: items
       .filter((t) => t.include_in_reports && (t.card_id ? t.status === 'posted' && t.display_status !== 'paid' : !t.paid_on))
-      .reduce((a, t) => a + t.amount_cents, 0),
+      .reduce((a, t) => a + t.part_cents, 0),
     // "Saiu" do Início: caixa de conta já paga, mais compra de cartão cuja fatura já quitou. Somado ao pending_cents, fecha o total lançado.
     paid_out_cents: items
       .filter((t) => t.include_in_reports && (t.card_id ? t.status === 'posted' && t.display_status === 'paid' : t.paid_on))
-      .reduce((a, t) => a + t.amount_cents, 0),
+      .reduce((a, t) => a + t.part_cents, 0),
   };
 }
 
@@ -375,6 +392,7 @@ export function transactionsRouter(): Router {
         category_id: zId.nullable().optional(),
         include_in_reports: zFlag.optional(),
         for_user_id: zId.nullable().optional(),
+        ...splitFields,
         occurred_on: zDate.optional(),
         due_on: zDate.nullable().optional(),
         account_id: zId.optional(),
@@ -383,7 +401,13 @@ export function transactionsRouter(): Router {
     );
     if (body.category_id !== undefined) await assertCategory(req.ctx, body.category_id, tx.kind);
     if (body.for_user_id !== undefined) body.for_user_id = await assertHouseholdUser(req.ctx, body.for_user_id);
-    const patch: Record<string, unknown> = { ...body, updated_at: nowIso() };
+    const { split_user_id, split_bp, ...rest } = body;
+    const patch: Record<string, unknown> = { ...rest, updated_at: nowIso() };
+    // De quem e divisão andam juntos: trocar o "de quem" refaz a divisão (Meu/dela não tem divisão).
+    if (body.for_user_id !== undefined || split_bp !== undefined) {
+      const owner = body.for_user_id !== undefined ? body.for_user_id : tx.for_user_id == null ? null : Number(tx.for_user_id);
+      Object.assign(patch, await normalizeSplit(req.ctx, owner, split_user_id, split_bp));
+    }
 
     if (body.account_id !== undefined) {
       if (tx.card_id) throw badRequest('Compra no cartão não pode ser movida para uma conta');

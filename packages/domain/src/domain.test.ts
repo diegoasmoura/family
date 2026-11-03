@@ -23,6 +23,8 @@ import {
   relatedColor,
   recurringChargeDate,
   sameColor,
+  personPart,
+  splitByShares,
   splitInstallments,
   visibleStreak,
   type Movement,
@@ -111,6 +113,16 @@ describe('cores de subgrupo', () => {
 });
 
 describe('parcelamento', () => {
+  it('parte de cada pessoa: meu, dela e nosso (meio a meio ou outro percentual) somam o total', () => {
+    const nosso = { forUserId: null, splitUserId: null, splitBp: null, createdBy: 1 };
+    expect(personPart(180000, 1, nosso)).toBe(90000);
+    expect(personPart(1001, 1, nosso) + personPart(1001, 2, nosso)).toBe(1001);
+    expect(personPart(1001, 1, nosso)).toBe(501);
+    const sessenta = { forUserId: null, splitUserId: 2, splitBp: 6000, createdBy: 1 };
+    expect([personPart(196400, 2, sessenta), personPart(196400, 1, sessenta)]).toEqual([117840, 78560]);
+    expect(personPart(5000, 1, { ...nosso, forUserId: 1 })).toBe(5000);
+    expect(personPart(5000, 2, { ...nosso, forUserId: 1 })).toBe(0);
+  });
   it('soma exatamente o total e distribui o resto nas primeiras', () => {
     expect(splitInstallments(10000, 3)).toEqual([3334, 3333, 3333]);
     const parts = splitInstallments(11784000, 60);
@@ -120,6 +132,12 @@ describe('parcelamento', () => {
   it('rejeita totais inválidos', () => {
     expect(() => splitInstallments(2, 3)).toThrow();
     expect(() => splitInstallments(10.5, 2)).toThrow();
+  });
+  it('divide pelas fatias e o centavo do empate fica com a primeira', () => {
+    expect(splitByShares(100000, [6000, 4000])).toEqual([60000, 40000]);
+    expect(splitByShares(1001, [5000, 5000])).toEqual([501, 500]);
+    expect(splitByShares(1001, [5000, 5000]).reduce((a, b) => a + b, 0)).toBe(1001);
+    expect(() => splitByShares(1000, [5000, 4000])).toThrow();
   });
 });
 

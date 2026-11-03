@@ -5,6 +5,7 @@ import {
   CircleAlert, Search, X, ChevronDown, ChevronLeft, ChevronRight, Flame, ChartColumn,
   TrendingUp, Plus, Lock, LockOpen, CircleCheckBig, Sun, Moon, Eye, EyeOff,
   LayoutGrid, ArrowDown, ArrowUp, ArrowUpRight, ArrowDownLeft, UnfoldVertical, FoldVertical, Info, FileText,
+  Car, Bike, GraduationCap, HandCoins,
 } from 'lucide-react';
 import { addMonths, formatBRL, monthLabel, monthOf, weekdayShort } from '@fin/domain';
 import type { Tx } from './api';
@@ -66,6 +67,10 @@ export const Icon = {
   list: () => <List aria-hidden />,
   card: () => <CreditCard aria-hidden />,
   contract: () => <FileText aria-hidden />,
+  car: () => <Car aria-hidden />,
+  moto: () => <Bike aria-hidden />,
+  study: () => <GraduationCap aria-hidden />,
+  loan: () => <HandCoins aria-hidden />,
   year: () => <Calendar aria-hidden />,
   kebab: () => <EllipsisVertical aria-hidden />,
   more: () => <Ellipsis aria-hidden />,

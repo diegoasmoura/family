@@ -3,7 +3,8 @@ import { lastDayOfMonth, monthOf } from '@fin/domain';
 import { num, parse, zMonth, type Ctx } from '../core';
 import { cardInvoiceBalances, type Card } from './cards';
 import { personColor } from './couple';
-import { personFilter } from './transactions';
+import { personWhere } from './queries';
+import { partOf, personFilter } from './transactions';
 
 interface CalItem {
   key: string;
@@ -30,8 +31,7 @@ function whoOf(forUserId: number | null, me: number): CalItem['who'] {
 }
 
 async function accountItems(ctx: Ctx, from: string, to: string, personId: number | null): Promise<CalItem[]> {
-  const params: unknown[] = [ctx.householdId, from, to];
-  if (personId != null) params.push(personId);
+  const who = personWhere(personId);
   const rows = await ctx.db.all<{
     id: number;
     kind: 'income' | 'expense';
@@ -41,19 +41,19 @@ async function accountItems(ctx: Ctx, from: string, to: string, personId: number
     paid_on: string | null;
     for_user_id: number | null;
   }>(
-    `SELECT id, kind, description, amount_cents, COALESCE(due_on, occurred_on) AS day, paid_on, for_user_id
+    `SELECT id, kind, description, amount_cents, COALESCE(due_on, occurred_on) AS day, paid_on, for_user_id, split_user_id, split_bp, created_by
        FROM transactions
       WHERE household_id = ? AND deleted_at IS NULL AND card_id IS NULL
-        AND COALESCE(due_on, occurred_on) BETWEEN ? AND ?
-        ${personId == null ? '' : 'AND for_user_id = ?'}
+        AND COALESCE(due_on, occurred_on) BETWEEN ? AND ?${who.sql}
       ORDER BY day, id`,
-    params,
+    [ctx.householdId, from, to, ...who.params],
   );
   return rows.map((row) => ({
     key: `tx:${row.id}`,
     day: row.day,
     description: shortText(row.description, row.kind === 'income' ? 'Receita' : 'Despesa'),
-    amount_cents: num(row.amount_cents),
+    // No Eu, o que é Nosso aparece com a parte da pessoa.
+    amount_cents: partOf(row, personId),
     kind: row.kind,
     status: row.paid_on ? 'paid' : 'planned',
     who: whoOf(row.for_user_id == null ? null : Number(row.for_user_id), ctx.userId),

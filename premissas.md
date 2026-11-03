@@ -88,6 +88,8 @@ Na fixa e no parcelamento em conta, mudar o valor ou o dia pergunta se vale só 
 
 **Contrato (financiamento ou empréstimo).** É um parcelamento em conta marcado como contrato, não um segundo sistema: cada prestação continua sendo uma despesa normal do mês, com as mesmas regras do parcelamento, e por isso não conta duas vezes em lugar nenhum. A aba Contratos só mostra esses parcelamentos de outro jeito (quanto falta, em que parcela está, quando termina). O dinheiro do empréstimo que cai na conta sobe o saldo, mas não é receita do mês, como uma transferência. Compra parcelada no cartão não é contrato.
 
+Quando a prestação é dividida, cada prestação vira uma linha por pessoa, cada uma com a parte dela e com a conta de onde essa parte sai. No Eu entra só a linha de quem está logado. No Nós as duas somam a prestação. O plano guarda uma conta só, a da primeira pessoa, porque o cadastro exige uma; o saldo usa a conta da linha. Mudar a divisão ou a conta reescreve as prestações em aberto; as já pagas ficam como estão. No contrato não existe “Da casa”: é de uma pessoa ou dividido. Compra no cartão não se divide assim.
+
 ## Transferência e dinheiro que sai da casa
 
 Transferência move saldo entre duas contas do aplicativo. Não é receita nem despesa, e o total da casa não muda. Não serve para registrar um PIX para quem não usa o app.

@@ -20,6 +20,7 @@ import {
 } from '../core';
 import { ensureInvoice, type Card } from './cards';
 import { assertCategory } from './categories';
+import { normalizeSplit, splitFields } from './split';
 import { assertHouseholdUser, assertPaymentTarget } from './transactions';
 
 /** Quantos meses à frente as recorrências ficam materializadas. */
@@ -40,6 +41,8 @@ interface Recurrence {
   active: number;
   created_by: number;
   for_user_id: number | null;
+  split_user_id: number | null;
+  split_bp: number | null;
 }
 
 /** Datas e fatura de uma ocorrência. No cartão, a competência é o mês da fatura. */
@@ -93,6 +96,8 @@ export async function ensureRecurrences(ctx: Ctx, untilMonth: string, onlyId?: n
           status: 'planned',
           paid_on: null,
           for_user_id: rec.for_user_id ?? null,
+          split_user_id: rec.split_user_id ?? null,
+          split_bp: rec.split_bp ?? null,
           created_by: rec.created_by,
           created_at: now,
           updated_at: now,
@@ -121,6 +126,7 @@ const recBody = z.object({
   end_month: zMonth.nullish(),
   first_paid: z.boolean().optional(),
   for_user_id: zId.nullable().optional(),
+  ...splitFields,
 });
 
 const SELECT = `SELECT r.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name FROM recurrences r
@@ -167,6 +173,7 @@ export function recurrencesRouter(): Router {
     await assertPaymentTarget(req.ctx, body.kind, body.account_id, body.card_id);
     await assertCategory(req.ctx, body.category_id, body.kind);
     const forUserId = await assertHouseholdUser(req.ctx, body.for_user_id ?? null);
+    const split = await normalizeSplit(req.ctx, forUserId, body.split_user_id, body.split_bp);
 
     const result = await req.ctx.db.tx(async (db) => {
       const ctx = { ...req.ctx, db };
@@ -184,6 +191,7 @@ export function recurrencesRouter(): Router {
         start_month: body.start_month,
         end_month: body.end_month ?? null,
         for_user_id: forUserId,
+        ...split,
         created_by: ctx.userId,
         created_at: now,
         updated_at: now,
@@ -216,6 +224,7 @@ export function recurrencesRouter(): Router {
         day_of_month: z.number().int().min(1).max(31).optional(),
         end_month: zMonth.nullable().optional(),
         for_user_id: zId.nullable().optional(),
+        ...splitFields,
         /** Aplica a mudança a partir deste mês. Sem isso, vale do mês de hoje em diante. */
         from_month: zMonth.optional(),
         /** O dia novo entra também nas ocorrências já pagas ou recebidas. */
@@ -226,6 +235,11 @@ export function recurrencesRouter(): Router {
     const { from_month, include_settled, ...changes } = body;
     if (changes.category_id !== undefined) await assertCategory(req.ctx, changes.category_id, rec.kind);
     if (changes.for_user_id !== undefined) changes.for_user_id = await assertHouseholdUser(req.ctx, changes.for_user_id);
+    // De quem e divisão andam juntos (a divisão só existe no Nosso).
+    if (changes.for_user_id !== undefined || changes.split_bp !== undefined) {
+      const owner = changes.for_user_id !== undefined ? changes.for_user_id : rec.for_user_id;
+      Object.assign(changes, await normalizeSplit(req.ctx, owner, changes.split_user_id, changes.split_bp));
+    }
     if (changes.end_month && changes.end_month < rec.start_month) throw badRequest('O fim precisa ser depois do início');
     const currentMonth = monthOf(req.ctx.today);
     const fromMonth = from_month ?? currentMonth;
@@ -250,6 +264,8 @@ export function recurrencesRouter(): Router {
           amount_cents: next.amount_cents,
           category_id: next.category_id,
           for_user_id: next.for_user_id ?? null,
+          split_user_id: next.split_user_id ?? null,
+          split_bp: next.split_bp ?? null,
           ...(changes.day_of_month ? await occurrenceFields(ctx, next, occ.competence_month, card) : {}),
           updated_at: nowIso(),
         });

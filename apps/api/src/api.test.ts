@@ -601,6 +601,102 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await agent.patch(`/api/installments/${cardPlan.id}`).send({ is_contract: true })).status).toBe(400);
     });
 
+    it('contrato dividido: uma linha por pessoa em cada prestação, Eu vê só a sua parte, e a divisão muda só o que está em aberto', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'j@x.com', password: 'senha-segura' }), 201);
+      const hers = (await ok(await agent.get('/api/users'))).find((u: any) => u.email === 'j@x.com');
+      const shares = [{ user_id: me.id, bp: 6000 }, { user_id: hers.id, bp: 4000 }];
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Casa', total_cents: 300000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-05', first_paid: true,
+          is_contract: true, contract_type: 'house', shares,
+        }),
+        201,
+      );
+      expect(plan).toMatchObject({ contract_type: 'house', shares, active_count: 3, settled_count: 1 });
+      const lines = (await ok(await agent.get(`/api/installments/${plan.id}`))).items.filter((t: any) => !t.deleted_at);
+      expect(lines).toHaveLength(6);
+      expect(lines.filter((t: any) => t.installment_no === 1).map((t: any) => [t.for_user_id, t.amount_cents])).toEqual([[me.id, 60000], [hers.id, 40000]]);
+      expect(lines.every((t: any) => t.account_id === ids.bradesco)).toBe(true);
+
+      const mine = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=me'));
+      expect(mine.items.filter((t: any) => t.description === 'Casa').map((t: any) => t.amount_cents)).toEqual([60000]);
+      const both = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=all'));
+      expect(both.items.filter((t: any) => t.description === 'Casa').reduce((a: number, t: any) => a + t.amount_cents, 0)).toBe(100000);
+
+      const card = (await ok(await agent.get('/api/installments/contracts'))).contracts.find((c: any) => c.description === 'Casa');
+      expect(card).toMatchObject({ contract_type: 'house', shares, paid_count: 1, active_count: 3, months_left: 2, remaining_cents: 200000, next: { installment_no: 2, amount_cents: 100000 } });
+
+      // Mudar a parcela 2 em diante: o valor novo se reparte pela divisão.
+      await ok(await agent.post(`/api/installments/${plan.id}/apply-from`).send({ from_installment: 2, amount_cents: 120000 }));
+      // Meio a meio daqui pra frente: a parcela 1, já paga, não muda.
+      await ok(await agent.patch(`/api/installments/${plan.id}`).send({ shares: [{ user_id: me.id, bp: 5000 }, { user_id: hers.id, bp: 5000 }] }));
+      let after = (await ok(await agent.get(`/api/installments/${plan.id}`))).items.filter((t: any) => !t.deleted_at);
+      expect(after.filter((t: any) => t.installment_no === 1).map((t: any) => t.amount_cents)).toEqual([60000, 40000]);
+      expect(after.filter((t: any) => t.installment_no === 2).map((t: any) => t.amount_cents)).toEqual([60000, 60000]);
+      // Volta a ser só da casa: uma linha por parcela em aberto, com o total.
+      await ok(await agent.patch(`/api/installments/${plan.id}`).send({ shares: null, for_user_id: null }));
+      after = (await ok(await agent.get(`/api/installments/${plan.id}`))).items.filter((t: any) => !t.deleted_at);
+      expect(after.filter((t: any) => t.installment_no === 3).map((t: any) => [t.for_user_id, t.amount_cents])).toEqual([[null, 120000]]);
+
+      // Editar "esta e as seguintes" na linha de uma pessoa muda só a parte dela.
+      const moto = (await ok(await agent.post('/api/installments').send({ description: 'Moto', total_cents: 60000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-20', is_contract: true, shares }), 201)).plan;
+      const motoLines = (await ok(await agent.get(`/api/installments/${moto.id}`))).items;
+      const herLine = motoLines.find((t: any) => t.installment_no === 2 && t.for_user_id === hers.id);
+      await ok(await agent.post(`/api/installments/${moto.id}/apply-from`).send({ from_installment: 2, amount_cents: 5000, line_tx_id: herLine.id }));
+      const motoAfter = (await ok(await agent.get(`/api/installments/${moto.id}`))).items.filter((t: any) => !t.deleted_at && t.installment_no >= 2);
+      expect(motoAfter.map((t: any) => [t.installment_no, t.for_user_id, t.amount_cents])).toEqual([
+        [2, me.id, 12000], [2, hers.id, 5000], [3, me.id, 12000], [3, hers.id, 5000],
+      ]);
+
+      expect((await agent.post('/api/installments').send({ description: 'X', total_cents: 300, installments: 3, account_id: ids.bradesco, shares: [{ user_id: me.id, bp: 5000 }, { user_id: hers.id, bp: 4000 }] })).status).toBe(400);
+      expect((await agent.post('/api/installments').send({ description: 'X', total_cents: 300, installments: 3, card_id: ids.ultra, shares })).status).toBe(400);
+    });
+
+    it('prestação dividida sai da conta de cada pessoa, e mudar a conta só mexe no que está em aberto', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'j2@x.com', password: 'senha-segura' }), 201);
+      const hers = (await ok(await agent.get('/api/users'))).find((u: any) => u.email === 'j2@x.com');
+      const shares = [
+        { user_id: me.id, bp: 5000, account_id: ids.bradesco },
+        { user_id: hers.id, bp: 5000, account_id: ids.nubank },
+      ];
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Apto', total_cents: 100000, installments: 2, account_id: ids.bradesco, purchased_on: '2026-10-05', first_paid: true,
+          is_contract: true, shares,
+        }),
+        201,
+      );
+      const lines = (await ok(await agent.get(`/api/installments/${plan.id}`))).items.filter((t: any) => !t.deleted_at);
+      expect(lines.filter((t: any) => t.installment_no === 1).map((t: any) => [t.for_user_id, t.account_id, t.amount_cents])).toEqual([
+        [me.id, ids.bradesco, 25000],
+        [hers.id, ids.nubank, 25000],
+      ]);
+      expect(lines.filter((t: any) => t.installment_no === 2).map((t: any) => [t.account_id, t.paid_on])).toEqual([
+        [ids.bradesco, null],
+        [ids.nubank, null],
+      ]);
+      // A prestação paga já saiu: cada conta cai só a metade, não a prestação inteira.
+      expect((await balanceOf(ids.bradesco)).current_balance_cents).toBe(450000 - 25000);
+      expect((await balanceOf(ids.nubank)).current_balance_cents).toBe(-25000);
+      // A prestação seguinte, ainda prevista, continua na conta de cada um.
+      expect((await balanceOf(ids.bradesco, '2026-11')).forecast_balance_cents).toBe(450000 - 50000);
+      expect((await balanceOf(ids.nubank, '2026-11')).forecast_balance_cents).toBe(-50000);
+      const card = (await ok(await agent.get('/api/installments/contracts'))).contracts.find((c: any) => c.description === 'Apto');
+      expect(card.shares).toEqual(shares);
+
+      await ok(await agent.patch(`/api/installments/${plan.id}`).send({
+        shares: [
+          { user_id: me.id, bp: 5000, account_id: ids.bradesco },
+          { user_id: hers.id, bp: 5000, account_id: ids.bradesco },
+        ],
+      }));
+      const after = (await ok(await agent.get(`/api/installments/${plan.id}`))).items.filter((t: any) => !t.deleted_at);
+      expect(after.find((t: any) => t.installment_no === 1 && t.for_user_id === hers.id).account_id).toBe(ids.nubank);
+      expect(after.find((t: any) => t.installment_no === 2 && t.for_user_id === hers.id).account_id).toBe(ids.bradesco);
+    });
+
     it('cancela só o restante ainda não pago', async () => {
       const { plan } = await ok(
         await agent.post('/api/installments').send({ description: 'Sofá', total_cents: 30000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-01', first_paid: true }),

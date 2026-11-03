@@ -56,7 +56,7 @@ A escolha começa em **Eu** e vale a sessão inteira: Início, Extrato, Calendá
 - **Eu** mostra só lançamentos com `for_user_id` igual a quem está logado. O que está marcado “Da casa” (`for_user_id` vazio) fica de fora.
 - **Nós** não filtra. Entram as duas pessoas e o que é da casa.
 
-No formulário de lançamento, “De quem” lista o primeiro nome de cada pessoa e o chip **Da casa**. O padrão é a pessoa logada.
+No formulário de lançamento, “De quem” lista o primeiro nome de cada pessoa e o chip **Da casa**. O padrão é a pessoa logada. Embaixo dos chips, uma linha diz o que acontece no Eu e no Nós: a pessoa aparece no Eu dela; Da casa não entra no Eu e só aparece em Nós.
 
 Isto continua da casa inteira, mesmo em Eu:
 
@@ -141,13 +141,13 @@ O saldo do resumo é de todas as contas: saldo inicial, mais o que já entrou e 
 
 ## Contratos
 
-Financiamentos e empréstimos (o carro, o Fies). Um contrato é um **parcelamento em conta marcado** (`installment_plans.is_contract`), não um cadastro à parte: as prestações são os lançamentos do parcelamento e já contam como despesa de cada mês, no Extrato, no Início e no Ano. A aba só olha esses parcelamentos de outro jeito. É da casa inteira, como Cartões, e não muda com Eu / Nós.
+Financiamentos e empréstimos (o carro, o Fies). Um contrato é um **parcelamento em conta marcado** (`installment_plans.is_contract`), não um cadastro à parte: as prestações são os lançamentos do parcelamento e já contam como despesa de cada mês, no Extrato, no Início e no Ano. A aba só olha esses parcelamentos de outro jeito. É da casa inteira, como Cartões, e não muda com Eu / Nós. O card mostra a prestação inteira. Quando ela está dividida, o Extrato em Eu mostra só a parte de quem está logado.
 
-Cabeçalho: título “Contratos” e o **+**, com o texto de apoio “Financiamentos e empréstimos. As prestações já contam nas despesas de cada mês.” Um resumo com dois números: **Falta pagar** (soma das prestações ainda não pagas de todos os contratos) e **Prestações em {mês}** (o mês de hoje). Cada contrato é um cartão com nome, credor e conta, “Falta R$ X”, a barra de progresso, “N de M pagas · termina em {mês ano}” e a próxima prestação (data e valor, ou “Atrasada”). Se houver, uma linha com valor contratado, juros ao mês e o total das prestações. Tocar abre a ficha: credor, valor contratado, juros ao mês (texto como “1,49”) e **Deixar de ser contrato**, que só tira a marca (as prestações ficam e continuam em Parcelamentos).
+Cabeçalho: título “Contratos” e o **+**, com o texto “Financiamentos e empréstimos. As prestações já contam nas despesas de cada mês.” Um resumo com dois números: **Falta pagar** (soma das prestações ainda não pagas) e **Prestações em {mês}** (o mês de hoje). Cada contrato é um cartão com o ícone do tipo (carro, casa, moto, estudo, empréstimo ou outro), nome, credor, de quem e de qual conta sai, quanto falta, a barra (“N% quitado · N de M pagas”), a próxima prestação (data e valor, ou “Atrasada”), quando termina e, se houver, os juros. Tocar abre a ficha: tipo, credor, de quem (uma pessoa ou Dividir, com o percentual e a conta de cada um), valor contratado, juros ao mês (“1,49”) e **Deixar de ser contrato**. Não há “Da casa”. Contrato antigo sem dono pede uma pessoa ou a divisão antes de salvar de novo; no card ele continua “Da casa” até lá. A divisão nova vale para as prestações em aberto; as já pagas ficam. As prestações continuam em Parcelamentos.
 
-O **+** abre “Adicionar contrato”: **Novo financiamento ou empréstimo** abre o Lançar já em Parcelada, com a caixa “É financiamento ou empréstimo” ligada e uma conta como destino (contrato é sempre em conta); abaixo, os parcelamentos em conta com parcela em aberto, para marcar como contrato com um toque. No Lançar, essa caixa aparece no parcelado sempre que o destino é uma conta. Compra parcelada no cartão não pode ser contrato (a API recusa).
+O **+** abre o Lançar já em contrato. **Novo** pede, nesta ordem: tipo, cada prestação ou o valor total, o número de prestações (atalhos de 12x a 120x), nome, credor e de quem. Em **Dividir**, logo abaixo vêm o atalho da divisão (50/50, 60/40, 70/30), o percentual e, para cada pessoa, “Sai de”. Sem dividir, “Pagar com” fica em seguida. A frase “Sai de {conta}, todo mês” ou “Diego sai de Bradesco. Jhersyka sai de {conta}.” aparece ali, antes da data. Depois vêm a data da primeira, “primeira já paga” e a categoria. O botão só libera quando a conta de cada um está escolhida. Embaixo dos chips, uma linha explica o Eu e o Nós. Valor contratado e juros ficam recolhidos, por último. **Já lançado** aparece quando existe parcelamento em conta com prestação em aberto: escolhe um e ele vira contrato, sem relançar as prestações. No Lançar comum, o parcelado em conta também tem “É financiamento ou empréstimo? Lançar como contrato”. Compra no cartão não pode ser contrato.
 
-Sem contrato, a tela mostra um quadro tracejado com “Adicionar contrato”. O dinheiro que o empréstimo deposita não é receita (premissas.md): para o saldo subir sem somar como receita, lance como receita com “Contar na soma” desligado. API: `GET /installments/contracts` e `PATCH /installments/:id` (`is_contract`, `lender`, `contracted_cents`, `monthly_rate_bp`).
+Sem contrato, a tela mostra um quadro tracejado, “Nenhum contrato ainda”. O dinheiro que o empréstimo deposita não é receita (premissas.md): para o saldo subir sem somar como receita, lance como receita com “Contar na soma” desligado. API: `GET /installments/contracts`, `POST /installments` e `PATCH /installments/:id` (`is_contract`, `contract_type`, `lender`, `contracted_cents`, `monthly_rate_bp`, `shares`).
 
 ## Extrato
 
@@ -212,7 +212,7 @@ Folha em tela cheia.
 3. Única, Fixa e, só em despesa, Parcelada. Receita não parcela.
 4. No parcelado: de 2 a 480 vezes, com atalhos até 60. O texto diz o total e a partir de qual fatura, no cartão, ou o dia, na conta.
 5. Categoria, opcional, com criação na hora.
-6. De quem: cada pessoa ou Da casa. Começa em quem está logado.
+6. De quem: cada pessoa ou Da casa. Começa em quem está logado. Embaixo, a linha diz se entra no Eu dessa pessoa ou só em Nós.
 7. Pagar com: em despesa, os cartões e depois as contas. Em receita, só contas. Sem escolha, a despesa cai no primeiro cartão, se houver, e senão na primeira conta. O **+** de um cartão já abre o lançamento naquele cartão. Sem conta e sem cartão, a tela pede para cadastrar uma conta.
 8. Data. Na fixa é a primeira data. No parcelado é a data da compra. Compra única no cartão mostra em qual fatura ela cai, pelo mês de vencimento. Na fixa o texto é “todo dia D, a partir do mês”.
 9. Descrição, opcional, até 120 caracteres.

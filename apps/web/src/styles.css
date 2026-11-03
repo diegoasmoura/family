@@ -3222,8 +3222,85 @@ main.page { gap: 12px; }
 .rec-bar i { flex-basis: 0; min-width: 4px; }
 .lanc-note .info-btn svg, button.info-btn svg { width: 14px; height: 14px; }
 
-/* Contratos: resumo com dois números lado a lado (quanto falta e quanto pesa no mês). */
+/* =====================================================================
+   CONTRATOS · financiamentos e empréstimos
+   ===================================================================== */
+/* Resumo com dois números lado a lado (quanto falta e quanto pesa no mês). */
 .contract-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .contract-sum > div { display: flex; flex-direction: column; gap: 4px; }
 .contract-sum b { font-size: 20px; }
+
+/* A "imagem" do contrato: ícone do tipo num quadrado arredondado, na cor do tipo (segue claro/escuro). */
+.ct-ic {
+  --ct: var(--chart-prev);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ct) 16%, var(--surface));
+  color: var(--ct);
+}
+.ct-ic svg { width: 28px; height: 28px; }
+.ct-ic.sm { width: 36px; height: 36px; border-radius: 12px; }
+.ct-ic.sm svg { width: 20px; height: 20px; }
+.ct-car { --ct: var(--chart-cum); }
+.ct-house { --ct: var(--green-text); }
+.ct-moto { --ct: var(--warn-text); }
+.ct-study { --ct: var(--purple); }
+.ct-loan { --ct: var(--exp); }
+.ct-other { --ct: var(--chart-prev); }
+
+/* Escolha do tipo: grade de 3 colunas com ícone e nome. */
+.ct-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ct-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ct-type.on { border-color: var(--green); background: var(--green-soft); }
+.ct-type:active { background: var(--press); }
+
+/* Card do contrato. */
 .card.contract { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.contract-top { display: flex; align-items: center; gap: 12px; }
+.contract-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.contract-name b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contract-name small { color: var(--muted); }
+.contract-left { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.contract-left small { color: var(--muted); }
+.contract-left b { font-size: 22px; }
+.contract-progress { color: var(--muted); }
+.contract-facts { margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.contract-facts > div { display: flex; gap: 8px; }
+.contract-facts dt { flex: none; width: 64px; color: var(--muted); }
+.contract-facts dd { margin: 0; color: var(--ink); }
+.contract-facts .neg dt, .contract-facts .neg dd { color: var(--neg); }
+
+/* Divisão entre as pessoas. */
+.split-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.split-row { display: flex; align-items: center; gap: 8px; }
+.split-person { display: flex; flex-direction: column; gap: 6px; }
+.split-pay { display: flex; flex-direction: column; gap: 4px; }
+.split-pay > small { color: var(--muted); }
+.split-row > span:first-child { flex: 1; font-weight: 600; }
+.who-hint { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.split-other { min-width: 48px; text-align: right; }
+.split-pct { color: var(--muted); }
+
+/* "Valor contratado e juros" fica recolhido no formulário. */
+.ct-more { display: flex; flex-direction: column; gap: 8px; }
+.ct-more summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--green-text); min-height: 44px; display: flex; align-items: center; }
+.ct-more[open] { display: flex; }
+.ct-more > *:not(summary) { margin-top: 8px; }

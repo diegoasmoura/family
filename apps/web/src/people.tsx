@@ -37,17 +37,27 @@ export function PersonFilter() {
 /** De quem é este lançamento. Vazio é da casa. */
 export function ForWhom({ value, onChange }: { value: number | null; onChange: (id: number | null) => void }) {
   const users = useApi<HouseUser[]>('/users');
+  const selected = users.data?.find((user) => user.id === value);
+  const hint =
+    value == null
+      ? 'Não entra no Eu. Só aparece em Nós.'
+      : selected
+        ? `Aparece no Eu de ${firstName(selected.name)}. Em Nós, entra junto com o resto.`
+        : null;
   return (
-    <div className="chips" role="radiogroup" aria-label="De quem">
-      {users.data?.map((user) => (
-        <button key={user.id} type="button" role="radio" aria-checked={value === user.id} className={`chip sm${value === user.id ? ' on' : ''}`} onClick={() => onChange(user.id)}>
-          {firstName(user.name)}
+    <>
+      <div className="chips" role="radiogroup" aria-label="De quem">
+        {users.data?.map((user) => (
+          <button key={user.id} type="button" role="radio" aria-checked={value === user.id} className={`chip sm${value === user.id ? ' on' : ''}`} onClick={() => onChange(user.id)}>
+            {firstName(user.name)}
+          </button>
+        ))}
+        <button type="button" role="radio" aria-checked={value === null} className={`chip sm${value === null ? ' on' : ''}`} onClick={() => onChange(null)}>
+          Da casa
         </button>
-      ))}
-      <button type="button" role="radio" aria-checked={value === null} className={`chip sm${value === null ? ' on' : ''}`} onClick={() => onChange(null)}>
-        Da casa
-      </button>
-    </div>
+      </div>
+      {hint && <small className="who-hint">{hint}</small>}
+    </>
   );
 }
 
