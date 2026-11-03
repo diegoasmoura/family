@@ -2718,8 +2718,10 @@ a.kebab {
 .sum-tile.out .sum-tile-hd i { background: var(--danger-bg); color: var(--neg); }
 .sum-tile b { font-size: 18px; font-weight: 700; }
 .sum-tile small { font-size: 12px; color: var(--muted); }
-.sum-foot { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); }
+.sum-foot { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.sum-foot-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .sum-foot b { color: var(--ink); font-weight: 600; }
+.sum-foot b.neg { color: var(--neg); }
 .home-jump {
   display: inline-flex;
   align-items: center;

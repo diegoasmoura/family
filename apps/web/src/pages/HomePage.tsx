@@ -6,8 +6,8 @@ import { AvatarFigure } from "../Avatar";
 import { setHidden, useHidden } from "../privacy";
 import { useInView } from "../useInView";
 import { usePullToRefresh } from "../usePullToRefresh";
-import { ErrorText, Icon, Loading, MonthNav, PullToRefresh, Sheet, brl, monthName } from "../ui";
-import { api, useAction, useApi, type Card, type Category, type Me, type Member, type Tx } from "../api";
+import { ErrorText, Icon, MonthNav, PullToRefresh, Sheet, SkeletonCard, brl, monthName } from "../ui";
+import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { CardRail } from "../CardFace";
 import { CategoryIcon } from "../categories";
 import { PersonFilter, personParam } from "../people";
@@ -99,6 +99,8 @@ export function HomePage({ me }: { me: Me }) {
   const q = useApi(`/dashboard?month=${month}&person=${personParam(person)}`);
   const budgets = useApi(`/budgets?month=${month}`);
   const cards = useApi<Card[]>("/cards");
+  // A fatura de cada cartão é a do mês escolhido, não a "atual" do cartão.
+  const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(`/cards/month/${month}`);
   const [catName, setCatName] = useState<string | null>(null);
   const [classify, setClassify] = useState<string | null>(null);
   const [evoRef, evoSeen] = useInView<HTMLDivElement>();
@@ -172,8 +174,12 @@ export function HomePage({ me }: { me: Me }) {
         <MonthNav month={month} onChange={setMonth} />
         <ErrorText error={q.error} />
         {!q.error && (
-        <Loading />
-      )}
+          <div className="home-stack" aria-busy="true" aria-label="Carregando">
+            <SkeletonCard lines={4} />
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={3} />
+          </div>
+        )}
       </main>
     );
   }
@@ -184,7 +190,8 @@ export function HomePage({ me }: { me: Me }) {
   const noData = incomeTotal === 0 && expenseTotal === 0;
   const tone: "pos" | "neg" | "idle" = noData ? "idle" : resultCents < 0 ? "neg" : "pos";
   const toneLabel = tone === "idle" ? "Sem lançamentos" : tone === "neg" ? "No vermelho" : "No azul";
-  const heroLabel = tone === "neg" ? "Falta cobrir no mês" : "Sobra prevista no mês";
+  const pastMonth = month < today.slice(0, 7);
+  const heroLabel = pastMonth ? (tone === "neg" ? "Faltou no mês" : "Sobrou no mês") : tone === "neg" ? "Falta cobrir no mês" : "Sobra prevista no mês";
   const cats: { category_id: number | null; name: string; color: string | null; total_cents: number }[] = d.categories;
   const top = cats.slice(0, 5);
   const restCents = cats.slice(5).reduce((sum, item) => sum + item.total_cents, 0);
@@ -227,7 +234,16 @@ export function HomePage({ me }: { me: Me }) {
             Ver todos <Icon.right />
           </Link>
         </div>
-        <CardRail cards={cardList} month={month} money={(cents) => <MoneyText cents={cents} />} />
+        {monthInvoices.data ? (
+          <CardRail
+            cards={cardList}
+            month={month}
+            money={(cents) => <MoneyText cents={cents} />}
+            invoiceOf={(card) => monthInvoices.data?.find((row) => row.card_id === card.id)?.invoice}
+          />
+        ) : (
+          <SkeletonCard lines={2} />
+        )}
       </section>
     ),
     summary: (
@@ -274,10 +290,20 @@ export function HomePage({ me }: { me: Me }) {
           </Link>
         </div>
         <div className="sum-foot">
-          <span>Saldo nas contas hoje</span>
-          <b>
-            <MoneyText cents={d.balance.current_cents} />
-          </b>
+          {month === today.slice(0, 7) && (
+            <div className="sum-foot-row">
+              <span>Saldo nas contas hoje</span>
+              <b>
+                <MoneyText cents={d.balance.current_cents} />
+              </b>
+            </div>
+          )}
+          <div className="sum-foot-row">
+            <span>{month === today.slice(0, 7) ? "Previsto no fim do mês" : month < today.slice(0, 7) ? `Saldo no fim de ${monthName(month)}` : `Previsto para o fim de ${monthName(month)}`}</span>
+            <b className={d.balance.forecast_cents < 0 ? "neg" : undefined}>
+              <MoneyText cents={d.balance.forecast_cents} />
+            </b>
+          </div>
         </div>
       </section>
     ),

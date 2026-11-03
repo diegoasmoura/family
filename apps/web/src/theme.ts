@@ -13,7 +13,8 @@ export function readTheme(): ThemePref {
 export function applyTheme(pref: ThemePref) {
   const dark = pref === 'dark' || (pref === 'system' && media().matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#121212' : '#58CC02');
+  // A barra do navegador (e a de baixo, no iPhone) acompanha o fundo do app, não o verde da marca.
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.setAttribute('content', dark ? '#121212' : '#ffffff'));
 }
 
 /** Acompanha a troca de tema do aparelho enquanto a preferência for "system". */
