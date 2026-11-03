@@ -223,6 +223,9 @@ export function HomePage({ me }: { me: Me }) {
     whoMap.set(who, (whoMap.get(who) ?? 0) + row.total_cents);
   }
   const whoRows = [...whoMap.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents);
+  const recurrenceByAmount = [...(d.recurrence as { key: string; name: string; color: string; total_cents: number }[])].sort(
+    (a, b) => b.total_cents - a.total_cents,
+  );
   const whoTotal = whoRows.reduce((sum, row) => sum + row.cents, 0);
   const WHO_COLORS = ["var(--chart-inc)", "var(--chart-cum)", "var(--chart-prev)"];
 
@@ -462,14 +465,14 @@ export function HomePage({ me }: { me: Me }) {
         ) : (
           <>
             <div className="rec-bar" role="img" aria-label={`Despesas por recorrência, ${hiddenMoney ? "valores ocultos" : brl(expenseTotal)}`}>
-              {d.recurrence
-                .filter((item: { total_cents: number }) => item.total_cents > 0)
-                .map((item: { key: string; color: string; total_cents: number }) => (
+              {recurrenceByAmount
+                .filter((item) => item.total_cents > 0)
+                .map((item) => (
                   <i key={item.key} style={{ flexGrow: item.total_cents, background: item.color }} />
                 ))}
             </div>
             <div className="rec-rows">
-              {d.recurrence.map((item: { key: string; name: string; color: string; total_cents: number }) => (
+              {recurrenceByAmount.map((item) => (
                 <Link
                   key={item.key}
                   className="rec-row"
