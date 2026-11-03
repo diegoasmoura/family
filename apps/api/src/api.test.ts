@@ -989,9 +989,7 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(both.map((c: { name: string }) => c.name).sort()).toEqual(['Nubank', 'Ultra']);
       expect((await member.get(`/api/cards/${ids.ultra}/invoices/2026-10?person=me`)).status).toBe(404);
       expect((await agent.get(`/api/cards/${nubank.id}/invoices/2026-10?person=me`)).status).toBe(404);
-      const house = await ok(await member.post('/api/cards').send({ name: 'Casa', closing_day: 1, due_day: 10, for_user_id: null }), 201);
-      expect((await ok(await member.get('/api/cards?person=me'))).map((c: { id: number }) => c.id)).not.toContain(house.id);
-      expect((await ok(await member.get('/api/cards?person=all'))).map((c: { id: number }) => c.id)).toContain(house.id);
+      expect((await member.post('/api/cards').send({ name: 'Casa', closing_day: 1, due_day: 10, for_user_id: null })).status).toBe(400);
     });
 
     it('TESTE CRÍTICO: compra de R$ 500 + pagamento de R$ 500 = despesa de R$ 500 e saída de caixa de R$ 500', async () => {

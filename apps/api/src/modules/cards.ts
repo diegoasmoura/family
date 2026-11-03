@@ -161,7 +161,7 @@ async function loadCard(ctx: Ctx, id: number): Promise<Card> {
   return owned<Card>(ctx, 'credit_cards', id, 'Cartão');
 }
 
-/** No Eu, só o cartão da pessoa. Da casa e o da outra pessoa não entram. */
+/** No Eu, só o cartão da pessoa. O da outra pessoa não entra. */
 async function loadVisibleCard(ctx: Ctx, id: number, personRaw: unknown): Promise<Card> {
   const card = await loadCard(ctx, id);
   const personId = await personFilter(ctx, personRaw);
@@ -278,6 +278,7 @@ export function cardsRouter(): Router {
     const existing = await findByUuid(req.ctx, 'credit_cards', body.client_uuid);
     if (existing) return void res.json(existing);
     if (body.default_pay_account_id) await owned(req.ctx, 'accounts', body.default_pay_account_id, 'Conta');
+    if (body.for_user_id === null) throw badRequest('O cartão precisa ser de uma pessoa');
     const forUserId = body.for_user_id === undefined ? req.ctx.userId : await assertHouseholdUser(req.ctx, body.for_user_id);
     const now = nowIso();
     const id = await insert(req.ctx.db, 'credit_cards', {
@@ -312,6 +313,7 @@ export function cardsRouter(): Router {
       }
     }
     if (body.default_pay_account_id) await owned(req.ctx, 'accounts', body.default_pay_account_id, 'Conta');
+    if (body.for_user_id === null) throw badRequest('O cartão precisa ser de uma pessoa');
     if (body.for_user_id !== undefined) body.for_user_id = await assertHouseholdUser(req.ctx, body.for_user_id);
     await update(req.ctx.db, 'credit_cards', id, { ...body, updated_at: nowIso() });
     res.json(await cardSummary(req.ctx, await loadCard(req.ctx, id)));

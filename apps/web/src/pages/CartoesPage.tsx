@@ -104,7 +104,7 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
         </div>
         <MoneyInput label="Limite" value={form.limit_cents} onChange={(v) => setForm((f) => ({ ...f, limit_cents: v }))} />
         <small>De quem</small>
-        <ForWhom value={forUser} onChange={setOwner} />
+        <ForWhom value={forUser} onChange={setOwner} peopleOnly />
         <label className="f">
           <span>Conta padrão para pagar a fatura</span>
           <select value={form.default_pay_account_id ?? ''} onChange={(e) => setForm((f) => ({ ...f, default_pay_account_id: e.target.value ? Number(e.target.value) : null }))}>
@@ -120,7 +120,7 @@ function CardForm({ card, onClose }: { card?: Card; onClose: () => void }) {
           </button>
         </label>
         <ErrorText error={save.error} />
-        <button className="btn block" disabled={save.isPending || !form.name.trim()}>
+        <button className="btn block" disabled={save.isPending || !form.name.trim() || forUser == null}>
           Salvar
         </button>
       </form>

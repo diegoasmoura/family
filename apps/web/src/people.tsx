@@ -39,12 +39,15 @@ export function PersonFilter() {
   );
 }
 
-/** De quem é este lançamento. Vazio é da casa. */
-export function ForWhom({ value, onChange }: { value: number | null; onChange: (id: number | null) => void }) {
+/** De quem é este lançamento. Vazio é da casa. No cartão, `peopleOnly` tira a casa: o cartão é de uma pessoa. */
+export function ForWhom({ value, onChange, peopleOnly = false }: { value: number | null; onChange: (id: number | null) => void; peopleOnly?: boolean }) {
   const users = useApi<HouseUser[]>('/users');
   const selected = users.data?.find((user) => user.id === value);
-  const hint =
-    value == null
+  const hint = peopleOnly
+    ? selected
+      ? `Só ${firstName(selected.name)} vê este cartão.`
+      : 'Escolha de quem é o cartão.'
+    : value == null
       ? 'Não entra no Eu. Só aparece em Nós.'
       : selected
         ? `Aparece no Eu de ${firstName(selected.name)}. Em Nós, entra junto com o resto.`
@@ -57,9 +60,11 @@ export function ForWhom({ value, onChange }: { value: number | null; onChange: (
             {firstName(user.name)}
           </button>
         ))}
-        <button type="button" role="radio" aria-checked={value === null} className={`chip sm${value === null ? ' on' : ''}`} onClick={() => onChange(null)}>
-          Da casa
-        </button>
+        {!peopleOnly && (
+          <button type="button" role="radio" aria-checked={value === null} className={`chip sm${value === null ? ' on' : ''}`} onClick={() => onChange(null)}>
+            Da casa
+          </button>
+        )}
       </div>
       {hint && <small className="who-hint">{hint}</small>}
     </>

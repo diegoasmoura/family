@@ -33,7 +33,7 @@ Início, Lançamentos, Calendário e Ano abrem em **Eu**. A escolha vale a sess�
 
 No lançamento, “De quem” lista o primeiro nome de cada pessoa e o chip Da casa. O padrão é quem está logado.
 
-O cartão também tem titular, no mesmo “De quem”. A aba Cartões não tem Eu/Nós e mostra só o cartão de quem está logado, mesmo quando o resto do app está em Nós. Da casa e o cartão da outra pessoa não entram nessa aba. No carrossel do Início e na escolha ao lançar, o Eu mostra só o titular e o Nós mostra todos. Pagar a fatura continua saindo da conta da casa.
+O cartão também tem titular, no “De quem”, e só pode ser de uma pessoa: Diego ou Jhersyka. Não existe Da casa no cartão. A aba Cartões não tem Eu/Nós e mostra só o cartão de quem está logado, mesmo quando o resto do app está em Nós. O cartão da outra pessoa não entra nessa aba. No carrossel do Início e na escolha ao lançar, o Eu mostra só o titular e o Nós mostra o cartão de cada um. Pagar a fatura continua saindo da conta da casa.
 
 Isto continua da casa inteira, mesmo em Eu:
 
