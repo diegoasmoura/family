@@ -26,14 +26,14 @@ Não há “esqueci a senha” por e-mail. A senha nova tem no mínimo 8 caracte
 
 ## Eu, Nós e da casa
 
-Início, Lançamentos, Calendário, Cartões e Ano abrem em **Eu**. A escolha vale a sessão inteira e não fica gravada no aparelho. Recarregar volta para Eu. A faixa é a mesma: Eu e Nós dividem a largura da coluna.
+Início, Lançamentos, Calendário e Ano abrem em **Eu**. A escolha vale a sessão inteira e não fica gravada no aparelho. Recarregar volta para Eu. A faixa é a mesma: Eu e Nós dividem a largura da coluna. A aba Cartões não tem essa faixa.
 
 - **Eu** mostra só o que tem `for_user_id` de quem está logado. O que está “Da casa” (`for_user_id` vazio) fica de fora.
 - **Nós** não filtra. Entram as duas pessoas e o que é da casa. Nós é a casa inteira, não só “Da casa”.
 
 No lançamento, “De quem” lista o primeiro nome de cada pessoa e o chip Da casa. O padrão é quem está logado.
 
-O cartão também tem titular, no mesmo “De quem”. No Eu, a aba Cartões, o carrossel do Início e a escolha ao lançar mostram só o cartão de quem está logado. Da casa e o cartão da outra pessoa ficam de fora. No Nós entram todos. Pagar a fatura continua saindo da conta da casa.
+O cartão também tem titular, no mesmo “De quem”. A aba Cartões não tem Eu/Nós e mostra só o cartão de quem está logado, mesmo quando o resto do app está em Nós. Da casa e o cartão da outra pessoa não entram nessa aba. No carrossel do Início e na escolha ao lançar, o Eu mostra só o titular e o Nós mostra todos. Pagar a fatura continua saindo da conta da casa.
 
 Isto continua da casa inteira, mesmo em Eu:
 

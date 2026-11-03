@@ -8,7 +8,7 @@
 O que mudou depois desta especificação:
 
 - Uma casa só. A segunda pessoa entra em Casa e usuários, como membro, sem convite entre casas.
-- Início, Extrato, Calendário, Cartões e a visão anual abrem em Eu. Nós soma as duas pessoas. O que fica "da casa" aparece em Nós. O cartão tem titular e, no Eu, a lista mostra só o de quem está logado. Contas, orçamento e metas continuam da casa inteira.
+- Início, Extrato, Calendário e a visão anual abrem em Eu. Nós soma as duas pessoas. O que fica "da casa" aparece em Nós. A aba Cartões não tem Eu/Nós e mostra só o cartão de quem está logado. Contas, orçamento e metas continuam da casa inteira.
 - O cartão mostra a logo do banco e a bandeira com ícone (Visa, Mastercard, Elo, American Express, Hipercard, Diners Club, Maestro). Outra aceita um nome livre.
 - A senha continua. Em https com nome, o celular pode entrar com a digital ou o Face ID já salvos no aparelho. Em `http://IP` esse botão não aparece.
 - A Início mostra, nesta ordem: resumo (saldo, previsto, receitas e despesas), próximos vencimentos, despesas por categoria, fluxo de caixa em barras horizontais, evolução das despesas no mês, despesas por recorrência, faturas e o ano mês a mês. O olho e "Configurar resumo" ficam salvos só no celular.
