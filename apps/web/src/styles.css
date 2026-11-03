@@ -3042,6 +3042,30 @@ nav.tabbar button.tab:active {
 .lanc-alert em { font-style: normal; font-size: 13px; text-decoration: underline; }
 .lanc-alert.on { border-color: var(--neg); }
 .lanc-note { display: flex; flex-direction: column; gap: 4px; }
+.lanc-slice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--surface-alt);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.lanc-slice button {
+  border: 0;
+  background: none;
+  color: var(--green-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .info-btn { align-self: flex-start; min-height: 32px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 12px; font-weight: 600; }
 
 .chip.add { border-style: dashed; color: var(--green-text); background: transparent; }

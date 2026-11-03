@@ -605,6 +605,8 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       // A prestação continua sendo uma despesa normal do mês: aparece uma vez no Extrato.
       const month = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=all'));
       expect(month.items.filter((t: any) => t.description === 'Carro')).toHaveLength(1);
+      expect(month.items.find((t: any) => t.description === 'Carro').recurrence_class).toBe('contract');
+      expect(month.summary.recurrence).toMatchObject({ contract: 10000, installment: 0 });
       const dashboard = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
       expect(dashboard.recurrence.find((item: any) => item.key === 'contract')).toMatchObject({ name: 'Contratos', total_cents: 10000 });
       expect(dashboard.recurrence.find((item: any) => item.key === 'installment').total_cents).toBe(0);

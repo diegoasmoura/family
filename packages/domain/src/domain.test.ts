@@ -92,6 +92,7 @@ describe('status derivado', () => {
   it('classifica fixa, parcelada e variável', () => {
     expect(classifyRecurrence({ recurrence_id: 1 })).toBe('fixed');
     expect(classifyRecurrence({ plan_id: 1 })).toBe('installment');
+    expect(classifyRecurrence({ plan_id: 1, plan_is_contract: 1 })).toBe('contract');
     expect(classifyRecurrence({})).toBe('variable');
   });
 });

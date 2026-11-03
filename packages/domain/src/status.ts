@@ -2,7 +2,7 @@ import { diffDays, type ISODate } from './dates';
 
 export type Kind = 'income' | 'expense';
 export type DisplayStatus = 'paid' | 'overdue' | 'near' | 'planned' | 'card';
-export type RecurrenceClass = 'fixed' | 'installment' | 'variable';
+export type RecurrenceClass = 'fixed' | 'installment' | 'contract' | 'variable';
 
 /** Dias até o vencimento para considerar "Próximo". */
 export const NEAR_DAYS = 7;
@@ -54,7 +54,8 @@ export function statusLabel(status: DisplayStatus, kind: Kind): string {
   }
 }
 
-export function classifyRecurrence(tx: { recurrence_id?: number | null; plan_id?: number | null }): RecurrenceClass {
+export function classifyRecurrence(tx: { recurrence_id?: number | null; plan_id?: number | null; plan_is_contract?: number | boolean | null }): RecurrenceClass {
+  if (tx.plan_id && (tx.plan_is_contract === 1 || tx.plan_is_contract === true)) return 'contract';
   if (tx.plan_id) return 'installment';
   if (tx.recurrence_id) return 'fixed';
   return 'variable';

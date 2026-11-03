@@ -38,7 +38,7 @@ import { ensureRecurrences } from './recurrences';
 import { personWhere } from './queries';
 import { normalizeSplit, splitFields } from './split';
 
-export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
+export const TX_SELECT = `SELECT t.*, p.is_contract AS plan_is_contract, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
        pc.name AS parent_category_name, pc.color AS parent_category_color, p.installments AS plan_installments, fu.name AS for_user_name,
        pu.name AS paid_by_user_name, spa.name AS settlement_previous_account_name,
        inv.due_date AS invoice_due_on,
@@ -213,6 +213,7 @@ function summarize(items: any[], kind: Kind) {
   const recurrence: Bucket = {
     fixed: sum(included.filter((t) => t.recurrence_class === 'fixed')),
     installment: sum(included.filter((t) => t.recurrence_class === 'installment')),
+    contract: sum(included.filter((t) => t.recurrence_class === 'contract')),
     variable: sum(included.filter((t) => t.recurrence_class === 'variable')),
   };
   const situation: Bucket = {

@@ -473,7 +473,7 @@ export function HomePage({ me }: { me: Me }) {
                 <Link
                   key={item.key}
                   className="rec-row"
-                  to={item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : item.key === "contract" ? "/contratos" : "/lancamentos"}
+                  to={`/lancamentos?recorrencia=${item.key}`}
                 >
                   <i className="sw" style={{ background: item.color }} />
                   <span>{item.name}</span>

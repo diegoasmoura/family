@@ -31,6 +31,21 @@ interface InvoiceRow {
   lines: InvoiceLine[];
 }
 
+const SLICES = ['fixed', 'installment', 'contract', 'variable'] as const;
+type Slice = (typeof SLICES)[number];
+const SLICE_NAME: Record<Slice, string> = { fixed: 'Fixas', installment: 'Parceladas', contract: 'Contratos', variable: 'Variáveis' };
+const SLICE_EMPTY: Record<Slice, string> = { fixed: 'fixa', installment: 'parcelada', contract: 'de contrato', variable: 'variável' };
+
+function readSlice(raw: string | null): Slice | null {
+  return SLICES.includes(raw as Slice) ? (raw as Slice) : null;
+}
+
+function lineSlice(line: InvoiceLine): Slice {
+  if (line.kind === 'other') return 'variable';
+  if (line.tx.recurrence_class === 'contract') return 'contract';
+  return line.kind === 'fixed' ? 'fixed' : 'installment';
+}
+
 function SummarySheet({ kind, summary, month, onClose }: { kind: Kind; summary: any; month: string; onClose: () => void }) {
   const income = kind === 'income';
   const row = (label: string, value: number) => (
@@ -69,6 +84,7 @@ function SummarySheet({ kind, summary, month, onClose }: { kind: Kind; summary: 
         <h2>Recorrência</h2>
         {row('Fixas', summary.recurrence.fixed)}
         {row('Parceladas', summary.recurrence.installment)}
+        {row('Contratos', summary.recurrence.contract)}
         {row('Variáveis', summary.recurrence.variable)}
       </section>
     </Sheet>
@@ -284,6 +300,12 @@ export function LancamentosPage() {
   const { month, setMonth, person } = useAppState();
   const [params, setParams] = useSearchParams();
   const kind: Kind = params.get('tipo') === 'receitas' ? 'income' : 'expense';
+  const slice = kind === 'expense' ? readSlice(params.get('recorrencia')) : null;
+  const clearSlice = () => {
+    const next = new URLSearchParams(params);
+    next.delete('recorrencia');
+    setParams(next);
+  };
   const [search, setSearch] = useState<string | null>(null);
   const [situation, setSituation] = useState<Situation>('all');
   const [selected, setSelected] = useState<{ id: number; mode: TxSheetMode } | null>(null);
@@ -301,14 +323,30 @@ export function LancamentosPage() {
     situation === 'all' ||
     (situation === 'paid' ? inv.state === 'paid' : situation === 'overdue' ? inv.state === 'overdue' : inv.state !== 'paid');
 
-  const items: Tx[] = useMemo(() => {
+  const scopedItems = useMemo(() => {
     const list: Tx[] = q.data?.items ?? [];
+    if (!slice) return list;
+    return list.filter((t) => t.include_in_reports && t.recurrence_class === slice);
+  }, [q.data, slice]);
+  const scopedInvoices = useMemo(() => {
+    const list: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
+    if (!slice) return list;
+    return list.flatMap((inv) => {
+      const lines = (inv.lines ?? []).filter((line) => lineSlice(line) === slice && (line.kind === 'other' || line.tx.include_in_reports));
+      if (!lines.length) return [];
+      const total = lines.reduce((sum, line) => sum + line.amount_cents, 0);
+      const remaining = lines.reduce((sum, line) => sum + ((line.kind === 'other' ? inv.state === 'paid' : line.tx.display_status === 'paid') ? 0 : line.amount_cents), 0);
+      return [{ ...inv, lines, total_cents: total, remaining_cents: remaining }];
+    });
+  }, [q.data, income, slice]);
+  const items: Tx[] = useMemo(() => {
+    const list = scopedItems;
     const searched = !search ? list : list.filter((t) => {
       const s = search.toLowerCase();
       return [t.description, t.category_name, t.parent_category_name, t.account_name, t.card_name].some((v) => v?.toLowerCase().includes(s));
     });
     return searched.filter(matchTx);
-  }, [q.data, search, situation]);
+  }, [scopedItems, search, situation]);
   const groups = useMemo(() => {
     const order: string[] = [];
     const map = new Map<string, Tx[]>();
@@ -323,18 +361,38 @@ export function LancamentosPage() {
     for (const list of map.values()) list.sort(byDue);
     return order.map((name) => ({ name, items: map.get(name)! }));
   }, [items]);
-  const invoices: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []).filter(matchInvoice);
+  const invoices: InvoiceRow[] = scopedInvoices.filter(matchInvoice);
   const current =
     selected &&
     [...items, ...invoices.flatMap((inv) => (inv.lines ?? []).flatMap((l) => (l.kind === 'other' ? [] : [l.tx])))].find((t) => t.id === selected.id);
 
-  const allInvoices: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
-  const overdueTxs: Tx[] = (q.data?.items ?? []).filter((t: Tx) => t.display_status === 'overdue' && t.include_in_reports);
+  const allInvoices: InvoiceRow[] = scopedInvoices;
+  const overdueTxs: Tx[] = scopedItems.filter((t: Tx) => t.display_status === 'overdue' && t.include_in_reports);
   const overdueInvoices = allInvoices.filter((inv) => inv.state === 'overdue');
   const overdueCount = overdueTxs.length + overdueInvoices.length;
-  const overdueCents = overdueTxs.reduce((a, t) => a + t.amount_cents, 0) + overdueInvoices.reduce((a, inv: any) => a + (inv.remaining_cents ?? 0), 0);
+  const overdueCents = overdueTxs.reduce((a, t) => a + t.amount_cents, 0) + overdueInvoices.reduce((a, inv) => a + (slice ? inv.lines.reduce((sum, line) => sum + line.amount_cents, 0) : (inv.remaining_cents ?? 0)), 0);
   // A API já inclui no "A pagar" a compra de cartão cuja fatura ainda não quitou.
   const pendingTotal = q.data?.pending_cents ?? 0;
+  const sliceFigures = useMemo(() => {
+    if (!slice) return null;
+    let total = 0;
+    let paid = 0;
+    let pending = 0;
+    for (const tx of scopedItems) {
+      total += tx.amount_cents;
+      if (tx.display_status === 'paid') paid += tx.amount_cents;
+      else pending += tx.amount_cents;
+    }
+    for (const inv of scopedInvoices) {
+      for (const line of inv.lines) {
+        total += line.amount_cents;
+        const settled = line.kind === 'other' ? inv.state === 'paid' : line.tx.display_status === 'paid';
+        if (settled) paid += line.amount_cents;
+        else pending += line.amount_cents;
+      }
+    }
+    return { total, paid, pending };
+  }, [slice, scopedItems, scopedInvoices]);
 
   return (
     <main className="page lanc" {...swipe}>
@@ -362,7 +420,7 @@ export function LancamentosPage() {
           value={kind}
           onChange={(k) => {
             setSituation('all');
-            setParams(k === 'income' ? { tipo: 'receitas' } : {});
+            setParams(k === 'income' ? { tipo: 'receitas' } : slice ? { recorrencia: slice } : {});
           }}
           options={[
             ['expense', <><Icon.expense /> Despesas</>],
@@ -379,15 +437,15 @@ export function LancamentosPage() {
           <div className="stats" role="group" aria-label="Filtrar pela situação">
             <button type="button" className={`st${situation === 'all' ? ' on' : ''}`} aria-pressed={situation === 'all'} onClick={() => setSituation('all')}>
               <small>{income ? 'Receitas' : 'Despesas'}</small>
-              <b className="num">{brl(q.data.summary.total_cents)}</b>
+              <b className="num">{brl(sliceFigures?.total ?? q.data.summary.total_cents)}</b>
             </button>
             <button type="button" className={`st ok${situation === 'paid' ? ' on' : ''}`} aria-pressed={situation === 'paid'} onClick={() => setSituation(situation === 'paid' ? 'all' : 'paid')}>
               <small>{income ? 'Recebido' : 'Pago'}</small>
-              <b className="num">{brl(q.data.settled_cents)}</b>
+              <b className="num">{brl(sliceFigures?.paid ?? q.data.settled_cents)}</b>
             </button>
             <button type="button" className={`st warn${situation === 'pending' ? ' on' : ''}`} aria-pressed={situation === 'pending'} onClick={() => setSituation(situation === 'pending' ? 'all' : 'pending')}>
               <small>{income ? 'A receber' : 'A pagar'}</small>
-              <b className="num">{brl(pendingTotal)}</b>
+              <b className="num">{brl(sliceFigures?.pending ?? pendingTotal)}</b>
             </button>
           </div>
           {overdueCount > 0 && (
@@ -405,6 +463,13 @@ export function LancamentosPage() {
                 <Icon.info /> Como as compras do cartão contam
               </button>
               {noteOpen && <small>Compras no cartão somam em “A pagar” ao serem lançadas; só entram em “Pago” quando a fatura quitar.</small>}
+            </div>
+          )}
+
+          {slice && (
+            <div className="lanc-slice">
+              <span>{SLICE_NAME[slice]} de {monthLabel(month).toLowerCase()}</span>
+              <button type="button" onClick={clearSlice}>Ver o mês inteiro</button>
             </div>
           )}
 
@@ -442,7 +507,7 @@ export function LancamentosPage() {
               </section>
             ))}
             {items.length === 0 && invoices.length === 0 && (
-              <p className="empty">{situation !== 'all' ? 'Nada nesta situação.' : search ? 'Nada encontrado.' : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
+              <p className="empty">{situation !== 'all' ? 'Nada nesta situação.' : search ? 'Nada encontrado.' : slice ? `Nenhuma despesa ${SLICE_EMPTY[slice]} em ${monthLabel(month).toLowerCase()}.` : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
             )}
           </div>
         </>

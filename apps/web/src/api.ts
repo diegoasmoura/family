@@ -173,7 +173,7 @@ export interface Tx {
   /** paid, overdue, near (até 7 dias), planned. `card` permanece no tipo e não volta da API: a compra segue o vencimento da fatura. */
   display_status: 'paid' | 'overdue' | 'near' | 'planned' | 'card';
   status_label: string;
-  recurrence_class: 'fixed' | 'installment' | 'variable';
+  recurrence_class: 'fixed' | 'installment' | 'contract' | 'variable';
   installment_label: string | null;
   /** 1 quando a fixa continua depois deste mês, ou ainda há parcela seguinte. */
   has_following: number;
