@@ -2386,7 +2386,8 @@ a.kebab {
 }
 .page.home .bar { height: 4px; border-radius: 999px; }
 .sum-card { gap: 16px; background: var(--surface); }
-/* Estado (no azul/no vermelho) vai no número e na pílula, não num fundo colorido. */
+.sum-card.pos { background: linear-gradient(160deg, var(--green-soft), var(--surface) 70%); border-color: var(--green-border); }
+.sum-card.neg { background: linear-gradient(160deg, var(--danger-bg), var(--surface) 70%); }
 .sum-top { display: flex; justify-content: space-between; align-items: center; }
 .sum-top small { font-size: 13px; font-weight: 600; color: var(--muted); }
 .sum-top small::first-letter { text-transform: uppercase; }

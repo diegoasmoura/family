@@ -342,6 +342,6 @@ No computador de desenvolvimento a API usa a porta 3001 e o site o Vite na porta
 - Pesos de fonte vão até 700; a hierarquia vem de tamanho e cor. Espaçamentos (`padding`, `margin`, `gap`) seguem a grade de 4px.
 - Uma só curva de animação (`--ease`, `cubic-bezier(0.22, 1, 0.36, 1)`).
 - Ícones sempre do conjunto lucide via `Icon.*`; sem setas ou símbolos em texto (▾ ↓ ✓ ⓘ).
-- Cartões-resumo (`.sum-card`) têm fundo neutro: o estado (no azul/no vermelho) aparece no número e na pílula, não no fundo.
+- Cartões-resumo (`.sum-card`) levam um degradê suave: verde quando o mês está no azul, vermelho quando está no vermelho. A pílula e o número grande repetem a mesma cor.
 - No Início, “Despesas por recorrência” é uma barra empilhada com a lista de valores; o único donut é o de categorias.
 - Revisão feita com a ideia do guia “unslop” (Damir Sokolovsky, @heydamir, CC BY 4.0).
