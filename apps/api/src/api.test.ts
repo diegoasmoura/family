@@ -639,7 +639,14 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await member.delete(`/api/cards/${ids.ultra}`)).status).toBe(403);
       expect((await member.get(`/api/accounts/${ids.bradesco}/impact`)).status).toBe(403);
 
+      // arquivar só com tudo pago: fatura em aberto bloqueia, para não sobrar dívida sem como pagar
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 1000, occurred_on: '2026-09-05', card_id: ids.ultra }), 201);
+      const bloqueado = await agent.patch(`/api/cards/${ids.ultra}`).send({ archived: 1 });
+      expect(bloqueado.status).toBe(400);
+      expect(bloqueado.body.error).toMatch(/a pagar em faturas/);
+      expect((await ok(await agent.get('/api/cards'))).some((c: any) => c.id === ids.ultra)).toBe(true);
+      const fatura = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
+      await ok(await agent.post(`/api/invoices/${fatura.id}/payments`).send({ amount_cents: fatura.remaining_cents, account_id: ids.bradesco }), 201);
       await ok(await agent.patch(`/api/cards/${ids.ultra}`).send({ archived: 1 }));
       expect((await ok(await agent.get('/api/cards?archived=1'))).some((c: any) => c.id === ids.ultra)).toBe(true);
     });
@@ -983,6 +990,31 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(y.planned_cents).toBe(150000);
       expect(y.spent_cents).toBe(72000);
       expect(y.items.every((i: any) => i.planned_cents > 0)).toBe(true);
+    });
+
+    it('"quem gastou" e a composição por subcategoria fecham com o total de despesas, inclusive a compra do cartão', async () => {
+      const me = (await ok(await agent.get('/api/auth/me'))).id;
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 1000, occurred_on: '2026-10-03', account_id: ids.bradesco, category_id: ids.cat['Mercado'], for_user_id: me }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 5000, occurred_on: '2026-08-20', card_id: ids.ultra, category_id: ids.cat['Mercado'], for_user_id: me }), 201); // fatura de outubro
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 2000, occurred_on: '2026-08-21', card_id: ids.ultra, category_id: ids.cat['Alimentação'] }), 201); // da casa, direto na categoria pai
+      for (const person of ['all', 'me']) {
+        const dash = await ok(await agent.get(`/api/dashboard?month=2026-10&person=${person}`));
+        const total = dash.expense.total_cents;
+        expect(dash.spent_by_person.reduce((a: number, r: any) => a + r.total_cents, 0)).toBe(total);
+        expect(dash.category_breakdown.reduce((a: number, r: any) => a + r.total_cents, 0)).toBe(total);
+      }
+      const all = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
+      expect(all.expense.total_cents).toBe(8000);
+      expect(all.spent_by_person).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ user_id: me, total_cents: 6000 }),
+          expect.objectContaining({ user_id: null, name: null, total_cents: 2000 }),
+        ]),
+      );
+      const alimentacao = all.category_breakdown.filter((r: any) => r.parent === 'Alimentação');
+      expect(alimentacao.find((r: any) => r.name === 'Mercado').total_cents).toBe(6000);
+      expect(alimentacao.find((r: any) => r.name === 'Geral').total_cents).toBe(2000);
+      expect(all.categories.find((c: any) => c.name === 'Alimentação').total_cents).toBe(8000);
     });
 
     it('a evolução vem no painel e termina no mesmo total das despesas, com a compra do cartão no vencimento da fatura', async () => {

@@ -324,6 +324,40 @@ export function dashboardRouter(): Router {
       total_cents: num(c.total),
     }));
 
+    // Quem gastou e composição por subcategoria: mesmos filtros do total de despesas, então a soma
+    // fecha com ele (inclusive a compra de cartão), em Eu e em Nós.
+    const spendWhere = `t.household_id = ? AND t.competence_month = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
+          ${personId == null ? '' : 'AND t.for_user_id = ?'}`;
+    const byPersonRows = await ctx.db.all(
+      `SELECT t.for_user_id AS user_id, u.name AS name, SUM(t.amount_cents) AS total FROM transactions t
+         LEFT JOIN users u ON u.id = t.for_user_id
+        WHERE ${spendWhere}
+        GROUP BY t.for_user_id, u.name ORDER BY total DESC`,
+      catParams,
+    );
+    const spent_by_person = byPersonRows.map((r) => ({
+      user_id: r.user_id == null ? null : Number(r.user_id),
+      name: r.name ?? null,
+      total_cents: num(r.total),
+    }));
+    const breakdownRows = await ctx.db.all(
+      `SELECT c.name AS name, c.color AS color, pc.name AS parent_name, SUM(t.amount_cents) AS total FROM transactions t
+         LEFT JOIN categories c ON c.id = t.category_id
+         LEFT JOIN categories pc ON pc.id = c.parent_id
+        WHERE ${spendWhere}
+        GROUP BY c.id, c.name, c.color, pc.name`,
+      catParams,
+    );
+    // O pai é a categoria de cima (ou ela mesma); gasto lançado direto no pai aparece como "Geral".
+    const category_breakdown = breakdownRows
+      .map((r) => ({
+        parent: String(r.parent_name ?? r.name ?? 'Sem categoria'),
+        name: r.parent_name ? String(r.name ?? 'Geral') : 'Geral',
+        color: r.color ?? null,
+        total_cents: num(r.total),
+      }))
+      .sort((a, b) => b.total_cents - a.total_cents);
+
     const rhythm = await ctx.db.get(
       `SELECT
          SUM(CASE WHEN plan_id IS NOT NULL THEN amount_cents ELSE 0 END) AS installment_cents,
@@ -456,6 +490,8 @@ export function dashboardRouter(): Router {
       },
       result_cents: totals.income_posted + totals.income_planned - totals.expense_posted - totals.expense_planned,
       categories,
+      spent_by_person,
+      category_breakdown,
       recurrence,
       future_installments_cents: num(futureInstallments?.total),
       invoice: personId == null ? invoice : null,

@@ -105,7 +105,7 @@ export function HomePage({ me }: { me: Me }) {
   const [classify, setClassify] = useState<string | null>(null);
   const [evoRef, evoSeen] = useInView<HTMLDivElement>();
   const [yearRef, yearSeen] = useInView<HTMLDivElement>();
-  const needTxs = catName !== null || classify !== null || evoSeen || person === "all";
+  const needTxs = classify !== null || evoSeen;
   const expNow = useApi(needTxs ? `/transactions?month=${month}&kind=expense&person=${personParam(person)}` : null);
   const expPrev = useApi(evoSeen ? `/transactions?month=${addMonths(month, -1)}&kind=expense&person=${personParam(person)}` : null);
   const hiddenMoney = useHidden();
@@ -210,26 +210,22 @@ export function HomePage({ me }: { me: Me }) {
   const outros = cats.find((item) => /outros|sem categoria/i.test(item.name || ""));
   const budgetOf = (id: number | null, name: string) =>
     (budgets.data?.items ?? []).find((item: { category_id: number; name: string }) => item.category_id === id || item.name === name);
+  // Subcategorias e "quem gastou" vêm do painel (já somando o cartão), então fecham com o total de Despesas.
   const childrenOf = (name: string) => {
     const map = new Map<string, { name: string; total_cents: number; color: string | null }>();
-    for (const tx of txs) {
-      if (!tx.include_in_reports) continue;
-      const parent = tx.parent_category_name || tx.category_name || "Sem categoria";
-      if (parent !== name) continue;
-      const child = tx.parent_category_name ? tx.category_name || "Geral" : "Geral";
-      const color = tx.category_color;
-      const row = map.get(child) ?? { name: child, total_cents: 0, color };
-      row.total_cents += tx.amount_cents;
-      map.set(child, row);
+    for (const row of (d.category_breakdown ?? []) as { parent: string; name: string; color: string | null; total_cents: number }[]) {
+      if (row.parent !== name) continue;
+      const item = map.get(row.name) ?? { name: row.name, total_cents: 0, color: row.color };
+      item.total_cents += row.total_cents;
+      map.set(row.name, item);
     }
     return [...map.values()].sort((a, b) => b.total_cents - a.total_cents);
   };
 
   const whoMap = new Map<string, number>();
-  for (const tx of txs) {
-    if (!tx.include_in_reports) continue;
-    const who = tx.for_user_name ? tx.for_user_name.trim().split(/\s+/)[0] : "Da casa";
-    whoMap.set(who, (whoMap.get(who) ?? 0) + tx.amount_cents);
+  for (const row of (d.spent_by_person ?? []) as { name: string | null; total_cents: number }[]) {
+    const who = row.name ? row.name.trim().split(/\s+/)[0] : "Da casa";
+    whoMap.set(who, (whoMap.get(who) ?? 0) + row.total_cents);
   }
   const whoRows = [...whoMap.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents);
   const whoTotal = whoRows.reduce((sum, row) => sum + row.cents, 0);

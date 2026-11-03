@@ -9,6 +9,7 @@ import {
   cycleForReference,
   invoiceForPurchase,
   monthOf,
+  formatBRL,
   type InvoiceBalance,
 } from '@fin/domain';
 import {
@@ -284,6 +285,15 @@ export function cardsRouter(): Router {
     await loadCard(req.ctx, id);
     const body = parse(cardBody.partial().omit({ client_uuid: true }).extend({ archived: zFlag.optional() }), req.body);
     if (body.archived !== undefined) requireAdmin(req.ctx);
+    if (body.archived) {
+      // Arquivar tira o cartão das telas de pagamento, então não pode sobrar fatura sem como pagar.
+      const owed = (await cardInvoiceBalances(req.ctx, id)).reduce((sum, b) => sum + Math.max(0, b.remaining_cents), 0);
+      if (owed > 0) {
+        throw badRequest(
+          `Este cartão ainda tem ${formatBRL(owed)} a pagar em faturas (incluindo parcelas futuras). Pague as faturas antes de arquivar, ou exclua o cartão para apagar os lançamentos.`,
+        );
+      }
+    }
     if (body.default_pay_account_id) await owned(req.ctx, 'accounts', body.default_pay_account_id, 'Conta');
     await update(req.ctx.db, 'credit_cards', id, { ...body, updated_at: nowIso() });
     res.json(await cardSummary(req.ctx, await loadCard(req.ctx, id)));
@@ -419,7 +429,7 @@ export function invoicesRouter(): Router {
    */
   r.post('/:id/adjust', async (req, res) => {
     const id = idParam(req.params.id);
-    const inv = await invoiceWithCard(req.ctx, id);
+    await invoiceWithCard(req.ctx, id); // garante que a fatura existe e é da casa
     const body = parse(z.object({ loose_cents: z.number().int() }), req.body);
     const now = nowIso();
     await req.ctx.db.run(

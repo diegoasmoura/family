@@ -927,8 +927,8 @@ export function CartoesPage() {
         />
       )}
       {p?.kind === 'arquivar' && (
-        <Confirm text={`Arquivar o ${p.card.name}? Ele some da lista, mas o histórico continua nos relatórios.`} onConfirm={() => {
-            archive.mutate(p.card);
+        <Confirm text={`Arquivar o ${p.card.name}? Ele some da lista, mas o histórico continua nos relatórios. Só dá para arquivar com todas as faturas pagas.`} onConfirm={() => {
+            archive.mutate(p.card, { onError: (e) => toast(e.message) });
             setPanel(null);
           }} onClose={() => setPanel(null)} />
       )}

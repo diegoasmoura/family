@@ -285,7 +285,7 @@ export function AnoPage() {
         {awayYear ? (
           <button type="button" className="month-back" aria-label={`Voltar para ${yearOf(today)}`} onClick={() => { setYear(yearOf(today)); setFocus(null); }}>
             <b>{year}</b>
-            <small>Ano atual</small>
+            <small>Ir para {yearOf(today)}</small>
           </button>
         ) : (
           <b>{year}</b>

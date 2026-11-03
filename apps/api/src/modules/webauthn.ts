@@ -30,7 +30,7 @@ function bytesToB64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64url');
 }
 
-function b64ToBytes(value: string): Uint8Array {
+function b64ToBytes(value: string): Uint8Array<ArrayBuffer> {
   return new Uint8Array(Buffer.from(value, 'base64url'));
 }
 

@@ -126,7 +126,7 @@ export function MonthNav({ month, onChange }: { month: string; onChange: (m: str
       {away ? (
         <button type="button" className="month-back" aria-label={`Voltar para ${monthLabel(current)}`} onClick={() => onChange(current)}>
           <b>{monthLabel(month)}</b>
-          <small>Mês atual</small>
+          <small>Ir para {monthLabel(current).toLowerCase()}</small>
         </button>
       ) : (
         <b>{monthLabel(month)}</b>
