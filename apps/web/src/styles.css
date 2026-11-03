@@ -2568,11 +2568,31 @@ small.late { color: var(--neg); font-weight: 600; }
 .layout-tools .link { min-height: 44px; padding: 0 8px; }
 .dest-line { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .dest-line b { color: var(--ink); }
-html[data-hide-money="1"] :is(.num, .money, .year td + td) {
-  filter: blur(7px);
+/* Barra no lugar do valor: cobre o dígito por inteiro e guarda a largura da linha. */
+html[data-hide-money="1"] :is(.money, .num):not(:has(.money, .num)):not(input, textarea) {
+  display: inline-block;
+  color: transparent !important;
+  position: relative;
   user-select: none;
+  -webkit-user-select: none;
 }
-html[data-hide-money="1"] .ax { visibility: hidden; }
+html[data-hide-money="1"] :is(.money, .num):not(:has(.money, .num)):not(input, textarea)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 0.62em;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 16%, var(--surface));
+  pointer-events: none;
+}
+html[data-hide-money="1"] .pcard[data-ink="light"] .money::after { background: rgba(255, 255, 255, 0.72); }
+html[data-hide-money="1"] .pcard[data-ink="dark"] .money::after { background: rgba(0, 0, 0, 0.28); }
+html[data-hide-money="1"] .v > .money { align-self: flex-end; }
+html[data-hide-money="1"] .ax,
+html[data-hide-money="1"] .donut-val { visibility: hidden; }
 .offline {
   margin: 0;
   padding: 8px 16px;

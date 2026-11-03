@@ -173,9 +173,9 @@ export function ContasPage({ me }: { me: Me }) {
                       {a.month_closing_cents != null ? ' · fim do mês corrigido' : ''}
                     </small>
                   </div>
-                  <div className="v num">
-                    {brl(a.current_balance_cents)}
-                    <small>previsto {brl(a.forecast_balance_cents)}</small>
+                  <div className="v">
+                    <span className="money">{brl(a.current_balance_cents)}</span>
+                    <small>previsto <span className="money">{brl(a.forecast_balance_cents)}</span></small>
                   </div>
                 </button>
                 <button type="button" className="link" onClick={() => setClosing(a)}>

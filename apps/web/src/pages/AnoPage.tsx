@@ -34,7 +34,7 @@ interface AuditFilter {
 type Audit = AuditFilter & { month?: number };
 
 const MONTHS_LONG = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-const cell = (cents: number) => (cents === 0 ? '–' : formatBRL(cents));
+const cell = (cents: number) => (cents === 0 ? '–' : <span className="money">{formatBRL(cents)}</span>);
 
 function filterOf(r: Row, kind: Kind, depth: number): AuditFilter {
   return { kind, category: r.category_id ?? 'none', tree: depth === 0 ? '1' : '0', title: r.name };

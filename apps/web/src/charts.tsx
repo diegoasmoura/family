@@ -108,6 +108,7 @@ export function Donut({
                               fontSize={13}
                               fontWeight={700}
                               letterSpacing={0.2}
+                              className="donut-val"
                               fill="#fff"
                               stroke={shadeOf(fill, 0.45)}
                               strokeWidth={3}

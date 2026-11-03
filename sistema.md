@@ -72,7 +72,7 @@ Em Eu, o “a pagar” do resumo não soma o restante das faturas. Em Nós, soma
 
 ## Olho de ocultar valores
 
-Só existe no Início. O botão mede 40×40, com cantos de 12px, e fica no canto direito do cabeçalho, depois dos avatares. A preferência fica neste aparelho, na chave `fin-hide-money`. Ligado, os valores do Início viram `R$ ••••`, inclusive o centro do gráfico de categorias e a dica da evolução. Lançamentos, Calendário e Ano não escondem.
+Só existe no Início, à direita dos avatares, no mesmo botão de contorno dos outros ícones do cabeçalho. A preferência fica neste aparelho, na chave `fin-hide-money`. Ligado, cada valor em reais (classe `.money` ou `.num`) vira uma barra neutra do tamanho do número, em todas as telas. O campo em que a pessoa está digitando continua visível. Dia de fechamento, nível e XP não entram nessa barra. O centro do gráfico de categorias mostra `R$ ••••` e o percentual das fatias some. Em Mais há os mesmos controles, com o texto “Os valores viram uma barra”.
 
 Os avatares ficam à esquerda do olho, num grupo alinhado à direita. Trocar Eu e Nós muda quantos avatares aparecem (um ou os dois) e esse grupo cresce para a esquerda. O olho não muda de lugar.
 

@@ -30,7 +30,7 @@ function Editor({ me }: { me: Member }) {
           </div>
           <div className="hd">
             <b>Nível {me.level}</b>
-            <small className="num">{me.total_xp} XP</small>
+            <small>{me.total_xp} XP</small>
           </div>
           <Bar ratio={me.ratio} kind="xp" />
           <small>

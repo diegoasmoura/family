@@ -231,7 +231,7 @@ function DespesasSheet({ card, month: startMonth, onClose, onTx }: { card: Card;
         <>
           <small>
             Fecha em {shortDate(inv.closing_date)} · vence em {shortDate(inv.due_date)}
-            {inv.pending_cents > 0 ? ` · ${brl(inv.pending_cents)} pendentes de confirmação` : ''}
+            {inv.pending_cents > 0 ? <> · <span className="money">{brl(inv.pending_cents)}</span> pendentes de confirmação</> : ''}
           </small>
           {inv.state === 'paid' && paymentsSection}
           {txs.length === 0 && <p className="empty">Nenhuma compra nesta fatura.</p>}
@@ -517,7 +517,7 @@ function ReajustarSheet({ card, month, onClose }: { card: Card; month: string; o
             <span>Fatura</span>
             <b className="num">{brl(parcel + (loose ?? 0))}</b>
           </div>
-          {diff !== 0 && <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>{diff > 0 ? 'Sobe' : 'Desce'} {brl(Math.abs(diff))} no que não é parcela.</div>}
+          {diff !== 0 && <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>{diff > 0 ? 'Sobe' : 'Desce'} <span className="money">{brl(Math.abs(diff))}</span> no que não é parcela.</div>}
           <ErrorText error={save.error} />
           <button className="btn big" disabled={loose == null || diff === 0 || save.isPending}>
             Reajustar
@@ -648,14 +648,14 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
       )}
       {invoice && owing && (
         <button type="button" className="btn block" onClick={() => onPanel('pagar')}>
-          Pagar {brl(invoice.remaining_cents)}
+          Pagar <span className="money">{brl(invoice.remaining_cents)}</span>
         </button>
       )}
       {invoice && !owing && invoice.state === 'paid' && !empty && (
         <section className="pcd-status ok" aria-label="Fatura paga">
           <Icon.check />
           <span>
-            Paga{lastPaid ? ` em ${shortDate(lastPaid)}` : ''} · {brl(invoice.total_cents)}
+            Paga{lastPaid ? ` em ${shortDate(lastPaid)}` : ''} · <span className="money">{brl(invoice.total_cents)}</span>
             {payments[0]?.account_name ? ` · ${payments[0].account_name}` : ''}
           </span>
         </section>
@@ -688,8 +688,8 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
               <b>{txs.length ? `${txs.length} ${txs.length === 1 ? 'compra' : 'compras'}` : 'Compras'}</b>
               <small>em {monthName(invoice.reference_month)}</small>
             </span>
-            <b className="num">
-              {brl(invoice.total_cents)} <span className="chev"><Icon.right /></span>
+            <b>
+              <span className="money">{brl(invoice.total_cents)}</span> <span className="chev"><Icon.right /></span>
             </b>
           </button>
           {whoTotal > 0 && (
@@ -704,7 +704,7 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
                 {whoRows.map((r, i) => (
                   <span key={r.name}>
                     <i className="sw" style={{ background: COLORS[Math.min(i, COLORS.length - 1)] }} />
-                    {r.name} <b>{Math.round((r.cents / whoTotal) * 100)}%</b> · {brl(r.cents)}
+                    {r.name} <b>{Math.round((r.cents / whoTotal) * 100)}%</b> · <span className="money">{brl(r.cents)}</span>
                   </span>
                 ))}
               </div>
@@ -724,8 +724,8 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
                   {diff === 0
                     ? <><Icon.check /> Confere com o app</>
                     : diff > 0
-                      ? `O banco cobra ${brl(diff)} a mais que o app. Pode faltar lançar uma compra.`
-                      : `O app tem ${brl(-diff)} a mais que o banco. Pode haver um lançamento a mais.`}
+                      ? <>O banco cobra <span className="money">{brl(diff)}</span> a mais que o app. Pode faltar lançar uma compra.</>
+                      : <>O app tem <span className="money">{brl(-diff)}</span> a mais que o banco. Pode haver um lançamento a mais.</>}
                 </small>
               )}
               {diff != null && diff !== 0 && (
@@ -749,13 +749,13 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
           <div className="pcd-info">
             <div className="pcd-tile">
               <small>Fecha / vence</small>
-              <b className="num">
+              <b>
                 dia {card.closing_day} / dia {card.due_day}
               </b>
             </div>
             <div className="pcd-tile">
               <small>Melhor dia de compra</small>
-              <b className="num">Dia {card.closing_day}</b>
+              <b>Dia {card.closing_day}</b>
               {card.closing_day > 28 && <small>ou o último do mês</small>}
             </div>
             <div className="pcd-tile">
@@ -767,8 +767,8 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
             </div>
             <button type="button" className="pcd-tile click" onClick={() => onPanel('historico')}>
               <small>Total comprometido</small>
-              <b className="num">
-                {brl(card.committed_cents)} <span className="chev"><Icon.right /></span>
+              <b>
+                <span className="money">{brl(card.committed_cents)}</span> <span className="chev"><Icon.right /></span>
               </b>
             </button>
           </div>
@@ -776,7 +776,7 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
       </section>
 
       {pct >= 80 && <small className={pct >= 95 ? 'late' : 'soon'}>{pct >= 95 ? 'Limite quase no fim' : 'Mais de 80% do limite usado'}</small>}
-      {card.credit_cents > 0 && <small>Crédito de pagamento antecipado: {brl(card.credit_cents)}</small>}
+      {card.credit_cents > 0 && <small>Crédito de pagamento antecipado: <span className="money">{brl(card.credit_cents)}</span></small>}
       <div className="lanc-note">
         <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
           <Icon.info /> Como o cartão conta
@@ -851,8 +851,8 @@ export function CartoesPage() {
       </div>
       <MonthNav month={month} onChange={setMonth} />
       <PullToRefresh ptr={ptr} />
-      <small className="num pc-due">
-        {brl(totalDue)} a pagar em {monthName(month)}
+      <small className="pc-due">
+        <span className="money">{brl(totalDue)}</span> a pagar em {monthName(month)}
       </small>
       <ErrorText error={cards.error ?? archive.error ?? remove.error ?? unarchive.error} />
 

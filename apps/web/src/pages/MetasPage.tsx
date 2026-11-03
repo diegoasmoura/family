@@ -85,17 +85,17 @@ function DepositSheet({ goal, onClose }: { goal: Goal; onClose: () => void }) {
         }}
       >
         <small>
-          Guardado {brl(goal.saved_cents)} de {brl(goal.target_cents)}
+          Guardado <span className="money">{brl(goal.saved_cents)}</span> de <span className="money">{brl(goal.target_cents)}</span>
         </small>
         <MoneyInput big label={withdraw ? 'Retirar' : 'Guardar'} value={amount} onChange={setAmount} />
         {!withdraw && (
           <div className="chips" aria-label="Valores rápidos">
             {[5_000, 10_000, 20_000, 50_000].map((v) => (
-              <button key={v} type="button" className="chip sm" onClick={() => setAmount((a) => (a ?? 0) + v)}>+{brl(v)}</button>
+              <button key={v} type="button" className="chip sm" onClick={() => setAmount((a) => (a ?? 0) + v)}>+<span className="money">{brl(v)}</span></button>
             ))}
             {Math.max(0, goal.target_cents - goal.saved_cents) > 0 && (
               <button type="button" className="chip sm" onClick={() => setAmount(Math.max(0, goal.target_cents - goal.saved_cents))}>
-                Completar ({brl(Math.max(0, goal.target_cents - goal.saved_cents))})
+                Completar (<span className="money">{brl(Math.max(0, goal.target_cents - goal.saved_cents))}</span>)
               </button>
             )}
             <button type="button" className="chip sm" onClick={() => setAmount(null)}>Limpar</button>
@@ -162,7 +162,7 @@ export function MetasPage() {
                 {g.deadline && (
                   <small>
                     até {fullDate(g.deadline)}
-                    {g.target_cents > g.saved_cents ? (g.deadline < today ? ' · Prazo vencido' : ` · Guarde ${brl(Math.ceil((g.target_cents - g.saved_cents) / Math.max(1, (Number(g.deadline.slice(0, 4)) - Number(today.slice(0, 4))) * 12 + (Number(g.deadline.slice(5, 7)) - Number(today.slice(5, 7))) + 1)))} por mês`) : ''}
+                    {g.target_cents > g.saved_cents ? (g.deadline < today ? ' · Prazo vencido' : <> · Guarde <span className="money">{brl(Math.ceil((g.target_cents - g.saved_cents) / Math.max(1, (Number(g.deadline.slice(0, 4)) - Number(today.slice(0, 4))) * 12 + (Number(g.deadline.slice(5, 7)) - Number(today.slice(5, 7))) + 1)))}</span> por mês</>) : ''}
                   </small>
                 )}
               </div>

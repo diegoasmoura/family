@@ -67,7 +67,7 @@ export function MaisPage({ me }: { me: Me }) {
           <span>Ocultar ao sair do app</span>
           <input type="checkbox" checked={auto} onChange={(e) => { setAuto(e.target.checked); setAutoHide(e.target.checked); }} />
         </label>
-        <small>Os valores ficam borrados até você tocar no olho da tela inicial.</small>
+        <small>Os valores viram uma barra até você tocar no olho da tela inicial.</small>
       </section>
       {SECTIONS.map((s) => (
         <section key={s.title} className="stack" style={{ gap: 6 }}>

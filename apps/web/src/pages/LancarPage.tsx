@@ -90,8 +90,10 @@ export function LancarPage() {
       if (!countOk || installments == null || totalCents < installments) return null;
       const parts = splitInstallments(totalCents, installments);
       const first = chosenCard ? `a partir da fatura de ${monthName(invoiceForPurchase(chosenCard, date).reference_month)}` : `todo dia ${dayOf(date)}`;
-      const each = parts[0] === parts[parts.length - 1] ? brl(parts[0]) : `${brl(parts[parts.length - 1])} a ${brl(parts[0])}`;
-      return `Total ${brl(totalCents)} · ${installments}x de ${each} ${first}`;
+      const each = parts[0] === parts[parts.length - 1]
+        ? <span className="money">{brl(parts[0])}</span>
+        : <><span className="money">{brl(parts[parts.length - 1])}</span> a <span className="money">{brl(parts[0])}</span></>;
+      return <>Total <span className="money">{brl(totalCents)}</span> · {installments}x de {each} {first}</>;
     }
     if (effectiveMode === 'fixed') return `Todo dia ${dayOf(date)}, a partir de ${monthName(monthOf(date))}`;
     if (chosenCard) return `Entra na fatura que vence em ${monthName(invoiceForPurchase(chosenCard, date).reference_month)}`;

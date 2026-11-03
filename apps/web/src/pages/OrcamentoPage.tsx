@@ -55,7 +55,7 @@ export function OrcamentoPage() {
             <small>A missão "ficar abaixo do orçamento" usa esse total.</small>
             {month === today.slice(0, 7) && Number(today.slice(8, 10)) > 0 && q.data.planned_cents > 0 && (
               <small className={Math.round((q.data.spent_cents / Number(today.slice(8, 10))) * daysInMonth(month)) > q.data.planned_cents ? 'late' : undefined}>
-                No ritmo atual, fecha em {brl(Math.round((q.data.spent_cents / Number(today.slice(8, 10))) * daysInMonth(month)))} (orçado {brl(q.data.planned_cents)}). Estimativa simples.
+                No ritmo atual, fecha em <span className="money">{brl(Math.round((q.data.spent_cents / Number(today.slice(8, 10))) * daysInMonth(month)))}</span> (orçado <span className="money">{brl(q.data.planned_cents)}</span>). Estimativa simples.
               </small>
             )}
           </section>
@@ -83,10 +83,10 @@ export function OrcamentoPage() {
                     </span>
                     {i.planned_cents != null && <Bar ratio={ratio} kind={ratio >= 1 ? 'over' : undefined} />}
                   </div>
-                  <div className="v num" style={tone ? { color: tone } : undefined}>
-                    {brl(i.spent_cents)}
+                  <div className="v" style={tone ? { color: tone } : undefined}>
+                    <span className="money">{brl(i.spent_cents)}</span>
                     <small>
-                      {remaining == null ? 'sem orçamento' : remaining >= 0 ? `restam ${brl(remaining)}` : `estourou ${brl(-remaining)}`}
+                      {remaining == null ? 'sem orçamento' : remaining >= 0 ? <>restam <span className="money">{brl(remaining)}</span></> : <>estourou <span className="money">{brl(-remaining)}</span></>}
                     </small>
                   </div>
                 </button>

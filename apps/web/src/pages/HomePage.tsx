@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { addMonths, daysInMonth, formatBRL } from "@fin/domain";
 import { Donut, EvolutionChart, YearBarChart, type YearRow } from "../charts";
@@ -13,7 +13,6 @@ import { CategoryIcon } from "../categories";
 import { PersonFilter, personParam } from "../people";
 import { useAppState, type PersonScope } from "../state";
 
-const HiddenMoney = createContext(false);
 const LAYOUT_KEY = "fin-home-layout";
 
 const BLOCKS = [
@@ -45,8 +44,6 @@ function loadLayout(): { order: BlockId[]; hidden: BlockId[] } {
 const EMPTY_TXS: Tx[] = [];
 
 function MoneyText({ cents, sign, abs }: { cents: number; sign?: boolean; abs?: boolean }) {
-  const hidden = useContext(HiddenMoney);
-  if (hidden) return <span className="money">R$ ••••</span>;
   const text = formatBRL(abs ? Math.abs(cents) : cents, { sign });
   const neg = text.startsWith("-");
   const pos = text.startsWith("+");
@@ -498,7 +495,7 @@ export function HomePage({ me }: { me: Me }) {
   const childParts = catName ? childrenOf(catName) : [];
 
   return (
-    <HiddenMoney.Provider value={hiddenMoney}>
+    <>
       <main className="page home" style={{ borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
         <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} onConfig={() => setConfig(true)} />
         <PersonFilter />
@@ -595,7 +592,7 @@ export function HomePage({ me }: { me: Me }) {
           )}
         </Sheet>
       )}
-    </HiddenMoney.Provider>
+    </>
   );
 }
 

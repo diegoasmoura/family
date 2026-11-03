@@ -393,7 +393,7 @@ export function LancamentosPage() {
             <button type="button" className={`lanc-alert${situation === 'overdue' ? ' on' : ''}`} aria-pressed={situation === 'overdue'} onClick={() => setSituation(situation === 'overdue' ? 'all' : 'overdue')}>
               <Icon.alert />
               <span>
-                {overdueCount} {overdueCount === 1 ? 'vencida' : 'vencidas'} · {brl(overdueCents)}
+                {overdueCount} {overdueCount === 1 ? 'vencida' : 'vencidas'} · <span className="money">{brl(overdueCents)}</span>
               </span>
               <em>{situation === 'overdue' ? 'Limpar' : 'Ver'}</em>
             </button>

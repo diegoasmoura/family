@@ -44,10 +44,10 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
           }}
         >
           <MoneyInput big value={value} onChange={setAmount} />
-          <small className="right">Saldo da fatura: {brl(inv.remaining_cents)}</small>
+          <small className="right">Saldo da fatura: <span className="money">{brl(inv.remaining_cents)}</span></small>
           {amount != null && inv.remaining_cents > 0 && amount !== inv.remaining_cents && (
             <button type="button" className="chip sm" onClick={() => setAmount(null)}>
-              Valor total ({brl(inv.remaining_cents)})
+              Valor total (<span className="money">{brl(inv.remaining_cents)}</span>)
             </button>
           )}
           <label className="f">
@@ -69,13 +69,13 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
           </label>
           {value != null && value > inv.remaining_cents && (
             <div className="card soft" style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>
-              {brl(value - inv.remaining_cents)} ficam como crédito e abatem a próxima fatura.
+              <span className="money">{brl(value - inv.remaining_cents)}</span> ficam como crédito e abatem a próxima fatura.
             </div>
           )}
           <small>Pagar a fatura tira da conta, mas não conta como despesa.</small>
           <ErrorText error={pay.error} />
           <button className="btn big" disabled={!value || !chosenAccount || pay.isPending}>
-            {value ? `Pagar ${brl(value)}` : 'Registrar pagamento'}
+            {value ? <>Pagar <span className="money">{brl(value)}</span></> : 'Registrar pagamento'}
           </button>
         </form>
       )}

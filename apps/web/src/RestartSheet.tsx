@@ -78,7 +78,7 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
               <BankMark name={a.name} size={34} fallback />
               <div className="m" style={{ minWidth: 0 }}>
                 <b>{a.name}</b>
-                <small>Hoje: {brl(a.current_balance_cents)}</small>
+                <small>Hoje: <span className="money">{brl(a.current_balance_cents)}</span></small>
               </div>
             </div>
             <MoneyInput label={`Saldo em ${dmy(d.date).slice(0, 5)}`} allowNegative value={balances[a.id] ?? 0} onChange={(v) => setBalances((b) => ({ ...b, [a.id]: v }))} />
