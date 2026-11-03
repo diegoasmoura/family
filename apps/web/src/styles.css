@@ -1435,6 +1435,8 @@ select.inp:focus {
   background: var(--surface);
   -webkit-overflow-scrolling: touch;
 }
+/* Um mês só: a tabela é curta, então a página rola e o quadro mostra tudo, até o Saldo. */
+.sc.compact { max-height: none; }
 .pw { display: flex; align-items: center; gap: 4px; }
 .pw input { flex: 1; }
 @media (max-width: 639px) { table.year { min-width: 0; width: 100%; } }

@@ -365,7 +365,7 @@ export function AnoPage() {
             </div>
           )}
           <div className="sc-wrap" ref={wrapRef}>
-          <div className="sc" ref={scRef} tabIndex={0} aria-label="Tabela anual com rolagem horizontal">
+          <div className={`sc${compact ? " compact" : ""}`} ref={scRef} tabIndex={0} aria-label="Tabela anual com rolagem horizontal">
             <table className="year">
               <thead>
                 <tr>
