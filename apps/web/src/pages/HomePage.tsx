@@ -284,7 +284,7 @@ export function HomePage({ me }: { me: Me }) {
               <i aria-hidden><Icon.expense /></i>Saiu
             </span>
             <b>
-              <MoneyText cents={d.expense.realized_cents} />
+              <MoneyText cents={d.expense.paid_cents} />
             </b>
             {d.expense.to_pay_cents > 0 && (
               <small>

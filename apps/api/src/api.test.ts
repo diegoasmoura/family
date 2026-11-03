@@ -890,6 +890,28 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(paid.items.find((i: any) => i.name === 'Cartão').paid_months[9]).toBe(7000);
     });
 
+    it('"Saiu" do Início só conta o que foi pago, e "a pagar" soma conta e cartão (em Eu e em Nós)', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      for (const person of ['me', 'all']) {
+        const base = (await ok(await agent.get(`/api/dashboard?month=2026-10&person=${person}`))).expense;
+        const view = await ok(await agent.get(`/api/transactions?month=2026-10&kind=expense&person=${person}`));
+        expect(base.paid_cents).toBe(view.paid_out_cents);
+        expect(base.to_pay_cents).toBe(view.pending_cents);
+      }
+      const before = (await ok(await agent.get('/api/dashboard?month=2026-10&person=me'))).expense;
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Luz', amount_cents: 9000, occurred_on: '2026-10-25', account_id: ids.bradesco, for_user_id: me.id }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Loja', amount_cents: 7000, occurred_on: '2026-09-05', card_id: ids.ultra, for_user_id: me.id }), 201);
+      const open = (await ok(await agent.get('/api/dashboard?month=2026-10&person=me'))).expense;
+      expect(open.paid_cents - before.paid_cents).toBe(0);
+      expect(open.to_pay_cents - before.to_pay_cents).toBe(16000);
+
+      const inv = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
+      await ok(await agent.post(`/api/invoices/${inv.id}/payments`).send({}), 201);
+      const paid = (await ok(await agent.get('/api/dashboard?month=2026-10&person=me'))).expense;
+      expect(paid.paid_cents - open.paid_cents).toBeGreaterThanOrEqual(7000);
+      expect(paid.paid_cents + paid.to_pay_cents).toBe(open.paid_cents + open.to_pay_cents);
+    });
+
     it('próximo vencimento do cartão é a fatura, e pagá-la lança o que está dentro', async () => {
       const me = await ok(await agent.get('/api/auth/me'));
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Servidor', amount_cents: 20742, occurred_on: '2026-09-05', card_id: ids.ultra, for_user_id: me.id }), 201);

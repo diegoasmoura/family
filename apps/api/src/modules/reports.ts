@@ -7,7 +7,7 @@ import { cardInvoiceBalances, relevantInvoice, type Card } from './cards';
 import { gamificationSummary, householdAvatars, syncMissions } from './gamification';
 import { monthTotals } from './queries';
 import { ensureRecurrences } from './recurrences';
-import { TX_SELECT, decorateTransactions, personFilter } from './transactions';
+import { TX_SELECT, decorateTransactions, monthView, personFilter } from './transactions';
 
 interface Row {
   category_id: number | null;
@@ -378,10 +378,8 @@ export function dashboardRouter(): Router {
       ctx.householdId,
     ]);
     let invoice = null;
-    let invoicesDueInMonth = 0;
     for (const card of cards) {
       const all = await cardInvoiceBalances(ctx, card.id);
-      invoicesDueInMonth += all.filter((i) => i.reference_month === month).reduce((a, i) => a + i.remaining_cents, 0);
       const b = relevantInvoice(all);
       if (!b) continue;
       const candidate = { ...b, card_id: card.id, card_name: card.name, state_label: INVOICE_STATE_LABEL[b.state] };
@@ -477,6 +475,9 @@ export function dashboardRouter(): Router {
     };
     const evolution = { current: await series(month), previous: await series(addMonths(month, -1)) };
 
+    // Mesma regra de "Pago"/"A pagar" de Lançamentos: nada sai antes de ser pago, e compra de cartão só sai quando a fatura quita.
+    const expenseView = await monthView(ctx, month, 'expense', personId);
+
     res.json({
       month,
       today: ctx.today,
@@ -486,7 +487,8 @@ export function dashboardRouter(): Router {
         realized_cents: totals.expense_posted,
         planned_cents: totals.expense_planned,
         total_cents: totals.expense_posted + totals.expense_planned,
-        to_pay_cents: totals.expense_planned + (personId == null ? invoicesDueInMonth : 0),
+        paid_cents: expenseView.paid_out_cents,
+        to_pay_cents: expenseView.pending_cents,
       },
       result_cents: totals.income_posted + totals.income_planned - totals.expense_posted - totals.expense_planned,
       categories,

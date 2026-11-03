@@ -320,6 +320,10 @@ export async function monthView(ctx: Ctx, month: string, kind: Kind, personId: n
     pending_cents: items
       .filter((t) => t.include_in_reports && (t.card_id ? t.status === 'posted' && t.display_status !== 'paid' : !t.paid_on))
       .reduce((a, t) => a + t.amount_cents, 0),
+    // "Saiu" do Início: caixa de conta já paga, mais compra de cartão cuja fatura já quitou. Somado ao pending_cents, fecha o total lançado.
+    paid_out_cents: items
+      .filter((t) => t.include_in_reports && (t.card_id ? t.status === 'posted' && t.display_status === 'paid' : t.paid_on))
+      .reduce((a, t) => a + t.amount_cents, 0),
   };
 }
 
