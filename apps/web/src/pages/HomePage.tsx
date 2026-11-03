@@ -161,6 +161,18 @@ export function HomePage({ me }: { me: Me }) {
   });
   const spentToday = nowSeries[Math.min(todayDay, nowSeries.length) - 1] ?? 0;
   const spentPrev = prevSeries[Math.min(todayDay, prevSeries.length) - 1] ?? 0;
+  // Evolução: o mês atual mostra o que já foi e a projeção; o passado só o que foi; o futuro só o programado.
+  const thisMonth = today.slice(0, 7);
+  const isCurrentMonth = month === thisMonth;
+  const isFutureMonth = month > thisMonth;
+  const monthTotal = nowSeries.at(-1) ?? 0;
+  const prevTotal = prevSeries.at(-1) ?? 0;
+  const evoNow = isCurrentMonth ? spentToday : monthTotal;
+  const evoBefore = isCurrentMonth ? spentPrev : prevTotal;
+  const evoDiff =
+    evoBefore > 0 && evoNow > 0
+      ? `${Math.abs(Math.round(((evoNow - evoBefore) / evoBefore) * 100))}% ${evoNow <= evoBefore ? "a menos" : "a mais"} que ${isCurrentMonth ? "no mesmo ponto do mês passado" : `em ${monthName(addMonths(month, -1))}`}`
+      : null;
 
   const year = Number(month.slice(0, 4));
   const yearQ = useApi(yearSeen ? `/reports/year?year=${year}&mode=planned&person=${personParam(person)}` : null);
@@ -409,24 +421,43 @@ export function HomePage({ me }: { me: Me }) {
       </section>
     ),
     evolution: (
-      <section className="card" aria-label="Evolução das despesas">
-        <h2>Evolução das despesas</h2>
-        {spentToday === 0 ? (
-          <p className="empty">Nenhuma despesa neste mês. Use o botão "+" para registrar o primeiro gasto.</p>
+      <section className="card" aria-label={isFutureMonth ? "Despesas previstas" : "Evolução das despesas"}>
+        <div className="hd">
+          <h2>{isFutureMonth ? "Despesas previstas" : "Evolução das despesas"}</h2>
+          <Link className="home-jump" to="/lancamentos">
+            Ver <Icon.right />
+          </Link>
+        </div>
+        {monthTotal === 0 ? (
+          <p className="empty">
+            {isFutureMonth ? "Nada programado para este mês." : 'Nenhuma despesa neste mês. Use o botão "+" para registrar o primeiro gasto.'}
+          </p>
         ) : (
           <>
-            <EvolutionChart data={evolution} todayDay={todayDay} formatValue={(cents) => (hiddenMoney ? "R$ ••••" : brl(cents))} />
+            <EvolutionChart data={evolution} todayDay={isCurrentMonth ? todayDay : 0} formatValue={(cents) => (hiddenMoney ? "R$ ••••" : brl(cents))} />
             <p className="evo-note">
-              Até hoje você gastou <MoneyText cents={spentToday} />
-              {spentPrev > 0 && (
+              {isCurrentMonth ? (
                 <>
-                  , {Math.abs(Math.round(((spentToday - spentPrev) / spentPrev) * 100))}% {spentToday <= spentPrev ? "a menos" : "a mais"} que no mesmo ponto do mês passado
+                  Até hoje você gastou <MoneyText cents={spentToday} />
+                  {evoDiff && <>, {evoDiff}</>}.
+                  {monthTotal > spentToday && (
+                    <>
+                      {" "}
+                      Previsto para fechar o mês: <MoneyText cents={monthTotal} />, só com o que já está programado.
+                    </>
+                  )}
+                </>
+              ) : isFutureMonth ? (
+                <>
+                  Previsto para {monthName(month)}: <MoneyText cents={monthTotal} />, só com o que já está programado
+                  {evoDiff && <>, {evoDiff}</>}.
+                </>
+              ) : (
+                <>
+                  Você gastou <MoneyText cents={monthTotal} /> em {monthName(month)}
+                  {evoDiff && <>, {evoDiff}</>}.
                 </>
               )}
-              .{" "}
-              <Link className="home-jump" to="/lancamentos">
-                Ver <Icon.right />
-              </Link>
             </p>
           </>
         )}

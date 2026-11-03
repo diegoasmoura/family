@@ -906,13 +906,22 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(y.items.every((i: any) => i.planned_cents > 0)).toBe(true);
     });
 
-    it('a evolução vem no painel e, em Nós, deixa a compra do cartão de fora', async () => {
+    it('a evolução vem no painel e termina no mesmo total das despesas, com a compra do cartão no vencimento da fatura', async () => {
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 1000, occurred_on: '2026-10-02', account_id: ids.bradesco }), 201);
-      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 5000, occurred_on: '2026-10-02', card_id: ids.ultra }), 201);
-      const dash = await ok(await agent.get('/api/dashboard?month=2026-10'));
-      expect(dash.evolution.current).toHaveLength(31);
-      expect(dash.evolution.previous).toHaveLength(30);
-      expect(dash.evolution.current[1]).toBe(1000);
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 5000, occurred_on: '2026-08-20', card_id: ids.ultra }), 201); // fecha em 7/set, vence em 6/out
+      for (const person of ['all', 'me']) {
+        const dash = await ok(await agent.get(`/api/dashboard?month=2026-10&person=${person}`));
+        expect(dash.evolution.current).toHaveLength(31);
+        expect(dash.evolution.previous).toHaveLength(30);
+        // o fim da linha é o total de despesas do mês, em Nós e em Eu
+        expect(dash.evolution.current.at(-1)).toBe(dash.expense.total_cents);
+        expect(dash.evolution.previous.at(-1)).toBe((await ok(await agent.get(`/api/dashboard?month=2026-09&person=${person}`))).expense.total_cents);
+      }
+      const all = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
+      expect(all.evolution.current[1]).toBe(1000);
+      expect(all.evolution.current[4]).toBe(1000);
+      expect(all.evolution.current[5]).toBe(6000); // dia 6: a fatura do cartão vence e soma
+      expect(all.evolution.current.at(-1)).toBe(6000);
     });
 
     it('em Eu, o parcelamento do cartão entra uma parcela por mês da fatura', async () => {

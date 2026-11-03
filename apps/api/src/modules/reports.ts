@@ -426,7 +426,7 @@ export function dashboardRouter(): Router {
            LEFT JOIN invoices i ON i.id = t.invoice_id
           WHERE t.household_id = ? AND t.kind = 'expense' AND t.include_in_reports = 1 AND t.deleted_at IS NULL
             AND t.competence_month = ?
-            ${personId == null ? 'AND t.card_id IS NULL' : 'AND t.for_user_id = ?'}`,
+            ${personId == null ? '' : 'AND t.for_user_id = ?'}`,
         params,
       );
       const byDay = Array.from({ length: daysInMonth(target) }, () => 0);
