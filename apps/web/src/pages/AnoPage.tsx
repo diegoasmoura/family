@@ -9,7 +9,6 @@ import { usePullToRefresh } from '../usePullToRefresh';
 import { BankMark, bankByName } from '../banks';
 import { BudgetYear } from '../BudgetYear';
 import { ErrorText, Icon, Loading, PullToRefresh, Seg, Sheet, StatusIcon, shortDate } from '../ui';
-import { YearBarChart, type YearRow } from '../charts';
 
 interface Row {
   category_id: number | null;
@@ -111,7 +110,6 @@ export function AnoPage() {
   const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
   const [focus, setFocus] = useState<number | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [showCum, setShowCum] = useState(true);
   const ptr = usePullToRefresh();
   const who = personParam(person);
   const tableMode = mode === 'budget' ? 'planned' : mode;
@@ -121,12 +119,6 @@ export function AnoPage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const currentIdx = d && yearOf(d.current_month) === year ? Number(d.current_month.slice(5, 7)) - 1 : -1;
   const loaded = Boolean(d);
-  const chartRows: YearRow[] = d
-    ? d.income.months.map((income: number, index: number) => {
-        const cum = d.balance.months.slice(0, index + 1).reduce((sum: number, v: number) => sum + v, 0);
-        return { name: MONTHS_SHORT_PT[index], inc: income, exp: d.expense.months[index], cum };
-      })
-    : [];
   const focusIdx = focus ?? (currentIdx >= 0 ? currentIdx : 0);
   const showMonth = (i: number) => !compact || i === focusIdx;
   const cols = (compact ? 1 : 12) + 2;
@@ -345,17 +337,6 @@ export function AnoPage() {
               </div>
             </div>
           </section>
-
-          <div className="legend">
-            <span><i className="sw inc" />Receitas</span>
-            <span><i className="sw exp" />Despesas</span>
-            <button type="button" className={`cum-toggle${showCum ? " on" : ""}`} aria-pressed={showCum} onClick={() => setShowCum((v) => !v)}>
-              Sobra acumulada
-            </button>
-          </div>
-          <div className="year-scroll">
-            <YearBarChart rows={chartRows} monthIndex={focusIdx} showCum={showCum} onPick={setFocus} />
-          </div>
 
           <div className="year-bar">
             <Seg

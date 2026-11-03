@@ -179,7 +179,7 @@ Toque no dia abre a lista, mesmo vazia (“Nada neste dia”). Cada item diz que
 
 ## Visão anual
 
-Título “Visão anual”, seletor de ano (com “Ir para {ano}” para voltar ao ano de hoje), Eu / Nós e a faixa **Lançado / Previsto / Orçado**. Um cartão-resumo com a sobra acumulada, as receitas e as despesas. Logo abaixo, o gráfico de barras do bloco “Ano” do Início (Receitas e Despesas por mês, com a opção de ver a sobra acumulada), para a visão de relance antes da tabela detalhada. A tabela rola na horizontal no celular. A coluna do mês atual fica destacada. Mês futuro fica mais claro. Célula zerada mostra “–”.
+Título “Visão anual”, seletor de ano (com “Ir para {ano}” para voltar ao ano de hoje), Eu / Nós e a faixa **Lançado / Previsto / Orçado**. Um cartão-resumo com a sobra acumulada, as receitas e as despesas. A tabela rola na horizontal no celular. A coluna do mês atual fica destacada. Mês futuro fica mais claro. Célula zerada mostra “–”.
 
 Árvore: categoria, subcategoria e, ao abrir, a linha do registro (Salário dia 15, IPVA, Youtube Premium). Se a categoria pai também tem lançamento direto, aparece uma filha “{nome} (geral)”.
 
