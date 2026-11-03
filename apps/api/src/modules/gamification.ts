@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  AVATAR_COLORS,
-  AVATAR_ITEMS,
-  AVATAR_SKINS,
+  AVATAR_PRESETS,
+  AVATAR_TONES,
   XP_VALUES,
   addMonths,
   avatarTitle,
@@ -47,7 +46,7 @@ export async function householdAvatars(ctx: Ctx) {
       me: Number(u.id) === ctx.userId,
       ...progress,
       title: avatarTitle(progress.level),
-      avatar: normalizeAvatar(u.avatar, progress.level, Number(u.id)),
+      avatar: normalizeAvatar(u.avatar, u.name),
     });
   }
   return out.sort((a, b) => Number(b.me) - Number(a.me));
@@ -116,8 +115,6 @@ export async function awardXp(
   const after = levelFromXp(await totalXp(ctx, userId));
   return after > before ? { xp, achievements, level_up: after } : { xp, achievements };
 }
-
-export const logTransactionXp = (ctx: Ctx, txId: number) => awardXp(ctx, 'tx_logged', XP_VALUES.tx_logged, { refId: txId, refKey: `tx:${txId}` });
 
 async function householdUsers(ctx: Ctx): Promise<number[]> {
   return (await ctx.db.all<{ id: number }>('SELECT id FROM users WHERE household_id = ?', [ctx.householdId])).map((u) => u.id);
@@ -215,27 +212,14 @@ export function gamificationRouter(): Router {
   });
 
   r.put('/avatar', async (req, res) => {
-    const slotItem = (slot: string) =>
-      z
-        .string()
-        .nullable()
-        .refine((id) => id === null || AVATAR_ITEMS.some((i) => i.id === id && i.slot === slot), 'Item inválido');
     const body = parse(
       z.object({
-        color: z.enum(AVATAR_COLORS as [string, ...string[]]),
-        skin: z.enum(AVATAR_SKINS as [string, ...string[]]),
-        hat: slotItem('hat'),
-        face: slotItem('face'),
-        neck: slotItem('neck'),
+        tone: z.number().int().min(0).max(AVATAR_TONES.length - 1),
+        preset: z.number().int().min(0).max(AVATAR_PRESETS.length - 1).nullable().optional(),
       }),
       req.body,
     );
-    const { level } = levelProgress(await totalXp(req.ctx, req.ctx.userId));
-    for (const id of [body.hat, body.face, body.neck]) {
-      const item = AVATAR_ITEMS.find((i) => i.id === id);
-      if (item && item.level > level) throw badRequest(`${item.name} libera no nível ${item.level}`);
-    }
-    await req.ctx.db.run('UPDATE users SET avatar = ? WHERE id = ?', [JSON.stringify(body), req.ctx.userId]);
+    await req.ctx.db.run('UPDATE users SET avatar = ? WHERE id = ?', [JSON.stringify({ tone: body.tone, preset: body.preset ?? null }), req.ctx.userId]);
     res.json((await householdAvatars(req.ctx)).find((m) => m.me));
   });
 

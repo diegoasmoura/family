@@ -678,9 +678,9 @@ function HomeHeader({ me, members, person, hidden, onToggle, onConfig }: { me: M
       </div>
       <nav className="home-actions" aria-label="Ferramentas rápidas">
         {shown.length > 0 && (
-          <Link to="/progresso" className="avatars" aria-label="Ver progresso dos membros">
+          <Link to="/progresso" className="avatars" aria-label="Abrir o avatar">
             {shown.map((member) => (
-              <AvatarFigure key={member.id} avatar={member.avatar} size={32} level={member.level} label={`${member.name}, nível ${member.level}`} />
+              <AvatarFigure key={member.id} name={member.name} avatar={member.avatar} size={44} label={member.name} />
             ))}
           </Link>
         )}

@@ -69,7 +69,7 @@ export function deleteChoicesFor(tx: Tx) {
 /** Menu de três pontos de uma linha de lançamento. */
 export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => void }) {
   const navigate = useNavigate();
-  const { toast, celebrate } = useAppState();
+  const { toast } = useAppState();
   const [open, setOpen] = useState(false);
   const [up, setUp] = useState(false);
   const [dupOpen, setDupOpen] = useState(false);
@@ -95,7 +95,7 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
   const run = (fn: () => Promise<unknown>, message: string) => {
     setOpen(false);
     act.mutate(fn, {
-      onSuccess: (res: any) => (res?.xp?.xp ? celebrate(res.xp, message) : toast(message)),
+      onSuccess: () => toast(message),
       onError: (err) => toast(err instanceof ApiError ? err.message : 'Não foi possível concluir'),
     });
   };

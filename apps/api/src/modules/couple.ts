@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { AVATAR_COLORS, defaultAvatar } from '@fin/domain';
+import { AVATAR_TONES, normalizeAvatar } from '@fin/domain';
 import { badRequest, insert, notFound, nowIso, parse, update } from '../core';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -20,14 +20,8 @@ function orderedPair(a: number, b: number): [number, number] {
   return a < b ? [a, b] : [b, a];
 }
 
-export function personColor(avatar: string | null, userId: number): string {
-  try {
-    const parsed = avatar ? JSON.parse(avatar) : null;
-    if (parsed && typeof parsed.color === 'string' && AVATAR_COLORS.includes(parsed.color)) return parsed.color;
-  } catch {
-    /* avatar antigo ou vazio cai na cor padrão */
-  }
-  return defaultAvatar(userId).color;
+export function personColor(avatar: string | null, name: string): string {
+  return AVATAR_TONES[normalizeAvatar(avatar, name).tone].bg;
 }
 
 interface LinkRow {
@@ -71,7 +65,7 @@ export function coupleRouter(): Router {
       [otherId],
     );
     res.json({
-      partner: user ? { name: user.name, color: personColor(user.avatar, user.id) } : null,
+      partner: user ? { name: user.name, color: personColor(user.avatar, user.name) } : null,
     });
   });
 

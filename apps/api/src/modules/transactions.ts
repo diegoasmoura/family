@@ -33,7 +33,6 @@ import {
 } from '../core';
 import { cardInvoiceBalances, invoiceForCardPurchase, type Card } from './cards';
 import { assertCategory } from './categories';
-import { logTransactionXp, type XpResult } from './gamification';
 import { ensureRecurrences } from './recurrences';
 
 export const TX_SELECT = `SELECT t.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name, c.color AS category_color,
@@ -136,10 +135,10 @@ export const createTxBody = z.object({
  * data já chegou). No cartão, a compra é despesa na hora e entra na fatura
  * pelo fechamento; o dinheiro só sai da conta quando a fatura é paga.
  */
-export async function createTransaction(ctx: Ctx, input: z.input<typeof createTxBody>): Promise<{ transaction: any; xp: XpResult | null }> {
+export async function createTransaction(ctx: Ctx, input: z.input<typeof createTxBody>): Promise<{ transaction: any; created: boolean }> {
   const body = parse(createTxBody, input);
   const existing = await findByUuid(ctx, 'transactions', body.client_uuid);
-  if (existing) return { transaction: await loadTx(ctx, existing.id), xp: null };
+  if (existing) return { transaction: await loadTx(ctx, existing.id), created: false };
 
   const { card } = await assertPaymentTarget(ctx, body.kind, body.account_id, body.card_id);
   await assertCategory(ctx, body.category_id, body.kind);
@@ -147,7 +146,6 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
   const occurredOn = body.occurred_on ?? ctx.today;
 
   const id = await ctx.db.tx(async (db) => {
-    const tctx = { ...ctx, db };
     const now = nowIso();
     let fields: Record<string, unknown>;
     if (card) {
@@ -178,9 +176,9 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
       updated_at: now,
       ...fields,
     });
-    return { txId, xp: await logTransactionXp(tctx, txId) };
+    return txId;
   });
-  return { transaction: await loadTx(ctx, id.txId), xp: id.xp };
+  return { transaction: await loadTx(ctx, id), created: true };
 }
 
 type Bucket = Record<string, number>;
@@ -359,7 +357,7 @@ export function transactionsRouter(): Router {
 
   r.post('/', async (req, res) => {
     const result = await createTransaction(req.ctx, req.body);
-    res.status(result.xp ? 201 : 200).json(result);
+    res.status(result.created ? 201 : 200).json({ transaction: result.transaction });
   });
 
   r.patch('/:id', async (req, res) => {

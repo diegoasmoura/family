@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { XP_VALUES, addMonthsToDate, dateInMonth, monthOf, splitInstallments } from '@fin/domain';
+import { addMonthsToDate, dateInMonth, monthOf, splitInstallments } from '@fin/domain';
 import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, parse, update, zCents, zDate, zId, zUuid, type Ctx } from '../core';
 import { invoiceForCardPurchase } from './cards';
 import { assertCategory } from './categories';
-import { awardXp } from './gamification';
 import { assertHouseholdUser, assertPaymentTarget } from './transactions';
 
 const SELECT = `SELECT p.*, a.name AS account_name, cc.name AS card_name, c.name AS category_name,
@@ -45,7 +44,7 @@ export const planBody = z.object({
 export async function createPlan(ctx: Ctx, input: z.input<typeof planBody>) {
   const body = parse(planBody, input);
   const existing = await findByUuid(ctx, 'installment_plans', body.client_uuid);
-  if (existing) return { plan: await loadPlan(ctx, existing.id), xp: null };
+  if (existing) return { plan: await loadPlan(ctx, existing.id), created: false };
   const { card } = await assertPaymentTarget(ctx, 'expense', body.account_id, body.card_id);
   await assertCategory(ctx, body.category_id, 'expense');
   const forUserId = await assertHouseholdUser(ctx, body.for_user_id ?? null);
@@ -58,7 +57,6 @@ export async function createPlan(ctx: Ctx, input: z.input<typeof planBody>) {
   const purchasedOn = body.purchased_on ?? ctx.today;
 
   const result = await ctx.db.tx(async (db) => {
-    const tctx = { ...ctx, db };
     const now = nowIso();
     const planId = await insert(db, 'installment_plans', {
       client_uuid: body.client_uuid ?? newUuid(),
@@ -107,10 +105,9 @@ export async function createPlan(ctx: Ctx, input: z.input<typeof planBody>) {
         ...fields,
       });
     }
-    const xp = await awardXp(tctx, 'tx_logged', XP_VALUES.tx_logged, { refKey: `plan:${planId}`, refId: planId });
-    return { planId, xp };
+    return planId;
   });
-  return { plan: await loadPlan(ctx, result.planId), xp: result.xp };
+  return { plan: await loadPlan(ctx, result), created: true };
 }
 
 export function installmentsRouter(): Router {
@@ -132,7 +129,7 @@ export function installmentsRouter(): Router {
 
   r.post('/', async (req, res) => {
     const result = await createPlan(req.ctx, req.body);
-    res.status(result.xp ? 201 : 200).json(result);
+    res.status(result.created ? 201 : 200).json({ plan: result.plan });
   });
 
   /**

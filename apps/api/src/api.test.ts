@@ -935,22 +935,16 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       ]);
     });
 
-    it('avatar sobe de nível com XP e só aceita itens liberados', async () => {
-      const first = await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 100, occurred_on: '2026-10-08', account_id: ids.bradesco }), 201);
-      expect(first.xp.level_up).toBeUndefined();
-      const base = { color: '#1CB0F6', skin: '#FFDBB4', hat: null, face: null, neck: null };
-      expect((await agent.put('/api/gamification/avatar').send({ ...base, hat: 'cap' })).status).toBe(400);
-
-      let levelUp: number | undefined;
-      for (let i = 0; i < 5 && !levelUp; i++) {
-        const r = await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 100, occurred_on: '2026-10-08', account_id: ids.bradesco }), 201);
-        levelUp = r.xp.level_up;
-      }
-      expect(levelUp).toBe(2);
-      const saved = await ok(await agent.put('/api/gamification/avatar').send({ ...base, hat: 'cap' }));
-      expect(saved).toMatchObject({ level: 2, title: 'Aprendiz', avatar: { ...base, hat: 'cap' } });
+    it('avatar grava só o tom escolhido', async () => {
+      const saved = await ok(await agent.put('/api/gamification/avatar').send({ tone: 3 }));
+      expect(saved.avatar).toEqual({ tone: 3, preset: null });
       const g = await ok(await agent.get('/api/gamification'));
-      expect(g.members[0]).toMatchObject({ me: true, avatar: { hat: 'cap' } });
+      expect(g.members[0]).toMatchObject({ me: true, avatar: { tone: 3, preset: null } });
+      const drawn = await ok(await agent.put('/api/gamification/avatar').send({ tone: 3, preset: 1 }));
+      expect(drawn.avatar).toEqual({ tone: 3, preset: 1 });
+      expect((await agent.put('/api/gamification/avatar').send({ tone: 12 })).status).toBe(400);
+      expect((await agent.put('/api/gamification/avatar').send({ tone: 3, preset: 14 })).status).toBe(400);
+      expect((await agent.put('/api/gamification/avatar').send({ color: '#1CB0F6' })).status).toBe(400);
     });
 
     it('grupo anual guarda o banco só quando é um, e cada lançamento guarda o seu', async () => {
@@ -1132,14 +1126,11 @@ describe.each(targets)('API (%s)', (dialect, url) => {
   });
 
   describe('metas e gamificação', () => {
-    it('lançamento dá +10 XP, conquista e sequência', async () => {
+    it('lançamento não concede XP', async () => {
       const res = await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 100, account_id: ids.bradesco }), 201);
-      expect(res.xp).toEqual({ xp: 10, achievements: ['first_tx'] });
+      expect(res.xp).toBeUndefined();
       const g = await ok(await agent.get('/api/gamification'));
-      expect(g.total_xp).toBe(10);
-      expect(g.level).toBe(1);
-      expect(g.streak.current_days).toBe(1);
-      expect(g.achievements.find((a: any) => a.code === 'first_tx').unlocked).toBe(true);
+      expect(g.total_xp).toBe(0);
     });
 
     it('revisão semanal e fechamento de mês valem uma vez', async () => {
@@ -1154,27 +1145,25 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(g.level).toBe(2);
     });
 
-    it('meta concluída dá XP uma vez', async () => {
+    it('atingir o alvo conclui a meta', async () => {
       const goal = await ok(await agent.post('/api/goals').send({ name: 'Viagem', target_cents: 1000000, saved_cents: 400000 }), 201);
       expect(goal.progress).toBe(0.4);
       const done = await ok(await agent.post(`/api/goals/${goal.id}/deposit`).send({ amount_cents: 600000 }));
       expect(done.goal.completed_at).toBeTruthy();
-      expect(done.xp.xp).toBe(100);
-      expect(done.xp.achievements).toContain('first_goal');
+      expect(done.xp).toBeUndefined();
       const again = await ok(await agent.post(`/api/goals/${goal.id}/deposit`).send({ amount_cents: 100 }));
-      expect(again.xp.xp).toBe(0);
+      expect(again.goal.completed_at).toBeTruthy();
     });
 
-    it('editar a meta conclui e reabre com a mesma regra de XP', async () => {
+    it('editar a meta conclui e reabre', async () => {
       const goal = await ok(await agent.post('/api/goals').send({ name: 'Reserva', target_cents: 100000, saved_cents: 40000 }), 201);
       const done = await ok(await agent.patch(`/api/goals/${goal.id}`).send({ name: 'Reserva', target_cents: 40000 }));
       expect(done.completed_at).toBeTruthy();
-      expect(done.xp.xp).toBe(100);
+      expect(done.xp).toBeUndefined();
       const reopened = await ok(await agent.patch(`/api/goals/${goal.id}`).send({ name: 'Reserva', target_cents: 100000 }));
       expect(reopened.completed_at).toBeNull();
       const second = await ok(await agent.patch(`/api/goals/${goal.id}`).send({ name: 'Reserva', target_cents: 40000 }));
       expect(second.completed_at).toBeTruthy();
-      expect(second.xp.xp).toBe(0);
     });
   });
 

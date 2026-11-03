@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AVATAR_ITEMS, monthOf } from '@fin/domain';
-import type { XpResult } from './api';
+import { monthOf } from '@fin/domain';
 
 interface Toast {
   id: number;
@@ -19,7 +18,6 @@ interface AppState {
   setPerson: (person: PersonScope) => void;
   today: string;
   toast: (text: string, level?: number, action?: Toast['action']) => void;
-  celebrate: (xp: XpResult | null | undefined, fallback?: string) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -36,17 +34,7 @@ export function AppStateProvider({ today, children }: { today: string; children:
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 5000 : 2800);
   }, []);
 
-  const celebrate = useCallback(
-    (xp: XpResult | null | undefined, fallback = 'Lançado') => {
-      toast(fallback);
-      if (!xp?.level_up) return;
-      const item = AVATAR_ITEMS.find((i) => i.level === xp.level_up);
-      toast(`Seu avatar subiu para o nível ${xp.level_up}${item ? `: ${item.name.toLowerCase()} liberado` : ''}`, xp.level_up);
-    },
-    [toast],
-  );
-
-  const value = useMemo(() => ({ month, setMonth, person, setPerson, today, toast, celebrate }), [month, person, today, toast, celebrate]);
+  const value = useMemo(() => ({ month, setMonth, person, setPerson, today, toast }), [month, person, today, toast]);
   const current = toasts[0];
   return (
     <Ctx.Provider value={value}>

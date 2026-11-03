@@ -114,7 +114,7 @@ export function calendarRouter(): Router {
       people: users.map((user) => ({
         id: Number(user.id),
         name: user.name,
-        color: personColor(user.avatar, Number(user.id)),
+        color: personColor(user.avatar, user.name),
         me: Number(user.id) === req.ctx.userId,
       })),
       items,

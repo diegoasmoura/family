@@ -19,7 +19,7 @@ const SECTIONS: { title: string; links: [string, string, string][] }[] = [
     ['/categorias', 'Categorias', 'Categorias e subcategorias'],
   ]},
   { title: 'Casa', links: [
-    ['/progresso', 'Avatar', 'Nível, XP e itens do seu avatar'],
+    ['/progresso', 'Avatar', 'Desenho e cor do seu avatar'],
     ['/config', 'Casa e usuários', 'Membros, fuso horário e acesso'],
   ]},
 ];

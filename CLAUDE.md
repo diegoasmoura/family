@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 "Finanças do casal": app de controle financeiro de **uma única casa** (Diego e Jhersyka). Toda a UI, mensagens de erro, comentários e documentação são em **português do Brasil** — mantenha assim.
 
 Documentos de produto (leia antes de mudar regra de negócio ou tela):
-- `premissas.md` — decisões de produto que **não podem ser reinterpretadas** (cartão/fatura, competência, recorrências, parcelamentos, Eu/Nós, XP, acesso). É a fonte de verdade.
+- `premissas.md` — decisões de produto que **não podem ser reinterpretadas** (cartão/fatura, competência, recorrências, parcelamentos, Eu/Nós, avatar, acesso). É a fonte de verdade.
 - `sistema.md` — o que cada tela faz hoje, layout celular/desktop (corte em 960px), cálculo de saldo. Quando uma melhoria muda a interface, atualize este arquivo.
 - `app_financas_documentacao.md` — especificação original (histórica; `premissas.md` prevalece).
 - `correcoes/` — planos de melhoria e revisões de layout em andamento.
@@ -38,7 +38,7 @@ Produção (NAS): `docker compose up -d --build` com `.env` baseado em `.env.exa
 
 ## Arquitetura
 
-**`packages/domain`** — regras puras, sem I/O, compartilhadas entre API e web: centavos/formatação (`money`), datas e meses `YYYY-MM` (`dates`), status derivado (`status`), divisão de parcelas (`installments`), fechamento/vencimento de fatura (`invoice`), saldo (`balance`), XP/nível (`gamification`). Regra de cálculo nova deve morar aqui, com teste em `domain.test.ts`.
+**`packages/domain`** — regras puras, sem I/O, compartilhadas entre API e web: centavos/formatação (`money`), datas e meses `YYYY-MM` (`dates`), status derivado (`status`), divisão de parcelas (`installments`), fechamento/vencimento de fatura (`invoice`), saldo (`balance`), iniciais e tom do avatar (`gamification`). Regra de cálculo nova deve morar aqui, com teste em `domain.test.ts`.
 
 **`packages/db`** — interface mínima `Db` (`all/get/run/exec/tx`) com dois adaptadores: SQLite (better-sqlite3, conexão única protegida por mutex nas transações) e Postgres (`pg`). O SQL é escrito **uma vez**, com placeholders `?`, compatível com os dois dialetos; o adaptador PG converte para `$n`. `createDb(url)` escolhe pelo prefixo (`sqlite:` / `postgres://`).
 - Migrations: `database/schema_v0.3.sql` é a base (`001`), depois `database/migrations/NNN_*.sql` em ordem alfabética, registradas em `schema_migrations`. `adaptSql` reescreve `id INTEGER PRIMARY KEY` para identity no PG. Nova mudança de schema = novo arquivo numerado, SQL que roda nos dois bancos; nunca edite migrations já aplicadas.
@@ -54,7 +54,7 @@ Produção (NAS): `docker compose up -d --build` com `.env` baseado em `.env.exa
 
 **`apps/web`** — React 18 + Vite + TanStack Query + react-router, PWA (`public/sw.js`, manifest), mobile-first.
 - `api.ts`: `api()` (fetch em `/api`, lança `ApiError`), `useApi(path)` para queries e `useAction` para mutações; `clientUuid()` gera o `client_uuid` dos lançamentos.
-- `state.tsx`: estado de sessão — mês selecionado, `person` (`'me'` padrão = Eu, `'all'` = Nós), toasts e `celebrate` de XP. Eu/Nós e mês **não** são persistidos.
+- `state.tsx`: estado de sessão — mês selecionado, `person` (`'me'` padrão = Eu, `'all'` = Nós) e toasts. Eu/Nós e mês **não** são persistidos.
 - Preferências locais em `localStorage`: `fin-theme`, `fin-hide-money` (`privacy.ts`), `fin-home-layout`.
 - Telas em `src/pages/`; folhas reutilizáveis na raiz de `src` (`TxSheet`, `PaySheet`, `SettleSheet`, `TxMenu`); primitivos de UI em `ui.tsx`; estilos globais em `styles.css` (variáveis CSS, tema claro/escuro via `data-theme`).
 - Ícones são `lucide-react` (`ui.tsx`'s `Icon`), não mais SVG caseiro — o kit anterior tinha peso visual desigual entre ícones (ex.: "casa" parecia mais "cheio" que os outros no mesmo traço). O objeto `Icon` só envolve cada ícone do Lucide numa função sem argumento (`Icon.home = () => <House aria-hidden />`) pra manter a mesma API de antes (`<Icon.xxx />` em ~30 lugares, incluindo chamada direta tipo `Icon.check()` dentro de `StatusIcon`) — **novo ícone entra nesse objeto, nunca importado direto do `lucide-react` nas telas.** Tamanho e cor continuam vindo do CSS (`svg{width,height}` por contexto, `color: currentColor`), não de props do componente.

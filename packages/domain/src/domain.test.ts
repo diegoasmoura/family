@@ -15,8 +15,10 @@ import {
   inkOn,
   isISODate,
   isoWeek,
+  initialsFromName,
   levelFromXp,
   nextStreak,
+  normalizeAvatar,
   parseBRL,
   relatedColor,
   recurringChargeDate,
@@ -218,6 +220,17 @@ describe('saldo', () => {
 });
 
 describe('gamificação', () => {
+  it('iniciais e tom do avatar', () => {
+    expect(initialsFromName('Diego Angelo')).toBe('DA');
+    expect(initialsFromName('Jhersyka')).toBe('JH');
+    expect(initialsFromName('  ana maria souza ')).toBe('AS');
+    expect(normalizeAvatar(null, 'Diego').tone).toBe(normalizeAvatar('{"hat":"cap"}', 'Diego').tone);
+    expect(normalizeAvatar({ tone: 4 }, 'Diego')).toEqual({ tone: 4, preset: null });
+    expect(normalizeAvatar({ tone: 4, preset: 2 }, 'Diego')).toEqual({ tone: 4, preset: 2 });
+    expect(normalizeAvatar({ tone: 4, preset: 20 }, 'Diego').preset).toBeNull();
+    expect(normalizeAvatar({ tone: 12 }, 'Diego').tone).toBe(normalizeAvatar(null, 'Diego').tone);
+  });
+
   it('nível derivado do XP', () => {
     expect(levelFromXp(0)).toBe(1);
     expect(levelFromXp(49)).toBe(1);

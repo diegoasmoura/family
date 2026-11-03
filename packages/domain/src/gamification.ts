@@ -40,56 +40,91 @@ export function avatarTitle(level: number): string {
   return AVATAR_TITLES.filter(([min]) => level >= min).at(-1)![1];
 }
 
-export type AvatarSlot = 'hat' | 'face' | 'neck';
-
-/** Itens que o XP desbloqueia; cada um ocupa um lugar do avatar. */
-export const AVATAR_ITEMS: { id: string; slot: AvatarSlot; name: string; level: number }[] = [
-  { id: 'cap', slot: 'hat', name: 'Boné', level: 2 },
-  { id: 'glasses', slot: 'face', name: 'Óculos', level: 3 },
-  { id: 'beanie', slot: 'hat', name: 'Gorro', level: 4 },
-  { id: 'bowtie', slot: 'neck', name: 'Gravata borboleta', level: 5 },
-  { id: 'sunglasses', slot: 'face', name: 'Óculos escuros', level: 6 },
-  { id: 'tophat', slot: 'hat', name: 'Cartola', level: 7 },
-  { id: 'medal', slot: 'neck', name: 'Medalha', level: 8 },
-  { id: 'crown', slot: 'hat', name: 'Coroa', level: 10 },
+/** Doze tons nomeados, na mesma ordem do Dihan. Fundo e texto vêm juntos. */
+export const AVATAR_TONES: { name: string; bg: string; fg: string }[] = [
+  { name: 'Sálvia', bg: '#6ED4A4', fg: '#1A4A38' },
+  { name: 'Azul', bg: '#5B8FE8', fg: '#1E3A8A' },
+  { name: 'Pêssego', bg: '#E8956A', fg: '#7A3210' },
+  { name: 'Roxo', bg: '#9B7AED', fg: '#3B1A7A' },
+  { name: 'Mostarda', bg: '#D4C03A', fg: '#4A4200' },
+  { name: 'Rosa', bg: '#E85A7A', fg: '#7A1230' },
+  { name: 'Teal', bg: '#2AAAA0', fg: '#0A4540' },
+  { name: 'Coral', bg: '#E84545', fg: '#7A1515' },
+  { name: 'Oliva', bg: '#9AAA3A', fg: '#3A4210' },
+  { name: 'Lilás', bg: '#C85AD4', fg: '#5A1860' },
+  { name: 'Âmbar', bg: '#E07A20', fg: '#6A3200' },
+  { name: 'Ameixa', bg: '#A06090', fg: '#4A2048' },
 ];
 
-export const AVATAR_COLORS = ['#58CC02', '#1CB0F6', '#CE82FF', '#FF9600', '#FF4B4B', '#FF86D0', '#00B8A9', '#2B70C9'];
-export const AVATAR_SKINS = ['#FFDBB4', '#F1C27D', '#D9A066', '#B07848', '#8D5524', '#5C3A1E'];
+/** Os mesmos 14 desenhos do seletor do Dihan: DiceBear Open Peeps e Big Smile. */
+export const AVATAR_PRESETS: { style: 'open-peeps' | 'big-smile'; seed: string }[] = [
+  { style: 'open-peeps', seed: 'Jasper' },
+  { style: 'open-peeps', seed: 'Aiden' },
+  { style: 'open-peeps', seed: 'Nadia' },
+  { style: 'open-peeps', seed: 'Isla' },
+  { style: 'open-peeps', seed: 'Kai' },
+  { style: 'open-peeps', seed: 'Bianca' },
+  { style: 'open-peeps', seed: 'Dante' },
+  { style: 'big-smile', seed: 'Jasper' },
+  { style: 'big-smile', seed: 'Aiden' },
+  { style: 'big-smile', seed: 'Nadia' },
+  { style: 'big-smile', seed: 'Isla' },
+  { style: 'big-smile', seed: 'Kai' },
+  { style: 'big-smile', seed: 'Bianca' },
+  { style: 'big-smile', seed: 'Dante' },
+];
 
 export interface Avatar {
-  color: string;
-  skin: string;
-  hat: string | null;
-  face: string | null;
-  neck: string | null;
+  tone: number;
+  /** Índice em AVATAR_PRESETS. Sem desenho, o avatar fica nas iniciais. */
+  preset: number | null;
 }
 
-export function defaultAvatar(seed = 0): Avatar {
-  return { color: AVATAR_COLORS[seed % AVATAR_COLORS.length], skin: AVATAR_SKINS[1], hat: null, face: null, neck: null };
+/** Primeira letra do primeiro nome e do último. Um nome só usa as duas primeiras. */
+export function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  const one = parts[0] ?? '';
+  return (one.slice(0, 2) || '•').toUpperCase();
 }
 
-/** Lê o avatar salvo, descartando valores inválidos ou itens acima do nível. */
-export function normalizeAvatar(raw: unknown, level: number, seed = 0): Avatar {
-  const base = defaultAvatar(seed);
-  let v: Partial<Avatar> = {};
-  try {
-    v = typeof raw === 'string' ? JSON.parse(raw) : ((raw as Partial<Avatar>) ?? {});
-  } catch {
-    v = {};
+function hashName(name: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  const item = (slot: AvatarSlot) => {
-    const id = v[slot];
-    const found = AVATAR_ITEMS.find((i) => i.id === id && i.slot === slot);
-    return found && found.level <= level ? found.id : null;
-  };
-  return {
-    color: AVATAR_COLORS.includes(v.color as string) ? (v.color as string) : base.color,
-    skin: AVATAR_SKINS.includes(v.skin as string) ? (v.skin as string) : base.skin,
-    hat: item('hat'),
-    face: item('face'),
-    neck: item('neck'),
-  };
+  return hash >>> 0;
+}
+
+/** Tom estável quando a pessoa ainda não escolheu uma cor. */
+export function toneFromName(name: string): number {
+  return hashName(name.trim()) % AVATAR_TONES.length;
+}
+
+function readTone(value: unknown, name: string): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < AVATAR_TONES.length ? value : toneFromName(name);
+}
+
+function readPreset(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < AVATAR_PRESETS.length ? value : null;
+}
+
+/** Lê o avatar salvo. Sem `tone` válido, cai na cor estável do nome. Sem desenho válido, ficam as iniciais. */
+export function normalizeAvatar(raw: unknown, name: string): Avatar {
+  let tone: unknown;
+  let preset: unknown;
+  try {
+    const v = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (v && typeof v === 'object') {
+      tone = (v as { tone?: unknown }).tone;
+      preset = (v as { preset?: unknown }).preset;
+    }
+  } catch {
+    tone = undefined;
+    preset = undefined;
+  }
+  return { tone: readTone(tone, name), preset: readPreset(preset) };
 }
 
 export interface StreakState {

@@ -20,8 +20,6 @@ import {
 } from '../core';
 import { ensureInvoice, type Card } from './cards';
 import { assertCategory } from './categories';
-import { awardXp } from './gamification';
-import { XP_VALUES } from '@fin/domain';
 import { assertHouseholdUser, assertPaymentTarget } from './transactions';
 
 /** Quantos meses à frente as recorrências ficam materializadas. */
@@ -164,7 +162,7 @@ export function recurrencesRouter(): Router {
   r.post('/', async (req, res) => {
     const body = parse(recBody, req.body);
     const existing = await findByUuid(req.ctx, 'recurrences', body.client_uuid);
-    if (existing) return void res.json({ recurrence: existing, xp: null });
+    if (existing) return void res.json({ recurrence: existing });
     if (body.end_month && body.end_month < body.start_month) throw badRequest('O fim precisa ser depois do início');
     await assertPaymentTarget(req.ctx, body.kind, body.account_id, body.card_id);
     await assertCategory(req.ctx, body.category_id, body.kind);
@@ -197,10 +195,9 @@ export function recurrencesRouter(): Router {
           await update(db, 'transactions', first.id, first.card_id ? { status: 'posted' } : { status: 'posted', paid_on: first.occurred_on });
         }
       }
-      const xp = await awardXp(ctx, 'tx_logged', XP_VALUES.tx_logged, { refKey: `recurrence:${id}`, refId: id });
-      return { id, xp };
+      return id;
     });
-    res.status(201).json({ recurrence: await req.ctx.db.get(`${SELECT} WHERE r.id = ?`, [result.id]), xp: result.xp });
+    res.status(201).json({ recurrence: await req.ctx.db.get(`${SELECT} WHERE r.id = ?`, [result]) });
   });
 
   /**

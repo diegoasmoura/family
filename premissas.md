@@ -98,9 +98,9 @@ Dinheiro que sai para fora da casa é uma despesa paga, na conta de quem pagou, 
 
 O orçamento é só de despesa, no mês, e o teto é da casa inteira. O gasto comparado pode estar filtrado por Eu ou Nós. Entra despesa efetivada que conta na soma, na competência do mês. Compra e parcela no cartão entram no mês da fatura porque já nascem efetivadas. Fixa no cartão entra quando a ocorrência é efetivada. Conta entra quando está paga. Ajuste de fatura não entra.
 
-Meta guarda um número. Guardar ou retirar não tira dinheiro da conta. Atingir o alvo numa entrada conclui a meta e dá 100 XP uma vez. Retirar abaixo do alvo reabre. Criar já no alvo não conclui e não dá XP.
+Meta guarda um número. Guardar ou retirar não tira dinheiro da conta. Atingir o alvo numa entrada conclui a meta. Retirar abaixo do alvo reabre. Criar já no alvo não conclui.
 
-Lançamento avulso, criar uma fixa e criar um parcelamento valem 10 XP uma vez cada. O parcelamento dá o XP no plano, não em cada parcela. O nível não é gravado: é a parte inteira da raiz de XP dividido por 50, mais 1. Revisão da semana, fechamento do mês, ficar no orçamento e lançar todo dia existem na API e nenhuma tela tem o botão.
+O avatar é um quadrado. Sem desenho escolhido, mostra as iniciais do nome numa cor entre doze tons. O desenho é um dos catorze do DiceBear, os mesmos do Dihan: sete Open Peeps e sete Big Smile. A tela do avatar escolhe o desenho e a cor. Lançamento, fixa, parcelamento e meta não dão ponto.
 
 ## O que fica neste aparelho
 
@@ -130,5 +130,5 @@ Fora de casa o acesso é por túnel (Cloudflare ou Tailscale), não por porta ab
 - Trocar o cartão na edição de um lançamento.
 - Recuperação de senha por e-mail.
 - Convite entre duas casas na interface.
-- Missões, sequência e conquistas na tela, embora parte do XP exista na API.
+- Missões, sequência e conquistas na tela.
 - Várias casas no mesmo uso do dia a dia.

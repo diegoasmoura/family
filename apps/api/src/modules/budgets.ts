@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { XP_VALUES, monthOf } from '@fin/domain';
+import { monthOf } from '@fin/domain';
 import {
   badRequest,
   findByUuid,
@@ -21,7 +21,6 @@ import {
   zUuid,
 } from '../core';
 import { assertCategory } from './categories';
-import { awardXp } from './gamification';
 import { spentWithChildren } from './queries';
 
 export function budgetsRouter(): Router {
@@ -223,38 +222,32 @@ export function goalsRouter(): Router {
     const target = body.target_cents ?? num(goal.target_cents);
     const saved = num(goal.saved_cents);
     const reached = saved >= target;
-    const result = await req.ctx.db.tx(async (db) => {
-      const ctx = { ...req.ctx, db };
+    await req.ctx.db.tx(async (db) => {
       await update(db, 'goals', id, {
         ...body,
         completed_at: reached ? (goal.completed_at ?? nowIso()) : null,
         updated_at: nowIso(),
       });
-      const xp = reached && !goal.completed_at ? await awardXp(ctx, 'goal_done', XP_VALUES.goal_done, { refId: id, refKey: `goal:${id}` }) : null;
-      return { xp };
     });
-    res.json({ ...decorate(await req.ctx.db.get('SELECT * FROM goals WHERE id = ?', [id])), xp: result.xp });
+    res.json(decorate(await req.ctx.db.get('SELECT * FROM goals WHERE id = ?', [id])));
   });
 
-  /** Guardar (valor positivo) ou retirar (negativo). Bater a meta dá XP uma vez. */
+  /** Guardar (valor positivo) ou retirar (negativo). Atingir o alvo conclui a meta. */
   r.post('/:id/deposit', async (req, res) => {
     const id = idParam(req.params.id);
     const goal = await owned<any>(req.ctx, 'goals', id, 'Meta');
     const body = parse(z.object({ amount_cents: z.number().int().refine((v) => v !== 0, 'Informe um valor') }), req.body);
     const saved = num(goal.saved_cents) + body.amount_cents;
     if (saved < 0) throw badRequest('Não dá para retirar mais do que está guardado');
-    const result = await req.ctx.db.tx(async (db) => {
-      const ctx = { ...req.ctx, db };
+    await req.ctx.db.tx(async (db) => {
       const reached = saved >= num(goal.target_cents);
       await update(db, 'goals', id, {
         saved_cents: saved,
         completed_at: reached ? (goal.completed_at ?? nowIso()) : null,
         updated_at: nowIso(),
       });
-      const xp = reached ? await awardXp(ctx, 'goal_done', XP_VALUES.goal_done, { refId: id, refKey: `goal:${id}` }) : null;
-      return { xp };
     });
-    res.json({ goal: decorate(await req.ctx.db.get('SELECT * FROM goals WHERE id = ?', [id])), xp: result.xp });
+    res.json({ goal: decorate(await req.ctx.db.get('SELECT * FROM goals WHERE id = ?', [id])) });
   });
 
   r.delete('/:id', async (req, res) => {

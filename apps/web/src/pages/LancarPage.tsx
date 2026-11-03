@@ -35,7 +35,7 @@ function rememberTarget(t: NonNullable<Target>) {
 export function LancarPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { today, celebrate } = useAppState();
+  const { today, toast } = useAppState();
   const back = () => navigate((location.state as any)?.from ?? '/', { replace: true });
 
   const [kind, setKind] = useState<Kind>('expense');
@@ -112,20 +112,20 @@ export function LancarPage() {
       const where = chosen.type === 'card' ? { card_id: chosen.id } : { account_id: chosen.id };
       const base = { description: description.trim(), category_id: categoryId, for_user_id: forUser, ...where };
       if (effectiveMode === 'installment' && installments != null) {
-        return (await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } })).xp;
+        await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } });
+        return;
       }
       if (effectiveMode === 'fixed') {
-        return (
-          await api('/recurrences', {
-            body: { ...base, kind, description: base.description || (kind === 'income' ? 'Receita fixa' : 'Despesa fixa'), amount_cents: amount, day_of_month: dayOf(date), start_month: monthOf(date), first_paid: paid },
-          })
-        ).xp;
+        await api('/recurrences', {
+          body: { ...base, kind, description: base.description || (kind === 'income' ? 'Receita fixa' : 'Despesa fixa'), amount_cents: amount, day_of_month: dayOf(date), start_month: monthOf(date), first_paid: paid },
+        });
+        return;
       }
-      return (await api('/transactions', { body: { ...base, kind, amount_cents: amount, occurred_on: date, paid: chosen.type === 'account' ? paid : undefined, client_uuid: uuid } })).xp;
+      await api('/transactions', { body: { ...base, kind, amount_cents: amount, occurred_on: date, paid: chosen.type === 'account' ? paid : undefined, client_uuid: uuid } });
     },
-    (xp) => {
+    () => {
       if (chosen) rememberTarget(chosen);
-      celebrate(xp, kind === 'income' ? 'Receita lançada' : 'Despesa lançada');
+      toast(kind === 'income' ? 'Receita lançada' : 'Despesa lançada');
       if (again.current) {
         again.current = false;
         setAmount(null);

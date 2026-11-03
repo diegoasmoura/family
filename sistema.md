@@ -66,17 +66,17 @@ Isto continua da casa inteira, mesmo em Eu:
 - vencimento de fatura nos próximos 30 dias;
 - contas, transferências, orçamento (o teto) e metas.
 
-O avatar do cabeçalho do Início segue Eu e Nós: em Eu só o de quem está logado; em Nós os dois. O número do nível é um selo no canto inferior direito do desenho, não em cima.
+O avatar do cabeçalho do Início segue Eu e Nós: em Eu só o de quem está logado; em Nós os dois. Cada um tem o mesmo contorno dos ícones ao lado: 44×44, borda de 2px e cantos de 14px. Dentro fica o desenho escolhido ou, sem desenho, as iniciais na cor escolhida.
 
 Em Eu, o “a pagar” do resumo não soma o restante das faturas. Em Nós, soma.
 
 ## Olho de ocultar valores
 
-Só existe no Início, à direita dos avatares, no mesmo botão de contorno dos outros ícones do cabeçalho. A preferência fica neste aparelho, na chave `fin-hide-money`. Ligado, cada valor em reais (classe `.money` ou `.num`) vira uma barra neutra do tamanho do número, em todas as telas. O campo em que a pessoa está digitando continua visível. Dia de fechamento, nível e XP não entram nessa barra. O centro do gráfico de categorias mostra `R$ ••••` e o percentual das fatias some. Em Mais há os mesmos controles, com o texto “Os valores viram uma barra”.
+Só existe no Início, à direita dos avatares, no mesmo botão de contorno dos outros ícones do cabeçalho. A preferência fica neste aparelho, na chave `fin-hide-money`. Ligado, cada valor em reais (classe `.money` ou `.num`) vira uma barra neutra do tamanho do número, em todas as telas. O campo em que a pessoa está digitando continua visível. Dia de fechamento não entra nessa barra. O centro do gráfico de categorias mostra `R$ ••••` e o percentual das fatias some. Em Mais há os mesmos controles, com o texto “Os valores viram uma barra”.
 
 Os avatares ficam à esquerda do olho, num grupo alinhado à direita. Trocar Eu e Nós muda quantos avatares aparecem (um ou os dois) e esse grupo cresce para a esquerda. O olho não muda de lugar.
 
-Em Eu o avatar é o de quem está logado, com o número do nível por cima. Em Nós aparecem os dois. O toque no avatar abre a tela Avatar.
+Em Eu o avatar é o de quem está logado. Em Nós aparecem os dois. O toque no avatar abre a tela Avatar.
 
 O nome pequeno acima de “Olá, Diego” é o nome da casa (por exemplo “Family”), não o nome do aplicativo.
 
@@ -212,7 +212,7 @@ O total parcelado precisa ter pelo menos 1 centavo por parcela. Fixa vazia vira 
 
 No celular, **Lançar** fica em cima e **Lançar e novo** embaixo, cada um na largura da folha. A partir de 640px os dois dividem a mesma linha. **Lançar e novo** permanece na folha, limpa valor, descrição e categoria, e troca o identificador do lançamento. O destino, a data, o tipo e de quem continuam.
 
-Depois de lançar, o aviso é “Despesa lançada” ou “Receita lançada”, e a tela volta. O número de XP não aparece. Se o nível subir, um segundo aviso diz “Seu avatar subiu para o nível N”. Lançamento avulso vale 10 XP. Criar uma fixa vale 10 XP uma vez. Criar um parcelamento vale 10 XP uma vez, no plano, não em cada parcela.
+Depois de lançar, o aviso é “Despesa lançada” ou “Receita lançada”, e a tela volta.
 
 ## Ficha do lançamento
 
@@ -282,13 +282,11 @@ A missão “ficar abaixo do orçamento” usa a soma do que foi planejado no m�
 
 ## Metas
 
-Nome, valor alvo, quanto já foi guardado e prazo opcional. Criar já com o valor guardado no alvo não conclui e não dá XP. Guardar ou retirar mexe só no número da meta e não tira dinheiro da conta. Não deixa retirar mais do que está guardado. Ao atingir o alvo num depósito, a meta conclui e dá 100 XP uma vez. Retirar abaixo do alvo reabre. Excluir é lógico.
+Nome, valor alvo, quanto já foi guardado e prazo opcional. Criar já com o valor guardado no alvo não conclui. Guardar ou retirar mexe só no número da meta e não tira dinheiro da conta. Não deixa retirar mais do que está guardado. Ao atingir o alvo num depósito, a meta conclui. Retirar abaixo do alvo reabre. Excluir é lógico.
 
 ## Avatar
 
-Nível, XP e a barra até o próximo, com “Faltam X XP para o nível N”. O título acompanha o nível: Iniciante, Aprendiz, Organizado, Poupador, Investidor, Mestre das finanças. Cor e pele ficam sempre liberadas. Os itens de cabeça, rosto e pescoço travam quando o nível do item é maior que o da pessoa. Tocar de novo no item equipado tira. Salvar grava o avatar de quem está logado. Abaixo, em “O casal”, o outro membro, com título, nível e XP, só para ver. A faixa de baixo da tela cita o lançamento (10 XP) e a meta (100 XP).
-
-O nível não é gravado. A conta é a parte inteira da raiz de XP dividido por 50, mais 1. O XP mínimo de um nível é 50 vezes o quadrado do nível anterior. Revisão da semana (20 XP, uma vez por semana) e fechamento do mês (50 XP, só mês já terminado) existem na API e nenhuma tela tem o botão. Ficar no orçamento vale 50 XP e lançar todo dia vale 100 XP, para todos os membros, também só pela API. A tela não mostra missões, sequência nem conquistas.
+A prévia mostra o desenho de quem está logado, ou as iniciais se nenhum desenho estiver escolhido. Os desenhos são os catorze do DiceBear usados no Dihan: sete Open Peeps (Pablo Stanley) e sete Big Smile (Ashley Seo). A primeira opção da grade volta para as iniciais. No celular são seis por linha. A partir de 960px cada miniatura mede 52px. Abaixo, doze cores para essas iniciais: sálvia, azul, pêssego, roxo, mostarda, rosa, teal, coral, oliva, lilás, âmbar e ameixa. Salvar grava o desenho e o tom. Sem tom salvo, a cor sai do nome. Em “O casal”, o outro membro aparece com o avatar e o nome, só para ver.
 
 ## Mais
 

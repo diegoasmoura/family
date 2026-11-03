@@ -54,15 +54,15 @@ function GoalForm({ goal, onClose }: { goal?: { id: number; name: string; target
 }
 
 function DepositSheet({ goal, onClose }: { goal: Goal; onClose: () => void }) {
-  const { celebrate, toast } = useAppState();
+  const { toast } = useAppState();
   const [amount, setAmount] = useState<number | null>(null);
   const [withdraw, setWithdraw] = useState(false);
   const [editing, setEditing] = useState(false);
   const deposit = useAction(
     () => api(`/goals/${goal.id}/deposit`, { body: { amount_cents: withdraw ? -(amount ?? 0) : amount } }),
-    (r: any) => {
-      if (r.xp?.xp) celebrate(r.xp, 'Meta concluída!');
-      else toast(withdraw ? 'Valor retirado' : 'Valor guardado');
+    (r: { goal?: { completed_at?: string | null } }) => {
+      const justDone = Boolean(r.goal?.completed_at) && !goal.completed_at;
+      toast(justDone ? 'Meta concluída!' : withdraw ? 'Valor retirado' : 'Valor guardado');
       onClose();
     },
   );

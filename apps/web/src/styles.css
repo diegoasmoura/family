@@ -99,12 +99,6 @@
 :root[data-theme="dark"] .menu {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
 }
-:root[data-theme="dark"] .avatar svg {
-  box-shadow:
-    0 0 0 2px var(--surface),
-    0 2px 0 3px #000;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -1782,33 +1776,54 @@ a.kebab {
 .avatar {
   position: relative;
   flex: none;
-  display: inline-block;
-}
-.avatar svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 2px var(--surface),
-    0 2px 0 3px var(--line);
-}
-.avatar-lv {
-  position: absolute;
-  right: -4px;
-  bottom: -4px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 4px;
-  border-radius: 10px;
-  background: var(--yellow);
-  color: #5c4400;
-  border: 2px solid var(--surface);
-  font-size: 11px;
-  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  border-radius: 28%;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  user-select: none;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.avatar-picks {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+.avatar-picks button {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.avatar-picks button.on {
+  border-color: var(--green);
+}
+.avatar-picks button .avatar,
+.avatar-picks button img {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  font-size: 13px;
+}
+@media (min-width: 960px) {
+  .avatar-picks {
+    grid-template-columns: repeat(auto-fill, 52px);
+    justify-content: start;
+  }
+  .avatar-picks button {
+    width: 52px;
+  }
 }
 .avatars {
   display: inline-flex;
@@ -3099,6 +3114,11 @@ main.page.page h1 { font-size: 20px; font-weight: 700; line-height: 1.2; }
 .pc-due { text-align: center; }
 .hd .inp.grow { flex: 1; min-width: 0; }
 .home-actions { display: flex; align-items: center; gap: 4px; }
+.home-actions .avatar {
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
 main.page { gap: 12px; }
 
 /* Setas fora do cartão: ficam ao lado dos pontinhos e não cobrem o valor. */
