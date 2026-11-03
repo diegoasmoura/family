@@ -10,7 +10,7 @@ import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { TxMenu, type TxSheetMode } from '../TxMenu';
-import { ErrorText, Icon, Loading, MonthNav, PullToRefresh, Seg, Sheet, StatusIcon, brl, dayLabel } from '../ui';
+import { ErrorText, Icon, Loading, MonthNav, NewButton, PullToRefresh, Seg, Sheet, StatusIcon, brl, dayLabel } from '../ui';
 
 type Kind = 'expense' | 'income';
 
@@ -340,7 +340,7 @@ export function LancamentosPage() {
     <main className="page lanc" {...swipe}>
       <div className="hd">
         {search === null ? (
-          <h1>Lançamentos</h1>
+          <h1>Extrato</h1>
         ) : (
           <input className="inp grow" autoFocus placeholder="Buscar por descrição, categoria ou conta" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar" />
         )}
@@ -351,6 +351,7 @@ export function LancamentosPage() {
           <button className="ic" aria-label="Buscar" aria-pressed={search !== null} onClick={() => setSearch(search === null ? '' : null)}>
             <Icon.search />
           </button>
+          <NewButton label={income ? 'Nova receita' : 'Nova despesa'} state={{ kind }} />
         </div>
       </div>
       <PersonFilter />

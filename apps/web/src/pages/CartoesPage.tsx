@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MONTHS_SHORT_PT, addMonths, monthLabel } from '@fin/domain';
 import { api, useAction, useApi, type Account, type Card, type Invoice, type Tx } from '../api';
 import { CATEGORY_COLORS, CategoryIcon, paintColor } from '../categories';
@@ -7,7 +7,7 @@ import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { BankMark, BankPicker, bankByName } from '../banks';
 import { BrandPicker } from '../brands';
-import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, PullToRefresh, Sheet, brl, monthName, shortDate } from '../ui';
+import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, NewButton, PullToRefresh, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { PaySheet } from '../PaySheet';
 import { AccountForm } from '../AccountForm';
@@ -796,6 +796,9 @@ export function CartoesPage() {
   const monthInvoices = useApi<{ card_id: number; invoice: Invoice }[]>(`/cards/month/${month}`);
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
   const [newCard, setNewCard] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [panel, setPanel] = useState<{ card: Card; kind: Panel } | null>(null);
   const [selectedTx, setSelectedTx] = useState<Tx | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
@@ -845,9 +848,8 @@ export function CartoesPage() {
     <main className="page" {...swipe}>
       <div className="hd">
         <h1>Cartões</h1>
-        <button type="button" className="hd-add" aria-label="Novo cartão" onClick={() => setNewCard(true)}>
-          <Icon.plus /> Cartão
-        </button>
+        {/* Sem cartão ainda, o + já é "Novo cartão"; com cartão, pergunta entre compra (o mais comum) e cartão novo. */}
+        <NewButton label="Adicionar" onClick={() => (cards.data?.length ? setAddOpen(true) : setNewCard(true))} />
       </div>
       <MonthNav month={month} onChange={setMonth} />
       <PullToRefresh ptr={ptr} />
@@ -902,6 +904,29 @@ export function CartoesPage() {
 
 
       {newCard && <CardForm onClose={() => setNewCard(false)} />}
+      {addOpen && (
+        <Sheet title="Adicionar" onClose={() => setAddOpen(false)}>
+          <div className="stack">
+            <button
+              type="button"
+              className="btn block"
+              onClick={() => navigate('/lancar', { state: { from: location.pathname + location.search, cardId: activeCard?.id } })}
+            >
+              <Icon.card /> Compra no cartão{activeCard ? ` ${activeCard.name}` : ''}
+            </button>
+            <button
+              type="button"
+              className="btn ghost block"
+              onClick={() => {
+                setAddOpen(false);
+                setNewCard(true);
+              }}
+            >
+              <Icon.plus /> Novo cartão
+            </button>
+          </div>
+        </Sheet>
+      )}
       {p?.kind === 'editar' && <CardForm card={p.card} onClose={() => setPanel(null)} />}
       {p?.kind === 'pagar' && <PaySheet card={p.card} month={month} onClose={() => setPanel(null)} />}
       {p?.kind === 'despesas' && <DespesasSheet card={p.card} month={month} onClose={() => setPanel(null)} onTx={setSelectedTx} />}

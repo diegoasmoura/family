@@ -8,7 +8,7 @@ import { TxSheet } from '../TxSheet';
 import { usePullToRefresh } from '../usePullToRefresh';
 import { BankMark, bankByName } from '../banks';
 import { BudgetYear } from '../BudgetYear';
-import { ErrorText, Icon, Loading, PullToRefresh, Seg, Sheet, StatusIcon, shortDate } from '../ui';
+import { ErrorText, Icon, Loading, NewButton, PullToRefresh, Seg, Sheet, StatusIcon, shortDate } from '../ui';
 
 interface Row {
   category_id: number | null;
@@ -268,6 +268,7 @@ export function AnoPage() {
     <main className="page wide">
       <div className="hd">
         <h1>Visão anual</h1>
+        <NewButton />
       </div>
       <PersonFilter />
       <div className="hd month-nav">

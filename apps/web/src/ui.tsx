@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { useNavigate } from 'react-router-dom';
 import {
   House, List, CreditCard, Calendar, EllipsisVertical, Ellipsis, Check, Clock,
-  CircleAlert, Search, X, ChevronLeft, ChevronRight, Flame, ChartColumn,
+  CircleAlert, Search, X, ChevronDown, ChevronLeft, ChevronRight, Flame, ChartColumn,
   TrendingUp, Plus, Lock, LockOpen, CircleCheckBig, Sun, Moon, Eye, EyeOff,
   LayoutGrid, ArrowDown, ArrowUp, ArrowUpRight, ArrowDownLeft, UnfoldVertical, FoldVertical, Info,
 } from 'lucide-react';
@@ -18,6 +18,26 @@ export const dayLabel = (date: string) => `${date.slice(8, 10)} · ${weekdayShor
 
 const MONTHS_LOWER = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 export const monthName = (month: string) => MONTHS_LOWER[Number(month.slice(5, 7)) - 1];
+
+/**
+ * O + do cabeçalho das abas da barra: sempre o último à direita e o único verde cheio da tela.
+ * Sem `onClick`, abre o Novo lançamento já com o contexto da aba (`state`: kind, cardId, mode…)
+ * e, ao fechar, volta para a tela de onde saiu.
+ */
+export function NewButton({ label = 'Novo lançamento', state, onClick }: { label?: string; state?: Record<string, unknown>; onClick?: () => void }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      className="hd-new"
+      aria-label={label}
+      title={label}
+      onClick={onClick ?? (() => navigate('/lancar', { state: { from: window.location.pathname + window.location.search, ...state } }))}
+    >
+      <Icon.plus />
+    </button>
+  );
+}
 
 /** Volta à tela anterior. No computador a coluna já tem Mais, então o botão some. */
 export function BackButton({ fallback = '/mais' }: { fallback?: string }) {
@@ -53,6 +73,7 @@ export const Icon = {
   alert: () => <CircleAlert aria-hidden />,
   search: () => <Search aria-hidden />,
   close: () => <X aria-hidden />,
+  down: () => <ChevronDown aria-hidden />,
   left: () => <ChevronLeft aria-hidden />,
   right: () => <ChevronRight aria-hidden />,
   flame: () => <Flame aria-hidden />,

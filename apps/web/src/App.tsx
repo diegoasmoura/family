@@ -5,7 +5,6 @@ import {
   Route,
   Routes,
   useLocation,
-  useNavigate,
 } from "react-router-dom";
 import { ApiError, useAction, useApi, type Me } from "./api";
 import { AppStateProvider } from "./state";
@@ -28,8 +27,6 @@ import { ConfigPage } from "./pages/ConfigPage";
 import { CalendarioPage } from "./pages/CalendarioPage";
 
 function TabBar() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const tab = (to: string, label: string, short: string, icon: JSX.Element, end = false, extra = "") => (
     <NavLink
       to={to}
@@ -46,20 +43,9 @@ function TabBar() {
     <nav className="tabbar" aria-label="Navegação principal">
       <span className="brand">Finanças do casal</span>
       {tab("/", "Início", "Início", <Icon.home />, true)}
-      {tab("/lancamentos", "Lançamentos", "Lançamentos", <Icon.list />)}
-      <span className="fab-wrap">
-        <button
-          className="fab"
-          aria-label="Novo lançamento"
-          onClick={() =>
-            navigate("/lancar", {
-              state: { from: location.pathname + location.search },
-            })
-          }
-        >
-          +
-        </button>
-      </span>
+      {/* O endereço continua /lancamentos (links e atalhos salvos); só o nome mudou para Extrato. */}
+      {tab("/lancamentos", "Extrato", "Extrato", <Icon.list />)}
+      {/* Sem + na barra: cada aba tem o seu + no cabeçalho (NewButton). */}
       {tab("/cartoes", "Cartões", "Cartões", <Icon.card />)}
       {tab("/ano", "Ano", "Ano", <Icon.year />)}
       {tab("/mais", "Mais", "Mais", <Icon.more />, false, "desk-only")}

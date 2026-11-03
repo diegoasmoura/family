@@ -6,7 +6,7 @@ import { AvatarFigure } from "../Avatar";
 import { setHidden, useHidden } from "../privacy";
 import { useInView } from "../useInView";
 import { usePullToRefresh } from "../usePullToRefresh";
-import { ErrorText, Icon, MonthNav, PullToRefresh, Sheet, SkeletonCard, brl, monthName } from "../ui";
+import { ErrorText, Icon, MonthNav, NewButton, PullToRefresh, Sheet, SkeletonCard, brl, monthName } from "../ui";
 import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { CardRail } from "../CardFace";
 import { CategoryIcon } from "../categories";
@@ -108,7 +108,6 @@ export function HomePage({ me }: { me: Me }) {
   const toggleHide = () => setHidden(!hiddenMoney);
   const ptr = usePullToRefresh();
   const [layout, setLayout] = useState(loadLayout);
-  const [config, setConfig] = useState(false);
   const [showCum, setShowCum] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const d = q.data;
@@ -177,7 +176,7 @@ export function HomePage({ me }: { me: Me }) {
   if (!d) {
     return (
       <main className="page home">
-        <HomeHeader me={me} members={[]} person={person} hidden={hiddenMoney} onToggle={toggleHide} onConfig={() => setConfig(true)} />
+        <HomeHeader me={me} members={[]} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <PersonFilter />
         <MonthNav month={month} onChange={setMonth} />
         <ErrorText error={q.error} />
@@ -497,7 +496,7 @@ export function HomePage({ me }: { me: Me }) {
   return (
     <>
       <main className="page home" style={{ borderRadius: '24px 24px 0 0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-        <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} onConfig={() => setConfig(true)} />
+        <HomeHeader me={me} members={d.members} person={person} hidden={hiddenMoney} onToggle={toggleHide} />
         <PersonFilter />
         <MonthNav month={month} onChange={setMonth} />
         <PullToRefresh ptr={ptr} />
@@ -523,6 +522,7 @@ export function HomePage({ me }: { me: Me }) {
             );
           })}
         </div>
+        <LayoutCard layout={layout} moveBlock={moveBlock} saveLayout={saveLayout} />
         {showTop && (
           <button type="button" className="to-top" aria-label="Voltar ao topo" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -531,36 +531,6 @@ export function HomePage({ me }: { me: Me }) {
           </button>
         )}
       </main>
-      {config && (
-        <Sheet title="Configurar resumo" onClose={() => setConfig(false)}>
-          <p className="empty">Use as setas para reordenar. “Ocultar” esconde o card da tela inicial.</p>
-          <div className="layout-list">
-            {layout.order.map((id, index) => {
-              const label = BLOCKS.find(([key]) => key === id)?.[1];
-              const off = layout.hidden.includes(id);
-              return (
-                <div key={id} className={`layout-row${off ? " off" : ""}`}>
-                  <span className="layout-name">{label}</span>
-                  <span className="layout-tools">
-                    <button type="button" className="mv" aria-label={`Subir ${label}`} disabled={index === 0} onClick={() => moveBlock(id, -1)}><Icon.arrowUp /></button>
-                    <button type="button" className="mv" aria-label={`Descer ${label}`} disabled={index === layout.order.length - 1} onClick={() => moveBlock(id, 1)}><Icon.arrowDown /></button>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => saveLayout(layout.order, off ? layout.hidden.filter((item) => item !== id) : [...layout.hidden, id])}
-                    >
-                      {off ? "Mostrar" : "Ocultar"}
-                    </button>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <button type="button" className="btn ghost block" onClick={() => saveLayout(DEFAULT_ORDER, [])}>
-            Restaurar padrão
-          </button>
-        </Sheet>
-      )}
       {classify && <ClassifySheet name={classify} items={bucketTxs(txs, classify)} onClose={() => setClassify(null)} />}
       {selectedCat && (
         <Sheet title={selectedCat.name} onClose={() => setCatName(null)}>
@@ -668,7 +638,66 @@ function ClassifySheet({ name, items, onClose }: { name: string; items: Tx[]; on
   );
 }
 
-function HomeHeader({ me, members, person, hidden, onToggle, onConfig }: { me: Me; members: Member[]; person: PersonScope; hidden: boolean; onToggle: () => void; onConfig: () => void }) {
+function LayoutCard({
+  layout,
+  moveBlock,
+  saveLayout,
+}: {
+  layout: { order: BlockId[]; hidden: BlockId[] };
+  moveBlock: (id: BlockId, dir: -1 | 1) => void;
+  saveLayout: (order: BlockId[], hidden: BlockId[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hiddenCount = layout.hidden.length;
+  const hiddenLabel = hiddenCount === 0 ? null : hiddenCount === 1 ? "1 oculto" : `${hiddenCount} ocultos`;
+  return (
+    <section className={`card home-layout${open ? " open" : ""}`}>
+      <button type="button" className="layout-toggle" aria-expanded={open} aria-controls="home-layout-panel" onClick={() => setOpen((value) => !value)}>
+        <span className="layout-toggle-text">
+          <span>Ordem dos cards</span>
+          {hiddenLabel && <small>{hiddenLabel}</small>}
+        </span>
+        <Icon.down />
+      </button>
+      {open && (
+        <div id="home-layout-panel" className="layout-panel">
+          <p>As setas mudam a ordem. Ocultar tira o card desta tela.</p>
+          <div className="layout-list">
+            {layout.order.map((id, index) => {
+              const label = BLOCKS.find(([key]) => key === id)?.[1];
+              const off = layout.hidden.includes(id);
+              return (
+                <div key={id} className={`layout-row${off ? " off" : ""}`}>
+                  <span className="layout-name">{label}</span>
+                  <span className="layout-tools">
+                    <button type="button" className="mv" aria-label={`Subir ${label}`} disabled={index === 0} onClick={() => moveBlock(id, -1)}>
+                      <Icon.arrowUp />
+                    </button>
+                    <button type="button" className="mv" aria-label={`Descer ${label}`} disabled={index === layout.order.length - 1} onClick={() => moveBlock(id, 1)}>
+                      <Icon.arrowDown />
+                    </button>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => saveLayout(layout.order, off ? layout.hidden.filter((item) => item !== id) : [...layout.hidden, id])}
+                    >
+                      {off ? "Mostrar" : "Ocultar"}
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <button type="button" className="btn ghost block" onClick={() => saveLayout(DEFAULT_ORDER, [])}>
+            Restaurar padrão
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function HomeHeader({ me, members, person, hidden, onToggle }: { me: Me; members: Member[]; person: PersonScope; hidden: boolean; onToggle: () => void }) {
   const shown = person === "all" ? members : members.filter((member) => member.me);
   return (
     <div className="hd home-top">
@@ -687,13 +716,11 @@ function HomeHeader({ me, members, person, hidden, onToggle, onConfig }: { me: M
         <button type="button" className="ic eye" aria-pressed={hidden} aria-label={hidden ? "Mostrar valores" : "Ocultar valores"} onClick={onToggle}>
           {hidden ? <Icon.eyeOff /> : <Icon.eye />}
         </button>
-        <button type="button" className="ic" aria-label="Configurar resumo" onClick={onConfig}>
-          <Icon.grid />
-        </button>
         {/* No celular a barra de baixo tem cinco itens; o Mais (Contas, Categorias, Orçamento, tema…) fica aqui. */}
         <Link to="/mais" className="ic mob-only" aria-label="Mais">
           <Icon.more />
         </Link>
+        <NewButton />
       </nav>
     </div>
   );

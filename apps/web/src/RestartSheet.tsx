@@ -124,7 +124,7 @@ export function RestartSheet({ month, onClose }: { month: string; onClose: () =>
             <input type="checkbox" checked={hideOld} onChange={(e) => setHideOld(e.target.checked)} />
           </label>
         )}
-        {hideOld && <small>Os lançamentos continuam em Lançamentos, só deixam de somar nos relatórios; o saldo e as faturas não mudam. Para voltar atrás, ligue “Contar na soma” em cada lançamento.</small>}
+        {hideOld && <small>Os lançamentos continuam no Extrato, só deixam de somar nos relatórios; o saldo e as faturas não mudam. Para voltar atrás, ligue “Contar na soma” em cada lançamento.</small>}
 
         {pending > 0 && (
           <label className="toggle">

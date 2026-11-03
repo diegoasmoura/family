@@ -86,6 +86,8 @@ O estado da linha (Pago, Atrasado, Próximo, Previsto) é calculado, não gravad
 
 Na fixa e no parcelamento em conta, mudar o valor ou o dia pergunta se vale só para esta ou também para as seguintes. O mês não muda. O dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Descrição, categoria e de quem mudam só a ocorrência aberta. No cartão a data segue a fatura.
 
+**Contrato (financiamento ou empréstimo).** É um parcelamento em conta marcado como contrato, não um segundo sistema: cada prestação continua sendo uma despesa normal do mês, com as mesmas regras do parcelamento, e por isso não conta duas vezes em lugar nenhum. A aba Contratos só mostra esses parcelamentos de outro jeito (quanto falta, em que parcela está, quando termina). O dinheiro do empréstimo que cai na conta sobe o saldo, mas não é receita do mês, como uma transferência. Compra parcelada no cartão não é contrato.
+
 ## Transferência e dinheiro que sai da casa
 
 Transferência move saldo entre duas contas do aplicativo. Não é receita nem despesa, e o total da casa não muda. Não serve para registrar um PIX para quem não usa o app.

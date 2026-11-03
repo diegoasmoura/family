@@ -297,12 +297,6 @@ nav.tabbar button.tab {
   overflow: hidden;
   color: var(--muted);
 }
-nav.tabbar .fab-wrap {
-  flex: none;
-  width: 56px;
-  display: flex;
-  justify-content: center;
-}
 nav.tabbar .tab-long,
 nav.tabbar a.desk-only {
   display: none;
@@ -314,21 +308,6 @@ nav.tabbar a.active {
 nav.tabbar svg {
   width: 22px;
   height: 22px;
-}
-.fab {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--green);
-  border-bottom: 4px solid var(--green-dark);
-  color: var(--green-ink);
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 @media (min-width: 960px) {
@@ -374,22 +353,6 @@ nav.tabbar svg {
   }
   nav.tabbar a.active {
     background: var(--green-soft);
-  }
-  nav.tabbar .fab-wrap {
-    order: -1;
-    width: auto;
-    display: block;
-    margin-bottom: 12px;
-  }
-  nav.tabbar .fab {
-    width: 100%;
-    border-radius: 16px;
-    height: 52px;
-    font-size: 17px;
-    gap: 8px;
-  }
-  nav.tabbar .fab::after {
-    content: "Novo lançamento";
   }
   nav.tabbar .brand {
     display: block;
@@ -2459,6 +2422,8 @@ a.kebab {
 .sum-tile.in .sum-tile-hd i { background: var(--green-soft); color: var(--pos); }
 .sum-tile.out .sum-tile-hd i { background: var(--danger-bg); color: var(--neg); }
 .sum-tile b { font-size: 18px; font-weight: 700; }
+.sum-tile.in b { color: var(--pos); }
+.sum-tile.out b { color: var(--exp); }
 .sum-tile small { font-size: 12px; color: var(--muted); }
 .sum-foot { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--muted); }
 .sum-foot-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
@@ -2556,7 +2521,44 @@ small.late { color: var(--neg); font-weight: 600; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
 }
 .to-top svg { width: 20px; height: 20px; }
+.page.home .card.home-layout { padding: 0; gap: 0; }
+.layout-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+}
+.layout-toggle-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.layout-toggle small { color: var(--muted); font-size: 13px; font-weight: 500; }
+.layout-toggle svg { width: 20px; height: 20px; color: var(--muted); flex: none; transition: transform 180ms ease; }
+.home-layout.open .layout-toggle svg { transform: rotate(180deg); }
+.layout-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+}
 .layout-list { display: flex; flex-direction: column; }
+.layout-panel > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.home-layout .layout-row:last-child { border-bottom: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .layout-toggle svg { transition: none; }
+}
 .layout-row {
   display: flex;
   align-items: center;
@@ -2680,7 +2682,7 @@ button.plan-open {
    ===================================================================== */
 
 /* ---------- 1 · Hierarquia de ação ----------
-   Só o que é ação principal (.btn, .fab) parece uma tecla 3D.
+   Só o que é ação principal (.btn, .hd-new) parece uma tecla 3D.
    Chips, meses, itens e botões secundários ficam mais planos.
    Para voltar ao visual antigo, apague este bloco. */
 .chip,
@@ -2690,11 +2692,11 @@ button.plan-open {
   border-bottom-width: 2px;
 }
 .btn:not(.ghost):not(.danger),
-.fab {
+.hd-new {
   transition: transform 0.08s var(--ease);
 }
 .btn:not(.ghost):not(.danger):active:not(:disabled),
-.fab:active {
+.hd-new:active {
   transform: translateY(2px);
   border-bottom-width: 2px;
 }
@@ -3021,8 +3023,6 @@ nav.tabbar button.tab:active {
 .year-bar .seg { flex: 1; width: auto; }
 .year-bar .btn { flex: none; white-space: nowrap; }
 .page.wide .sum-tile b { font-size: 17px; font-weight: 700; }
-.page.wide .sum-tile.in b { color: var(--pos); }
-.page.wide .sum-tile.out b { color: var(--exp); }
 .page.wide .month-nav > b { text-transform: capitalize; }
 
 /* ---------- Cartões: cartão + detalhes ---------- */
@@ -3170,8 +3170,27 @@ main.page { gap: 12px; }
 /* =====================================================================
    CABEÇALHO DAS TELAS · um padrão só
    Linha 1: [Voltar, só em tela interna] Título · ações à direita (contorno, 44px).
-   O verde cheio fica só no + da barra (Novo lançamento), para não competir com ele.
+   O + das abas da barra (.hd-new) é o último à direita e o único verde cheio da tela;
+   o resto (ícones e "+ Item" das telas internas) fica com contorno, para não competir com ele.
    ===================================================================== */
+.hd-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 3px solid var(--green-dark);
+  border-radius: 14px;
+  background: var(--green);
+  color: var(--green-ink);
+  cursor: pointer;
+}
+.hd-new svg { width: 24px; height: 24px; stroke-width: 2.5; }
+/* No Início o cabeçalho tem avatares, olho, Mais e +: o "Olá, nome" corta com reticências em vez de quebrar. */
+.page.home .home-greet h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hd-add {
   display: inline-flex;
   align-items: center;
@@ -3197,13 +3216,6 @@ main.page { gap: 12px; }
 .seg { border-radius: 12px; padding: 3px; }
 .seg button { min-height: 38px; border-radius: 10px; font-size: 14px; font-weight: 600; padding: 0 8px; white-space: nowrap; }
 .seg button.on { box-shadow: none; }
-/* Telas muito estreitas (iPhone SE antigo): o + encolhe um pouco para "Lançamentos" caber em 11px sem tocar nele. */
-@media (max-width: 340px) {
-  nav.tabbar { padding-left: 0; padding-right: 0; }
-  nav.tabbar a, nav.tabbar button.tab { padding: 0; }
-  nav.tabbar .fab-wrap { width: 48px; }
-  nav.tabbar .fab { width: 48px; height: 48px; }
-}
 
 /* Barra empilhada: 3 fatias ficam mais claras numa barra do que num segundo donut. */
 .rec-bar { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; }

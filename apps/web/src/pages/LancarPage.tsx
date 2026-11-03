@@ -38,7 +38,8 @@ export function LancarPage() {
   const { today, toast } = useAppState();
   const back = () => navigate((location.state as any)?.from ?? '/', { replace: true });
 
-  const [kind, setKind] = useState<Kind>('expense');
+  // O + do Extrato abre já em Receita quando a tela está em Receitas.
+  const [kind, setKind] = useState<Kind>(() => ((location.state as any)?.kind === 'income' && !(location.state as any)?.cardId ? 'income' : 'expense'));
   const [mode, setMode] = useState<Mode>(() => {
     const asked = (location.state as any)?.mode;
     return asked === 'fixed' || asked === 'installment' ? asked : 'single';
