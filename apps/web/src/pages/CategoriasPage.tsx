@@ -3,7 +3,7 @@ import { api, useAction, useApi, type Category } from '../api';
 import { inkOn } from '@fin/domain';
 import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon, IconGlyph, categoryColor, iconKey } from '../categories';
 import { useAppState } from '../state';
-import { BackButton, ErrorText, Loading, Seg, Sheet, categoryTree } from '../ui';
+import { BackButton, ErrorText, Icon, Loading, Seg, Sheet, categoryTree } from '../ui';
 import { useConfirm } from '../useConfirm';
 
 function CategoryForm({ kind, category, all, onClose }: { kind: 'income' | 'expense'; category?: Category; all: Category[]; onClose: () => void }) {
@@ -125,19 +125,21 @@ export function CategoriasPage() {
           <BackButton />
           <h1>Categorias</h1>
         </div>
-        <button className="btn sm" onClick={() => setEditing('new')}>
-          + Categoria
+        <button type="button" className="hd-add" aria-label="Nova categoria" onClick={() => setEditing('new')}>
+          <Icon.plus /> Categoria
         </button>
       </div>
-      <Seg
-        label="Tipo"
-        value={kind}
-        onChange={setKind}
-        options={[
-          ['expense', 'Despesas'],
-          ['income', 'Receitas'],
-        ]}
-      />
+      <div className={kind === 'income' ? 'tone-in' : 'tone-out'}>
+        <Seg
+          label="Tipo"
+          value={kind}
+          onChange={setKind}
+          options={[
+            ['expense', <><Icon.expense /> Despesas</>],
+            ['income', <><Icon.income /> Receitas</>],
+          ]}
+        />
+      </div>
       <ErrorText error={q.error} />
       {!q.data ? (
         <Loading />

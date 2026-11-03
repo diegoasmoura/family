@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { addMonths, daysInMonth, formatBRL } from "@fin/domain";
 import { Donut, EvolutionChart, YearBarChart, type YearRow } from "../charts";
 import { AvatarFigure } from "../Avatar";
@@ -94,7 +94,6 @@ function cumulative(items: Tx[], month: string) {
 }
 
 export function HomePage({ me }: { me: Me }) {
-  const navigate = useNavigate();
   const { month, setMonth, today, person } = useAppState();
   const q = useApi(`/dashboard?month=${month}&person=${personParam(person)}`);
   const budgets = useApi(`/budgets?month=${month}`);
@@ -272,7 +271,7 @@ export function HomePage({ me }: { me: Me }) {
         <div className="sum-tiles">
           <Link to="/lancamentos?tipo=receitas" className="sum-tile in">
             <span className="sum-tile-hd">
-              <i aria-hidden>↓</i>Entrou
+              <i aria-hidden><Icon.income /></i>Entrou
             </span>
             <b>
               <MoneyText cents={d.income.realized_cents} />
@@ -285,7 +284,7 @@ export function HomePage({ me }: { me: Me }) {
           </Link>
           <Link to="/lancamentos" className="sum-tile out">
             <span className="sum-tile-hd">
-              <i aria-hidden>↑</i>Saiu
+              <i aria-hidden><Icon.expense /></i>Saiu
             </span>
             <b>
               <MoneyText cents={d.expense.realized_cents} />
@@ -466,17 +465,13 @@ export function HomePage({ me }: { me: Me }) {
           <p className="empty">Nenhuma despesa neste mês.</p>
         ) : (
           <>
-            <Donut
-              slices={d.recurrence.map((item: { name: string; color: string; total_cents: number }) => ({ name: item.name, value: item.total_cents, color: item.color }))}
-              centerValue={hiddenMoney ? "R$ ••••" : brl(expenseTotal)}
-              centerCaption="No mês"
-              ariaLabel={`Despesas por recorrência, ${brl(expenseTotal)}`}
-              onPick={(name) => {
-                const item = d.recurrence.find((row: { name: string }) => row.name === name);
-                if (!item) return;
-                navigate(item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : "/lancamentos");
-              }}
-            />
+            <div className="rec-bar" role="img" aria-label={`Despesas por recorrência, ${hiddenMoney ? "valores ocultos" : brl(expenseTotal)}`}>
+              {d.recurrence
+                .filter((item: { total_cents: number }) => item.total_cents > 0)
+                .map((item: { key: string; color: string; total_cents: number }) => (
+                  <i key={item.key} style={{ flexGrow: item.total_cents, background: item.color }} />
+                ))}
+            </div>
             <div className="rec-rows">
               {d.recurrence.map((item: { key: string; name: string; color: string; total_cents: number }) => (
                 <Link key={item.key} className="rec-row" to={item.key === "fixed" ? "/recorrencias" : item.key === "installment" ? "/parcelamentos" : "/lancamentos"}>
@@ -550,8 +545,8 @@ export function HomePage({ me }: { me: Me }) {
                 <div key={id} className={`layout-row${off ? " off" : ""}`}>
                   <span className="layout-name">{label}</span>
                   <span className="layout-tools">
-                    <button type="button" className="mv" aria-label={`Subir ${label}`} disabled={index === 0} onClick={() => moveBlock(id, -1)}>↑</button>
-                    <button type="button" className="mv" aria-label={`Descer ${label}`} disabled={index === layout.order.length - 1} onClick={() => moveBlock(id, 1)}>↓</button>
+                    <button type="button" className="mv" aria-label={`Subir ${label}`} disabled={index === 0} onClick={() => moveBlock(id, -1)}><Icon.arrowUp /></button>
+                    <button type="button" className="mv" aria-label={`Descer ${label}`} disabled={index === layout.order.length - 1} onClick={() => moveBlock(id, 1)}><Icon.arrowDown /></button>
                     <button
                       type="button"
                       className="link"

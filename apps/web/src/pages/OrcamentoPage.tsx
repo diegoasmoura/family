@@ -44,11 +44,12 @@ export function OrcamentoPage() {
       ) : (
         <>
           <section className="card soft">
-            <div className="hd">
+            <div className="orc-head">
               <small>Gasto nas categorias orçadas</small>
-              <b className="num">
-                {brl(q.data.spent_cents)} / {brl(q.data.planned_cents)}
-              </b>
+              <div className="orc-val">
+                <b className="num">{brl(q.data.spent_cents)}</b>
+                <span className="num">de {brl(q.data.planned_cents)}</span>
+              </div>
             </div>
             <Bar ratio={q.data.planned_cents ? q.data.spent_cents / q.data.planned_cents : 0} kind={q.data.spent_cents > q.data.planned_cents && q.data.planned_cents ? 'over' : undefined} />
             <small>A missão "ficar abaixo do orçamento" usa esse total.</small>

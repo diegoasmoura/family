@@ -4,7 +4,7 @@ import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi } from '../api';
 import { useAppState } from '../state';
 import { HistoryChart, historyFromInstallments } from '../HistoryChart';
-import { BackButton, Bar, Confirm, ErrorText, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
+import { BackButton, Bar, Confirm, ErrorText, Icon, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import type { InstallmentPlan, Recurrence } from '../types';
 
@@ -106,11 +106,16 @@ export function RecorrenciasPage() {
   const group = (kind: string) => (q.data ?? []).filter((r) => r.kind === kind);
   return (
     <main className="page">
-      <div className="title-row">
-        <BackButton />
-        <h1>Fixas</h1>
+      <div className="hd">
+        <div className="title-row">
+          <BackButton />
+          <h1>Fixas</h1>
+        </div>
+        <Link className="hd-add" to="/lancar" state={{ from: '/recorrencias', mode: 'fixed' }} aria-label="Nova fixa">
+          <Icon.plus /> Fixa
+        </Link>
       </div>
-      <small>Cada fixa gera um lançamento previsto por mês. Crie novas pelo botão + escolhendo "Fixa".</small>
+      <p className="page-desc">Cada fixa gera um lançamento previsto por mês.</p>
       <ErrorText error={q.error} />
       {!q.data ? (
         <Loading />
@@ -159,11 +164,16 @@ export function ParcelamentosPage() {
   );
   return (
     <main className="page">
-      <div className="title-row">
-        <BackButton />
-        <h1>Parcelamentos</h1>
+      <div className="hd">
+        <div className="title-row">
+          <BackButton />
+          <h1>Parcelamentos</h1>
+        </div>
+        <Link className="hd-add" to="/lancar" state={{ from: '/parcelamentos', mode: 'installment' }} aria-label="Novo parcelamento">
+          <Icon.plus /> Parcelada
+        </Link>
       </div>
-      <small>Em conta, cada parcela vira um lançamento a pagar. No cartão, cada parcela cai numa fatura seguinte.</small>
+      <p className="page-desc">Em conta, cada parcela vira um lançamento a pagar. No cartão, cada parcela cai numa fatura seguinte.</p>
       <ErrorText error={q.error ?? act.error} />
       {!q.data ? (
         <Loading />

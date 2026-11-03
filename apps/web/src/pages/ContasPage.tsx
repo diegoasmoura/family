@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi, type Account, type Me } from '../api';
 import { useAppState } from '../state';
 import { BankMark } from '../banks';
-import { BackButton, ErrorText, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
+import { BackButton, ErrorText, Icon, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { useSwipe } from '../useSwipe';
 import type { Transfer } from '../types';
@@ -141,8 +141,8 @@ export function ContasPage({ me }: { me: Me }) {
           <BackButton />
           <h1>Contas</h1>
         </div>
-        <button className="btn sm" onClick={() => setEditing('new')}>
-          + Conta
+        <button type="button" className="hd-add" aria-label="Nova conta" onClick={() => setEditing('new')}>
+          <Icon.plus /> Conta
         </button>
       </div>
       <MonthNav month={month} onChange={setMonth} />
@@ -225,7 +225,7 @@ export function ContasPage({ me }: { me: Me }) {
               {transfers.data.map((t) => (
                 <div className="kv" key={t.id}>
                   <span>
-                    {shortDate(t.occurred_on)} · {t.from_account_name} → {t.to_account_name}
+                    {shortDate(t.occurred_on)} · {t.from_account_name} <span className="inline-ic" aria-hidden><Icon.right /></span> {t.to_account_name}
                   </span>
                   <span className="row">
                     <b className="num">{brl(t.amount_cents)}</b>

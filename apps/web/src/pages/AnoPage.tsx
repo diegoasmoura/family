@@ -329,7 +329,7 @@ export function AnoPage() {
             <div className="sum-tiles">
               <div className="sum-tile in">
                 <span className="sum-tile-hd">
-                  <i aria-hidden>↓</i>Receitas
+                  <i aria-hidden><Icon.income /></i>Receitas
                 </span>
                 <b>
                   <Amt cents={d.income.total_cents} />
@@ -337,7 +337,7 @@ export function AnoPage() {
               </div>
               <div className="sum-tile out">
                 <span className="sum-tile-hd">
-                  <i aria-hidden>↑</i>Despesas
+                  <i aria-hidden><Icon.expense /></i>Despesas
                 </span>
                 <b>
                   <Amt cents={d.expense.total_cents} />
@@ -444,7 +444,7 @@ export function AnoPage() {
           </div>
           <div className="lanc-note">
             <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
-              ⓘ Como ler esta tabela
+              <Icon.info /> Como ler esta tabela
             </button>
             {noteOpen && (
               <small>

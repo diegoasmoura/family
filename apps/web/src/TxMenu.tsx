@@ -160,7 +160,7 @@ export function TxMenu({ tx, onOpen }: { tx: Tx; onOpen: (mode: TxSheetMode) => 
           {item('Editar', () => onOpen('edit'))}
           {item('Alterar valor', () => onOpen('amount'))}
           <button type="button" role="menuitem" aria-expanded={dupOpen} onClick={() => setDupOpen(!dupOpen)}>
-            Duplicar <span aria-hidden>{dupOpen ? '▾' : '▸'}</span>
+            Duplicar <span className={`chev${dupOpen ? ' open' : ''}`} aria-hidden><Icon.right /></span>
           </button>
           {dupOpen && (
             <>

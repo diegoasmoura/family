@@ -711,7 +711,10 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
             </div>
           )}
           <button type="button" className="info-btn" aria-expanded={checking} onClick={() => setChecking((v) => !v)}>
-            {checking ? '▾' : '▸'} Conferir com o banco
+            <span className={`chev${checking ? ' open' : ''}`} aria-hidden>
+              <Icon.right />
+            </span>
+            Conferir com o banco
           </button>
           {checking && (
             <div className="pcd-confer">
@@ -719,7 +722,7 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
               {diff != null && (
                 <small className={diff === 0 ? 'ok' : 'late'}>
                   {diff === 0
-                    ? '✓ Confere com o app'
+                    ? <><Icon.check /> Confere com o app</>
                     : diff > 0
                       ? `O banco cobra ${brl(diff)} a mais que o app. Pode faltar lançar uma compra.`
                       : `O app tem ${brl(-diff)} a mais que o banco. Pode haver um lançamento a mais.`}
@@ -776,7 +779,7 @@ function CardDetails({ card, invoice, accountName, onPanel }: { card: Card; invo
       {card.credit_cents > 0 && <small>Crédito de pagamento antecipado: {brl(card.credit_cents)}</small>}
       <div className="lanc-note">
         <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
-          ⓘ Como o cartão conta
+          <Icon.info /> Como o cartão conta
         </button>
         {noteOpen && <small>Compras no cartão entram na fatura pelo fechamento. Pagar a fatura tira da conta, mas não conta como despesa.</small>}
       </div>
@@ -842,8 +845,8 @@ export function CartoesPage() {
     <main className="page" {...swipe}>
       <div className="hd">
         <h1>Cartões</h1>
-        <button className="btn sm" onClick={() => setNewCard(true)}>
-          + Cartão
+        <button type="button" className="hd-add" aria-label="Novo cartão" onClick={() => setNewCard(true)}>
+          <Icon.plus /> Cartão
         </button>
       </div>
       <MonthNav month={month} onChange={setMonth} />

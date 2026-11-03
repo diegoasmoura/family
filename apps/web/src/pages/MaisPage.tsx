@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { api, type Me } from '../api';
 import { isAutoHide, setAutoHide, setHidden, useHidden } from '../privacy';
 import { useTheme } from '../theme';
-import { Icon, Seg } from '../ui';
+import { BackButton, Icon, Seg } from '../ui';
 
 const SECTIONS: { title: string; links: [string, string, string][] }[] = [
   { title: 'Planejamento', links: [
@@ -36,7 +36,10 @@ export function MaisPage({ me }: { me: Me }) {
   };
   return (
     <main className="page">
-      <h1>Mais</h1>
+      <div className="title-row">
+        <BackButton fallback="/" />
+        <h1>Mais</h1>
+      </div>
       <section className="card">
         <div className="hd">
           <b>Tema</b>
@@ -52,7 +55,7 @@ export function MaisPage({ me }: { me: Me }) {
             ['system', 'Automático'],
           ]}
         />
-        {theme === 'system' && <small>Segue o tema do seu celular ou computador.</small>}
+        {theme === 'system' && <small>Segue o tema do seu celular ou computador</small>}
       </section>
       <section className="card">
         <b>Privacidade</b>

@@ -401,7 +401,7 @@ export function LancamentosPage() {
           {!income && (
             <div className="lanc-note">
               <button type="button" className="info-btn" aria-expanded={noteOpen} onClick={() => setNoteOpen((v) => !v)}>
-                ⓘ Como as compras do cartão contam
+                <Icon.info /> Como as compras do cartão contam
               </button>
               {noteOpen && <small>Compras no cartão somam em “A pagar” ao serem lançadas; só entram em “Pago” quando a fatura quitar.</small>}
             </div>

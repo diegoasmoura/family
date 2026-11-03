@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, useAction, useApi } from '../api';
 import type { Goal } from '../types';
 import { useAppState } from '../state';
-import { BackButton, Bar, ErrorText, Loading, MoneyInput, Sheet, brl } from '../ui';
+import { BackButton, Bar, ErrorText, Icon, Loading, MoneyInput, Sheet, brl } from '../ui';
 import { useConfirm } from '../useConfirm';
 
 const fullDate = (iso: string) => iso.split('-').reverse().join('/');
@@ -139,8 +139,8 @@ export function MetasPage() {
           <BackButton />
           <h1>Metas</h1>
         </div>
-        <button className="btn sm" onClick={() => setCreating(true)}>
-          + Meta
+        <button type="button" className="hd-add" aria-label="Nova meta" onClick={() => setCreating(true)}>
+          <Icon.plus /> Meta
         </button>
       </div>
       <ErrorText error={q.error} />

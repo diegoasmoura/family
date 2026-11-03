@@ -46,7 +46,7 @@ function TabBar() {
     <nav className="tabbar" aria-label="Navegação principal">
       <span className="brand">Finanças do casal</span>
       {tab("/", "Início", "Início", <Icon.home />, true)}
-      {tab("/lancamentos", "Lançamentos", "Lançar", <Icon.list />)}
+      {tab("/lancamentos", "Lançamentos", "Lançamentos", <Icon.list />)}
       <span className="fab-wrap">
         <button
           className="fab"
@@ -60,7 +60,7 @@ function TabBar() {
           +
         </button>
       </span>
-      {tab("/cartoes", "Cartões", "Cartão", <Icon.card />)}
+      {tab("/cartoes", "Cartões", "Cartões", <Icon.card />)}
       {tab("/ano", "Ano", "Ano", <Icon.year />)}
       {tab("/mais", "Mais", "Mais", <Icon.more />, false, "desk-only")}
     </nav>

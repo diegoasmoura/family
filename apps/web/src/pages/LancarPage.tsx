@@ -39,7 +39,10 @@ export function LancarPage() {
   const back = () => navigate((location.state as any)?.from ?? '/', { replace: true });
 
   const [kind, setKind] = useState<Kind>('expense');
-  const [mode, setMode] = useState<Mode>('single');
+  const [mode, setMode] = useState<Mode>(() => {
+    const asked = (location.state as any)?.mode;
+    return asked === 'fixed' || asked === 'installment' ? asked : 'single';
+  });
   const [amount, setAmount] = useState<number | null>(null);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [target, setTarget] = useState<Target>(() => {
