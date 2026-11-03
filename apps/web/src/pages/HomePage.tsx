@@ -698,6 +698,10 @@ function HomeHeader({ me, members, person, hidden, onToggle, onConfig }: { me: M
         <button type="button" className="ic" aria-label="Configurar resumo" onClick={onConfig}>
           <Icon.grid />
         </button>
+        {/* No celular a barra de baixo tem cinco itens; o Mais (Contas, Categorias, Orçamento, tema…) fica aqui. */}
+        <Link to="/mais" className="ic mob-only" aria-label="Mais">
+          <Icon.more />
+        </Link>
       </nav>
     </div>
   );

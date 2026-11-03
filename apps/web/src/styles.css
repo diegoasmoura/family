@@ -3568,3 +3568,10 @@ main.page { gap: 12px; }
 .restart-left li { line-height: 1.35; }
 .restart-intro { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
 .restart-intro b { display: inline; color: var(--ink); }
+
+/* O Mais do cabeçalho só existe no celular; no computador ele já está na coluna da esquerda. */
+@media (min-width: 960px) {
+  .mob-only { display: none !important; }
+}
+/* O nome da casa fica numa linha só (com reticências), para o cabeçalho não crescer em tela estreita. */
+.page.home .home-kicker { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

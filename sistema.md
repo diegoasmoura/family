@@ -120,7 +120,7 @@ Parcelas dividem o total em centavos inteiros. O resto de 1 centavo fica nas pri
 
 Ordem padrão, de cima para baixo (o cabeçalho, o Eu / Nós e o mês têm a mesma altura nas telas principais, então não pulam ao trocar de aba):
 
-1. Cabeçalho: nome da casa, “Olá” e o primeiro nome. À direita, os avatares, o olho (esconde os valores) e o ícone de grade, **Configurar resumo**.
+1. Cabeçalho: nome da casa, “Olá” e o primeiro nome. À direita, os avatares, o olho (esconde os valores), o ícone de grade, **Configurar resumo**, e, só no celular, os três pontinhos **Mais**, que abrem a tela Mais (a barra de baixo tem cinco itens e não tem o Mais). No computador o Mais fica na coluna da esquerda.
 2. Eu / Nós, em pílula, acima do mês.
 3. Mês.
 4. **Resumo (“Como estamos”).** Nome do mês e uma etiqueta: **No azul**, **No vermelho** ou **Sem lançamentos**. O número grande é receitas menos despesas do mês, sem sinal de menos; o rótulo diz o que ele é: “Sobra prevista no mês” ou “Falta cobrir no mês” (em mês que já passou, “Sobrou no mês” ou “Faltou no mês”). Abaixo, dois quadros: **Entrou** (recebido; com “a receber” embaixo) e **Saiu** (pago; com “a pagar” embaixo). Entrou abre Lançamentos em receitas; Saiu abre Lançamentos. O rodapé acompanha o mês: no mês atual traz “Saldo nas contas hoje” e “Previsto no fim do mês”; num mês passado, “Saldo no fim de {mês}”; num mês futuro, “Previsto para o fim de {mês}”. O previsto vai até o fim do mês visto e inclui correção de fechamento e fatura sem conta de pagamento. O “a pagar” daqui não é o mesmo número de Lançamentos: em Nós ele soma o restante das faturas do mês, e uma cobrança fixa prevista do cartão pode entrar nas duas contas.
@@ -290,7 +290,7 @@ O nível não é gravado. A conta é a parte inteira da raiz de XP dividido por 
 
 ## Mais
 
-Tema claro, escuro ou automático. No automático, o texto diz que segue o tema do celular ou do computador. Cada link tem uma linha de apoio: Contas e transferências, Categorias, Fixas, Parcelamentos, Orçamento, Metas, Avatar, Casa e usuários. Mostra o nome e se a pessoa é administradora ou membro. **Sair** encerra a sessão, limpa o cache e volta para a entrada.
+Tema claro, escuro ou automático. No automático, o texto diz que segue o tema do celular ou do computador. Os links são agrupados em Planejamento (**Calendário**, Orçamento, Metas, Fixas, Parcelamentos), Cadastros (Contas e transferências, Categorias) e Casa (Avatar, Casa e usuários), cada um com uma linha de apoio. O Calendário só se alcança por aqui: não há atalho na barra nem no Início. Mostra o nome e se a pessoa é administradora ou membro. **Sair** encerra a sessão, limpa o cache e volta para a entrada.
 
 ## Casa e usuários
 

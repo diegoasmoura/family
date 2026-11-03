@@ -8,6 +8,7 @@ import { Icon, Seg } from '../ui';
 
 const SECTIONS: { title: string; links: [string, string, string][] }[] = [
   { title: 'Planejamento', links: [
+    ['/calendario', 'Calendário', 'Vencimentos e lançamentos dia a dia'],
     ['/orcamento', 'Orçamento', 'Planejado por categoria no mês'],
     ['/metas', 'Metas', 'Objetivos de economia'],
     ['/recorrencias', 'Fixas', 'Receitas e despesas que se repetem'],
