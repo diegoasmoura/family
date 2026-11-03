@@ -130,9 +130,42 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await agent.post('/api/transfers').send({ from_account_id: ids.bradesco, to_account_id: ids.bradesco, amount_cents: 1 })).status).toBe(400);
     });
 
-    it('arquiva conta com histórico em vez de excluir', async () => {
+    it('arquivar conta guarda o histórico e a tira da lista', async () => {
       await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 100, account_id: ids.nubank }), 201);
-      expect((await ok(await agent.delete(`/api/accounts/${ids.nubank}`))).archived).toBe(true);
+      await ok(await agent.patch(`/api/accounts/${ids.nubank}`).send({ archived: 1 }));
+      const lista = await ok(await agent.get('/api/accounts'));
+      expect(lista.accounts.map((a: any) => a.id)).not.toContain(ids.nubank);
+      const todas = await ok(await agent.get('/api/accounts?archived=1'));
+      expect(todas.accounts.find((a: any) => a.id === ids.nubank).archived).toBe(1);
+    });
+
+    it('excluir conta apaga também lançamentos, transferências, fixas e pagamentos de fatura, e avisa o que vai embora', async () => {
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 7000, occurred_on: '2026-10-03', account_id: ids.nubank, description: 'Mercado' }), 201);
+      await ok(await agent.post('/api/transactions').send({ kind: 'income', amount_cents: 20000, occurred_on: '2026-10-04', account_id: ids.nubank, description: 'Extra' }), 201);
+      await ok(await agent.post('/api/transfers').send({ from_account_id: ids.bradesco, to_account_id: ids.nubank, amount_cents: 5000, occurred_on: '2026-10-05' }), 201);
+      await ok(await agent.post('/api/recurrences').send({ kind: 'expense', amount_cents: 3000, description: 'Fixa Nubank', account_id: ids.nubank, day_of_month: 10, start_month: '2026-10' }), 201);
+      const before = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
+
+      const impact = await ok(await agent.get(`/api/accounts/${ids.nubank}/impact`));
+      expect(impact.transactions).toBeGreaterThanOrEqual(3); // compra, receita e as parcelas já geradas da fixa
+      expect(impact).toMatchObject({ transfers: 1, recurrences: 1 });
+
+      const res = await ok(await agent.delete(`/api/accounts/${ids.nubank}`));
+      expect(res).toMatchObject({ deleted: true });
+      expect(res.removed.transactions).toBe(impact.transactions);
+
+      const lista = await ok(await agent.get('/api/accounts?archived=1'));
+      expect(lista.accounts.map((a: any) => a.id)).not.toContain(ids.nubank);
+      const after = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
+      expect(after.expense.total_cents).toBeLessThan(before.expense.total_cents);
+      expect(after.income.total_cents).toBeLessThan(before.income.total_cents);
+      const lanc = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=all'));
+      expect(lanc.items.some((t: any) => t.account_id === ids.nubank)).toBe(false);
+      const transf = await ok(await agent.get('/api/transfers?month=2026-10'));
+      expect(transf).toHaveLength(0);
+      expect((await ok(await agent.get('/api/recurrences'))).some((r: any) => r.description === 'Fixa Nubank')).toBe(false);
+      // o saldo da conta que sobrou volta ao que era antes da transferência
+      expect((await balanceOf(ids.bradesco, '2026-10')).current_balance_cents).toBe(450000);
     });
   });
 
@@ -563,6 +596,52 @@ describe.each(targets)('API (%s)', (dialect, url) => {
           [ids.bradesco, plan.id, user.id],
         ),
       ).rejects.toThrow(/unique/i);
+    });
+  });
+
+  describe('excluir cartão', () => {
+    it('apaga o cartão e tudo dele: compras, parcelas, fixas e pagamentos, sem deixar fatura em Lançamentos nem nos totais', async () => {
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', description: 'Mercado', amount_cents: 50000, occurred_on: '2026-09-05', card_id: ids.ultra }), 201);
+      await ok(await agent.post('/api/recurrences').send({ kind: 'expense', amount_cents: 3000, description: 'Fixa Ultra', card_id: ids.ultra, day_of_month: 10, start_month: '2026-10' }), 201);
+      const detail = await ok(await agent.get(`/api/cards/${ids.ultra}/invoices/2026-10`));
+      await ok(await agent.post(`/api/invoices/${detail.id}/payments`).send({ amount_cents: 10000, account_id: ids.bradesco }), 201);
+      const before = await ok(await agent.get('/api/dashboard?month=2026-10&person=all'));
+      const saldoAntes = (await balanceOf(ids.bradesco, '2026-10')).current_balance_cents;
+      expect(before.expense.total_cents).toBeGreaterThan(0);
+
+      const impact = await ok(await agent.get(`/api/cards/${ids.ultra}/impact`));
+      expect(impact).toMatchObject({ recurrences: 1, invoice_payments: 1 });
+      expect(impact.transactions).toBeGreaterThanOrEqual(2);
+
+      const res = await ok(await agent.delete(`/api/cards/${ids.ultra}`));
+      expect(res).toMatchObject({ deleted: true });
+      expect(res.removed).toEqual(impact);
+
+      expect((await ok(await agent.get('/api/cards'))).map((c: any) => c.id)).not.toContain(ids.ultra);
+      expect((await ok(await agent.get('/api/cards?archived=1'))).map((c: any) => c.id)).not.toContain(ids.ultra);
+      for (const month of ['2026-09', '2026-10', '2026-11', '2027-01']) {
+        const lanc = await ok(await agent.get(`/api/transactions?month=${month}&kind=expense&person=all`));
+        expect(lanc.invoices.some((i: any) => i.card_name === 'Ultra')).toBe(false);
+        expect(lanc.items.some((t: any) => t.card_id === ids.ultra)).toBe(false);
+        const dash = await ok(await agent.get(`/api/dashboard?month=${month}&person=all`));
+        expect(dash.expense.total_cents).toBe(0);
+      }
+      expect((await ok(await agent.get('/api/recurrences'))).some((r: any) => r.description === 'Fixa Ultra')).toBe(false);
+      // o pagamento da fatura sai junto, então o dinheiro volta para a conta
+      expect((await balanceOf(ids.bradesco, '2026-10')).current_balance_cents).toBe(saldoAntes + 10000);
+    });
+
+    it('só o administrador vê o impacto e exclui; arquivar continua guardando o histórico', async () => {
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'j@x.com', password: 'senha-segura' }), 201);
+      const member = request.agent(app);
+      await ok(await member.post('/api/auth/login').send({ email: 'j@x.com', password: 'senha-segura' }));
+      expect((await member.get(`/api/cards/${ids.ultra}/impact`)).status).toBe(403);
+      expect((await member.delete(`/api/cards/${ids.ultra}`)).status).toBe(403);
+      expect((await member.get(`/api/accounts/${ids.bradesco}/impact`)).status).toBe(403);
+
+      await ok(await agent.post('/api/transactions').send({ kind: 'expense', amount_cents: 1000, occurred_on: '2026-09-05', card_id: ids.ultra }), 201);
+      await ok(await agent.patch(`/api/cards/${ids.ultra}`).send({ archived: 1 }));
+      expect((await ok(await agent.get('/api/cards?archived=1'))).some((c: any) => c.id === ids.ultra)).toBe(true);
     });
   });
 

@@ -45,7 +45,7 @@ Produção (NAS): `docker compose up -d --build` com `.env` baseado em `.env.exa
 
 **`apps/api`** — Express 5. `app.ts` monta tudo sob `/api`: `/auth` é público, o resto passa por `requireAuth`, que preenche `req.ctx: Ctx` (`db`, `userId`, `householdId`, `role`, `timezone`, `today`). Cada arquivo em `src/modules/` exporta um ou mais `xxxRouter()`.
 - Helpers centrais em `core.ts`: `parse(zodSchema, body)` (400 com detalhes), `HttpError`/`badRequest`/`notFound`/`forbidden`, `requireAdmin`, `insert`/`update`, `owned(ctx, table, id)` (garante `household_id` e `deleted_at IS NULL`), `findByUuid` (idempotência por `client_uuid`), validadores `zCents`, `zDate`, `zMonth`, `zFlag`.
-- **Toda consulta filtra por `household_id = ctx.householdId`**; exclusão é soft (`deleted_at`) e contas/cartões com histórico são arquivados.
+- **Toda consulta filtra por `household_id = ctx.householdId`**; exclusão é soft (`deleted_at`). Excluir cartão/conta apaga em cascata (compras, parcelamentos, fixas, transferências e pagamentos de fatura ligados) numa transação, depois de uma confirmação que mostra a contagem (`GET /cards|accounts/:id/impact`); guardar o histórico é **arquivar** (`PATCH archived`), um botão separado.
 - "Hoje" vem de `ctx.today` (fuso da casa; `FIXED_TODAY` fixa em dev/testes) — não use `new Date()` para regra de vencimento.
 - Recorrências são materializadas sob demanda: `ensureRecurrences(ctx, untilMonth)` é chamado por lançamentos/relatórios antes de ler um mês.
 - Filtro Eu/Nós: consultas recebem `personId` e filtram por `for_user_id` (ver `modules/queries.ts`).

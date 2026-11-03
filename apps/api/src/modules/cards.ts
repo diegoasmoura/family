@@ -216,6 +216,17 @@ const cardBody = z.object({
     .nullish(),
 });
 
+/** Quanto existe ligado ao cartão (o que a exclusão leva junto). */
+async function cardImpact(ctx: Ctx, id: number) {
+  const count = async (sql: string) => num((await ctx.db.get<{ n: number }>(sql, [id]))?.n ?? 0);
+  return {
+    transactions: await count('SELECT COUNT(*) AS n FROM transactions WHERE card_id = ? AND deleted_at IS NULL'),
+    installment_plans: await count('SELECT COUNT(*) AS n FROM installment_plans WHERE card_id = ? AND deleted_at IS NULL'),
+    recurrences: await count('SELECT COUNT(*) AS n FROM recurrences WHERE card_id = ? AND deleted_at IS NULL'),
+    invoice_payments: await count('SELECT COUNT(*) AS n FROM invoice_payments p JOIN invoices i ON i.id = p.invoice_id WHERE i.card_id = ? AND p.deleted_at IS NULL'),
+  };
+}
+
 export function cardsRouter(): Router {
   const r = Router();
 
@@ -279,14 +290,33 @@ export function cardsRouter(): Router {
   });
 
   /** Cartão com histórico é arquivado; sem histórico, excluído logicamente. */
+  /** O que será apagado junto, para a tela mostrar antes de confirmar. */
+  r.get('/:id/impact', async (req, res) => {
+    requireAdmin(req.ctx);
+    const id = idParam(req.params.id);
+    await loadCard(req.ctx, id);
+    res.json(await cardImpact(req.ctx, id));
+  });
+
+  /**
+   * Excluir apaga de verdade: o cartão e tudo que depende dele (compras, parcelamentos, fixas e
+   * pagamentos de fatura). É exclusão lógica (deleted_at), feita numa transação só. Para guardar o
+   * histórico, o caminho é arquivar (PATCH archived).
+   */
   r.delete('/:id', async (req, res) => {
     requireAdmin(req.ctx);
     const id = idParam(req.params.id);
     await loadCard(req.ctx, id);
-    const used = await req.ctx.db.get('SELECT id FROM transactions WHERE card_id = ? LIMIT 1', [id]);
+    const removed = await cardImpact(req.ctx, id);
     const now = nowIso();
-    await update(req.ctx.db, 'credit_cards', id, used ? { archived: 1, updated_at: now } : { deleted_at: now, updated_at: now });
-    res.json({ archived: Boolean(used), deleted: !used });
+    await req.ctx.db.tx(async (db) => {
+      await db.run('UPDATE invoice_payments SET deleted_at = ?, updated_at = ? WHERE deleted_at IS NULL AND invoice_id IN (SELECT id FROM invoices WHERE card_id = ?)', [now, now, id]);
+      await db.run('UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE card_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await db.run('UPDATE installment_plans SET deleted_at = ?, updated_at = ? WHERE card_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await db.run('UPDATE recurrences SET deleted_at = ?, updated_at = ? WHERE card_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await update(db, 'credit_cards', id, { deleted_at: now, updated_at: now });
+    });
+    res.json({ deleted: true, removed });
   });
 
   /** Fatura do mês de cada cartão ativo, sem criar faturas vazias. */

@@ -11,6 +11,7 @@ import { Confirm, ErrorText, Icon, Loading, MonthNav, MoneyInput, PullToRefresh,
 import { useConfirm } from '../useConfirm';
 import { PaySheet } from '../PaySheet';
 import { AccountForm } from '../AccountForm';
+import { DeleteConfirm } from '../DeleteConfirm';
 import { CardRail } from '../CardFace';
 import { useSwipe } from '../useSwipe';
 import { usePullToRefresh } from '../usePullToRefresh';
@@ -542,7 +543,7 @@ const ACTIONS: [Panel, string, boolean?][] = [
   ['categorias', 'Gráfico por categorias'],
   ['evolucao', 'Evolução mensal'],
   ['arquivar', 'Arquivar'],
-  ['excluir', 'Excluir', true],
+  ['excluir', 'Excluir cartão e lançamentos', true],
 ];
 
 function CardMenu({ name, invoicePaid, onPick }: { name: string; invoicePaid?: boolean; onPick: (p: Panel) => void }) {
@@ -821,7 +822,7 @@ export function CartoesPage() {
   );
   const remove = useAction(
     (card: Card) => api(`/cards/${card.id}`, { method: 'DELETE' }),
-    (r: any) => toast(r.archived ? 'O cartão tem compras, então foi arquivado' : 'Cartão excluído'),
+    () => toast('Cartão excluído'),
   );
 
   const invoiceOf = (id: number) => monthInvoices.data?.find((m) => m.card_id === id)?.invoice;
@@ -888,6 +889,9 @@ export function CartoesPage() {
               <button className="btn ghost sm" onClick={() => unarchive.mutate(c)}>
                 Reativar
               </button>
+              <button className="btn ghost sm danger-text" onClick={() => setPanel({ card: c, kind: 'excluir' })}>
+                Excluir
+              </button>
             </div>
           ))}
         </section>
@@ -929,7 +933,7 @@ export function CartoesPage() {
           }} onClose={() => setPanel(null)} />
       )}
       {p?.kind === 'excluir' && (
-        <Confirm danger text={`Excluir o ${p.card.name}? Se ele já tiver compras, vai ser arquivado para manter o histórico.`} onConfirm={() => {
+        <DeleteConfirm kind="cards" id={p.card.id} name={p.card.name} onConfirm={() => {
             remove.mutate(p.card);
             setPanel(null);
           }} onClose={() => setPanel(null)} />

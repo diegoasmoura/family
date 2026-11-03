@@ -129,6 +129,18 @@ const accountBody = z.object({
   initial_balance_on: zDate.optional(),
 });
 
+/** Quanto existe ligado à conta (o que a exclusão leva junto). */
+async function accountImpact(ctx: Ctx, id: number) {
+  const count = async (sql: string, params: unknown[]) => num((await ctx.db.get<{ n: number }>(sql, params))?.n ?? 0);
+  return {
+    transactions: await count('SELECT COUNT(*) AS n FROM transactions WHERE account_id = ? AND deleted_at IS NULL', [id]),
+    transfers: await count('SELECT COUNT(*) AS n FROM transfers WHERE (from_account_id = ? OR to_account_id = ?) AND deleted_at IS NULL', [id, id]),
+    installment_plans: await count('SELECT COUNT(*) AS n FROM installment_plans WHERE account_id = ? AND deleted_at IS NULL', [id]),
+    recurrences: await count('SELECT COUNT(*) AS n FROM recurrences WHERE account_id = ? AND deleted_at IS NULL', [id]),
+    invoice_payments: await count('SELECT COUNT(*) AS n FROM invoice_payments WHERE account_id = ? AND deleted_at IS NULL', [id]),
+  };
+}
+
 export function accountsRouter(): Router {
   const r = Router();
 
@@ -205,20 +217,36 @@ export function accountsRouter(): Router {
     res.json(await req.ctx.db.get('SELECT * FROM accounts WHERE id = ?', [id]));
   });
 
-  /** Conta com histórico é arquivada; sem histórico, excluída logicamente. */
+  /** O que será apagado junto, para a tela mostrar antes de confirmar. */
+  r.get('/:id/impact', async (req, res) => {
+    requireAdmin(req.ctx);
+    const id = idParam(req.params.id);
+    await owned(req.ctx, 'accounts', id, 'Conta');
+    res.json(await accountImpact(req.ctx, id));
+  });
+
+  /**
+   * Excluir apaga de verdade: a conta e tudo que depende dela (lançamentos, transferências,
+   * parcelamentos, fixas e pagamentos de fatura feitos por ela; as faturas pagas por ela voltam a
+   * ficar em aberto). Exclusão lógica, numa transação só. Para guardar o histórico, arquive (PATCH).
+   */
   r.delete('/:id', async (req, res) => {
     requireAdmin(req.ctx);
     const id = idParam(req.params.id);
     await owned(req.ctx, 'accounts', id, 'Conta');
-    const used = await req.ctx.db.get(
-      `SELECT 1 AS u FROM transactions WHERE account_id = ?
-       UNION ALL SELECT 1 FROM transfers WHERE from_account_id = ? OR to_account_id = ?
-       UNION ALL SELECT 1 FROM invoice_payments WHERE account_id = ?`,
-      [id, id, id, id],
-    );
+    const removed = await accountImpact(req.ctx, id);
     const now = nowIso();
-    await update(req.ctx.db, 'accounts', id, used ? { archived: 1, updated_at: now } : { deleted_at: now, updated_at: now });
-    res.json({ archived: Boolean(used), deleted: !used });
+    await req.ctx.db.tx(async (db) => {
+      await db.run('UPDATE invoice_payments SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await db.run('UPDATE transfers SET deleted_at = ?, updated_at = ? WHERE (from_account_id = ? OR to_account_id = ?) AND deleted_at IS NULL', [now, now, id, id]);
+      await db.run('UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await db.run('UPDATE installment_plans SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await db.run('UPDATE recurrences SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL', [now, now, id]);
+      await db.run('DELETE FROM account_month_closings WHERE account_id = ?', [id]);
+      await db.run('UPDATE credit_cards SET default_pay_account_id = NULL, updated_at = ? WHERE default_pay_account_id = ?', [now, id]);
+      await update(db, 'accounts', id, { deleted_at: now, updated_at: now });
+    });
+    res.json({ deleted: true, removed });
   });
 
   return r;

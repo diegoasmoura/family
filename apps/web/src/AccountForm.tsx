@@ -4,6 +4,7 @@ import { useAppState } from "./state";
 import { BankPicker } from "./banks";
 import { ErrorText, MoneyInput, Sheet } from "./ui";
 import { useConfirm } from "./useConfirm";
+import { DeleteConfirm } from "./DeleteConfirm";
 
 export const TYPES: [string, string][] = [
   ['checking', 'Conta corrente'],
@@ -33,10 +34,18 @@ export function AccountForm({ account, isAdmin = false, onClose, onSaved }: { ac
       onClose();
     },
   );
+  const [deleting, setDeleting] = useState(false);
   const archive = useAction(
+    () => api(`/accounts/${account!.id}`, { method: 'PATCH', body: { archived: 1 } }),
+    () => {
+      toast('Conta arquivada');
+      onClose();
+    },
+  );
+  const remove = useAction(
     () => api(`/accounts/${account!.id}`, { method: 'DELETE' }),
-    (r: any) => {
-      toast(r.archived ? 'Conta arquivada' : 'Conta excluída');
+    () => {
+      toast('Conta excluída');
       onClose();
     },
   );
@@ -71,27 +80,39 @@ export function AccountForm({ account, isAdmin = false, onClose, onSaved }: { ac
           <input type="date" value={form.initial_balance_on} onChange={(e) => setForm((f) => ({ ...f, initial_balance_on: e.target.value }))} required />
         </label>
         <small>O saldo é calculado a partir desta data: saldo inicial + receitas − despesas − faturas pagas ± transferências.</small>
-        <ErrorText error={save.error ?? archive.error} />
+        <ErrorText error={save.error ?? archive.error ?? remove.error} />
         <button className="btn block" disabled={save.isPending || !form.name.trim()}>
           Salvar
         </button>
         {account && isAdmin && (
-          <button
-            type="button"
-            className="btn danger block"
-            onClick={() =>
-              confirm(
-                `Arquivar ou excluir “${account.name}”? Se a conta já teve movimentos, ela é arquivada e o histórico fica; senão, é apagada.`,
-                () => archive.mutate(undefined),
-              )
-            }
-          >
-            Arquivar conta
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn ghost block"
+              onClick={() => confirm(`Arquivar “${account.name}”? Ela some das listas, mas os lançamentos continuam no histórico e nos totais. Dá para reativar depois.`, () => archive.mutate(undefined), false)}
+            >
+              Arquivar conta
+            </button>
+            <button type="button" className="btn danger block" onClick={() => setDeleting(true)}>
+              Excluir conta e lançamentos
+            </button>
+          </>
         )}
       </form>
     </Sheet>
     {dialog}
+    {deleting && account && (
+      <DeleteConfirm
+        kind="accounts"
+        id={account.id}
+        name={account.name}
+        onConfirm={() => {
+          setDeleting(false);
+          remove.mutate(undefined);
+        }}
+        onClose={() => setDeleting(false)}
+      />
+    )}
     </>
   );
 }

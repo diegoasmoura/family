@@ -7,6 +7,7 @@ import { useConfirm } from '../useConfirm';
 import { useSwipe } from '../useSwipe';
 import type { Transfer } from '../types';
 import { AccountForm, typeLabel } from '../AccountForm';
+import { DeleteConfirm } from '../DeleteConfirm';
 import { addMonths } from '@fin/domain';
 
 function ClosingForm({ account, month, onClose }: { account: Account; month: string; onClose: () => void }) {
@@ -119,9 +120,14 @@ export function ContasPage({ me }: { me: Me }) {
   const { month, setMonth, toast } = useAppState();
   const q = useApi<{ accounts: Account[]; current_cents: number; forecast_cents: number }>(`/accounts?month=${month}`);
   const transfers = useApi<Transfer[]>(`/transfers?month=${month}`);
+  const withArchived = useApi<{ accounts: Account[] }>(`/accounts?month=${month}&archived=1`);
+  const archivedAccounts = (withArchived.data?.accounts ?? []).filter((a) => a.archived);
   const [editing, setEditing] = useState<Account | 'new' | null>(null);
   const [closing, setClosing] = useState<Account | null>(null);
+  const [deleting, setDeleting] = useState<Account | null>(null);
   const [transferring, setTransferring] = useState(false);
+  const removeAccount = useAction((a: Account) => api(`/accounts/${a.id}`, { method: 'DELETE' }), () => toast('Conta excluída'));
+  const reactivate = useAction((a: Account) => api(`/accounts/${a.id}`, { method: 'PATCH', body: { archived: 0 } }), () => toast('Conta reativada'));
   const removeTransfer = useAction((id: number) => api(`/transfers/${id}`, { method: 'DELETE' }), () => toast('Transferência removida'));
   const { confirm, dialog } = useConfirm();
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
@@ -177,6 +183,30 @@ export function ContasPage({ me }: { me: Me }) {
             ))}
             {q.data.accounts.length === 0 && <p className="empty">Cadastre a primeira conta com o saldo de hoje.</p>}
           </div>
+          {archivedAccounts.length > 0 && (
+            <section className="card">
+              <h2>Arquivadas</h2>
+              {archivedAccounts.map((a) => (
+                <div key={a.id} className="r" style={{ minHeight: 52 }}>
+                  <BankMark name={a.name} size={34} fallback />
+                  <div className="m">
+                    <span className="t">{a.name}</span>
+                    <small>Fora das listas; o histórico continua nos totais</small>
+                  </div>
+                  {me.role === 'admin' && (
+                    <>
+                      <button className="btn ghost sm" onClick={() => reactivate.mutate(a)}>
+                        Reativar
+                      </button>
+                      <button className="btn ghost sm danger-text" onClick={() => setDeleting(a)}>
+                        Excluir
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
           {q.data.accounts.length >= 2 && (
             <button className="btn ghost block" onClick={() => setTransferring(true)}>
               Nova transferência
@@ -211,6 +241,18 @@ export function ContasPage({ me }: { me: Me }) {
         </>
       )}
       {editing && <AccountForm account={editing === 'new' ? undefined : editing} isAdmin={me.role === 'admin'} onClose={() => setEditing(null)} />}
+      {deleting && (
+        <DeleteConfirm
+          kind="accounts"
+          id={deleting.id}
+          name={deleting.name}
+          onConfirm={() => {
+            removeAccount.mutate(deleting);
+            setDeleting(null);
+          }}
+          onClose={() => setDeleting(null)}
+        />
+      )}
       {closing && <ClosingForm account={closing} month={month} onClose={() => setClosing(null)} />}
       {transferring && q.data && <TransferForm accounts={q.data.accounts} onClose={() => setTransferring(false)} />}
       {dialog}

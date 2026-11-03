@@ -3559,3 +3559,4 @@ main.page { gap: 12px; }
 .by-note { color: var(--muted); }
 .pcd-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 16px; }
 .year-chart .year-wide { width: 100%; }
+.btn.danger-text { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 45%, var(--line)); }
