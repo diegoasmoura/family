@@ -9,15 +9,18 @@ export function SettleSheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
   const income = tx.kind === 'income';
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
   const [amount, setAmount] = useState<number | null>(tx.amount_cents);
+  const [fee, setFee] = useState<number | null>(0);
   const [date, setDate] = useState(today);
   const [accountId, setAccountId] = useState<number | null>(tx.account_id);
   const due = tx.due_on ?? tx.occurred_on;
+  const late = !income && Boolean(due) && date > due;
+  const total = (amount ?? 0) + (income ? 0 : (fee ?? 0));
   const active = (accounts.data?.accounts ?? []).filter((account) => !account.archived);
   const chosen = accountId ?? active[0]?.id ?? null;
   const pay = useAction(
     async () => {
       const patch: { amount_cents?: number; account_id?: number } = {};
-      if (amount !== tx.amount_cents) patch.amount_cents = amount!;
+      if (total !== tx.amount_cents) patch.amount_cents = total;
       if (chosen !== tx.account_id) patch.account_id = chosen!;
       if (Object.keys(patch).length) await api(`/transactions/${tx.id}`, { method: 'PATCH', body: patch });
       await api(`/transactions/${tx.id}/pay`, { body: { paid_on: date } });
@@ -37,11 +40,19 @@ export function SettleSheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
           if (ready) pay.mutate(undefined);
         }}
       >
+        {late && (
+          <p className="settle-late">
+            Essa despesa está sendo paga com atraso. Você pode digitar o valor dos encargos, caso haja.
+          </p>
+        )}
         <label className="f">
           <span>{income ? 'Receita' : 'Despesa'}</span>
           <b className="settle-name">{tx.description || (income ? 'Receita' : 'Despesa')}</b>
         </label>
-        <MoneyInput bare label="Valor" value={amount} onChange={setAmount} />
+        <div className={income ? undefined : 'settle-money'}>
+          <MoneyInput bare big={!income} label="Valor" value={amount} onChange={setAmount} />
+          {!income && <MoneyInput bare big label="Encargos" value={fee} onChange={setFee} />}
+        </div>
         <label className="f">
           <span>Data pagamento</span>
           <span className="settle-date">

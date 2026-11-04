@@ -57,7 +57,7 @@ Excluir é lógico: o registro some da tela e o histórico de exclusão fica no 
 
 Receita não entra em cartão.
 
-**Conta.** A competência é o mês da data. Se a data é hoje ou já passou, ou se a pessoa marcou como pago, nasce efetivado e com data de pagamento. Senão nasce previsto. Pagar ou receber abre a folha Efetivar: valor, data de pagamento, vencimento e conta. Mudar valor ou conta nessa hora vale só para esta ocorrência. Desfazer o pagamento devolve a linha para previsto.
+**Conta.** A competência é o mês da data. Se a data é hoje ou já passou, ou se a pessoa marcou como pago, nasce efetivado e com data de pagamento. Senão nasce previsto. Pagar ou receber abre a folha Efetivar: valor, data de pagamento, vencimento e conta. Na despesa, se a data de pagamento passa do vencimento, a folha avisa o atraso e oferece encargos. A soma do valor com os encargos vale só para esta ocorrência e é o que sai da conta. Encargos em zero não mudam o valor. Desfazer o pagamento devolve a linha para previsto e mantém o valor já somado.
 
 **Cartão.** Compra avulsa ou parcela nasce efetivada na fatura, sem data de pagamento. Ela só fica “paga” quando a fatura quita. Cobrança fixa no cartão nasce prevista até alguém confirmar a ocorrência. Compra de cartão não usa a folha Efetivar: a quitação é a fatura. O menu só confirma a compra ainda prevista.
 
@@ -138,7 +138,7 @@ Fora de casa o acesso é por túnel (Cloudflare ou Tailscale), não por porta ab
 
 ## O que fica de fora
 
-- Encargos, calculadora e anexo no pagamento.
+- Calculadora e anexo no pagamento.
 - Trocar o cartão na edição de um lançamento.
 - Recuperação de senha por e-mail.
 - Convite entre duas casas na interface.

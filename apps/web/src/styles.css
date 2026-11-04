@@ -2665,6 +2665,24 @@ button.plan-open {
   font-size: 18px;
   font-weight: 700;
 }
+.settle-late {
+  margin: 0;
+  line-height: 1.45;
+}
+.settle-money {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.settle-money .f {
+  align-items: flex-start !important;
+  min-width: 0;
+}
+.settle-money .money-big {
+  font-size: 28px;
+  text-align: left;
+  min-height: 48px !important;
+}
 .settle-date {
   display: flex;
   align-items: center;
