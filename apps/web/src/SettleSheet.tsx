@@ -50,8 +50,8 @@ export function SettleSheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
           <b className="settle-name">{tx.description || (income ? 'Receita' : 'Despesa')}</b>
         </label>
         <div className={income ? undefined : 'settle-money'}>
-          <MoneyInput bare big={!income} label="Valor" value={amount} onChange={setAmount} />
-          {!income && <MoneyInput bare big label="Encargos" value={fee} onChange={setFee} />}
+          <MoneyInput bare label="Valor" value={amount} onChange={setAmount} />
+          {!income && <MoneyInput bare label="Encargos" value={fee} onChange={setFee} />}
         </div>
         <label className="f">
           <span>Data pagamento</span>

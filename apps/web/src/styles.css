@@ -2674,15 +2674,7 @@ button.plan-open {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
-.settle-money .f {
-  align-items: flex-start !important;
-  min-width: 0;
-}
-.settle-money .money-big {
-  font-size: 28px;
-  text-align: left;
-  min-height: 48px !important;
-}
+.settle-money .f { min-width: 0; }
 .settle-date {
   display: flex;
   align-items: center;
