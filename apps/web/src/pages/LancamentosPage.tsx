@@ -5,7 +5,6 @@ import { useSwipe } from '../useSwipe';
 import { usePullToRefresh } from '../usePullToRefresh';
 import { useApi, type Tx } from '../api';
 import { BankMark, bankByName } from '../banks';
-import { paintColor } from '../categories';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
@@ -122,30 +121,22 @@ function whoLabel(name: string | null | undefined) {
 }
 
 function WhoChip({ name }: { name: string | null | undefined }) {
-  return (
-    <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
-      {whoLabel(name)}
-    </span>
-  );
+  return <span className="tx-who">{whoLabel(name)}</span>;
 }
 
 function CategoryChips({ tx, who }: { tx: Pick<Tx, 'parent_category_name' | 'category_name' | 'parent_category_color' | 'category_color' | 'for_user_name'>; who?: boolean }) {
   const cols = categoryCols(tx.parent_category_name, tx.category_name);
   if (!cols.group && !who) return null;
   const groupColor = tx.parent_category_color || tx.category_color || CHIP_FALLBACK;
-  const subColor = cols.sub ? paintColor(tx.category_color, groupColor, cols.sub) : groupColor;
   return (
-    <span className="tx-chips">
+    <span className="tx-cats">
       {cols.group && (
-        <span className="tx-chip" style={{ '--chip': groupColor } as CSSProperties}>
-          {cols.group}
-        </span>
+        <>
+          <i className="tx-dot" style={{ background: groupColor }} aria-hidden />
+          <span className="tx-cat">{cols.group}</span>
+        </>
       )}
-      {cols.sub && (
-        <span className="tx-chip sub" style={{ '--chip': subColor } as CSSProperties}>
-          {cols.sub}
-        </span>
-      )}
+      {cols.sub && <span className="tx-sub">{cols.sub}</span>}
       {who && <WhoChip name={tx.for_user_name} />}
     </span>
   );
@@ -225,7 +216,7 @@ function PlaceRow({
   const tone = bankByName(name)?.color ?? '#8E9AAF';
   const body = (
     <>
-      <BankMark name={name} size={28} fallback />
+      <BankMark name={name} size={24} fallback />
       <span className="place-name">
         <b>{name}</b>
         <small>{detail}</small>
@@ -297,12 +288,8 @@ function InvoiceBlock({ inv, collapsed, onToggle, onOpen }: { inv: InvoiceRow; c
                 <span className="tx-bottom">
                   <span className="tx-meta">
                     {(l.count > 1 || 'for_user_name' in l) && (
-                      <span className="tx-chips">
-                        {l.count > 1 && (
-                          <span className="tx-chip" style={{ '--chip': CHIP_FALLBACK } as CSSProperties}>
-                            {l.count} compras
-                          </span>
-                        )}
+                      <span className="tx-cats">
+                        {l.count > 1 && <span className="tx-cat">{l.count} compras</span>}
                         {'for_user_name' in l && <WhoChip name={l.for_user_name} />}
                       </span>
                     )}
