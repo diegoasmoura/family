@@ -865,6 +865,32 @@ select.inp:focus {
   color: inherit;
   text-decoration: none;
 }
+.place-fold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.place-fold svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--muted);
+  transform: rotate(-90deg);
+  transition: transform 180ms ease;
+}
+.place-fold.open svg { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .place-fold svg { transition: none; }
+}
 .place-name {
   flex: 1;
   min-width: 0;
@@ -2268,7 +2294,7 @@ a.kebab {
   font-size: 15px;
   font-weight: 600;
 }
-.page.lanc .place-row > .num {
+.page.lanc .place-row .num {
   font-size: 14px;
   font-weight: 600;
 }

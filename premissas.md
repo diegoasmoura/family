@@ -115,6 +115,7 @@ O avatar é um quadrado. Sem desenho escolhido, mostra as iniciais do nome numa 
 - Tema claro, escuro ou automático (`fin-theme`).
 - Olho de ocultar valores (`fin-hide-money`) e ocultar ao sair do app. O botão fica no Início, à direita dos avatares; em Mais há os mesmos controles. Ligado, os valores marcados somem no aplicativo inteiro.
 - Ordem e visibilidade dos cards do Início (`fin-home-layout`).
+- Ordem e grupos recolhidos do Extrato (`fin-extrato-groups`).
 - A oferta de digital ou Face ID dispensada com “Agora não”.
 - Eu / Nós e o mês visto não ficam no aparelho. O mês vale entre Início, Lançamentos, Calendário, Cartões, Contas e Orçamento na mesma sessão. O Ano abre sempre no ano de hoje.
 

@@ -14,6 +14,18 @@ import { ErrorText, Icon, Loading, MonthNav, NewButton, PullToRefresh, Seg, Shee
 
 type Kind = 'expense' | 'income';
 
+const GROUPS_KEY = 'fin-extrato-groups';
+
+function loadExtratoGroups(): { order: string[]; collapsed: string[] } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GROUPS_KEY) || 'null');
+    const list = (value: unknown) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []);
+    return { order: list(raw?.order), collapsed: list(raw?.collapsed) };
+  } catch {
+    return { order: [], collapsed: [] };
+  }
+}
+
 type InvoiceLine =
   | { kind: 'installment' | 'fixed'; tx: Tx; description: string; label: string; amount_cents: number }
   | { kind: 'other'; description: string; count: number; amount_cents: number; for_user_name?: string | null };
@@ -195,7 +207,21 @@ function invoiceHref(inv: InvoiceRow) {
   return `/cartoes?card=${inv.card_id}&mes=${inv.reference_month}`;
 }
 
-function PlaceRow({ name, detail, amount, href }: { name: string; detail: string; amount: number; href?: string }) {
+function PlaceRow({
+  name,
+  detail,
+  amount,
+  href,
+  expanded,
+  onToggle,
+}: {
+  name: string;
+  detail: string;
+  amount: number;
+  href?: string;
+  expanded?: boolean;
+  onToggle?: () => void;
+}) {
   const tone = bankByName(name)?.color ?? '#8E9AAF';
   const body = (
     <>
@@ -205,9 +231,19 @@ function PlaceRow({ name, detail, amount, href }: { name: string; detail: string
         <small>{detail}</small>
       </span>
       <b className="num">{brl(amount)}</b>
+      {onToggle && <Icon.down />}
     </>
   );
   const style = { '--tone': tone } as CSSProperties;
+  if (onToggle) {
+    return (
+      <div className="place-row" style={style}>
+        <button type="button" className={`place-fold${expanded ? ' open' : ''}`} aria-expanded={expanded} onClick={onToggle}>
+          {body}
+        </button>
+      </div>
+    );
+  }
   return href ? (
     <Link to={href} className="place-row" style={style}>
       {body}
@@ -219,7 +255,7 @@ function PlaceRow({ name, detail, amount, href }: { name: string; detail: string
   );
 }
 
-function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, mode?: TxSheetMode) => void }) {
+function InvoiceBlock({ inv, collapsed, onToggle, onOpen }: { inv: InvoiceRow; collapsed: boolean; onToggle: () => void; onOpen: (id: number, mode?: TxSheetMode) => void }) {
   const lines = inv.lines ?? [];
   const detailed = lines.some((l) => l.kind !== 'other');
   const lineStatus = inv.state === 'paid' ? 'paid' : inv.state === 'overdue' ? 'overdue' : 'planned';
@@ -229,10 +265,12 @@ function InvoiceBlock({ inv, onOpen }: { inv: InvoiceRow; onOpen: (id: number, m
       name={inv.card_name}
       detail={partial ? `${inv.state_label} · falta ${brl(inv.remaining_cents)}` : inv.state_label}
       amount={inv.total_cents}
-      href={invoiceHref(inv)}
+      href={detailed ? undefined : invoiceHref(inv)}
+      expanded={!collapsed}
+      onToggle={detailed ? onToggle : undefined}
     />
   );
-  if (!detailed) return head;
+  if (!detailed || collapsed) return <section className="grp">{head}</section>;
   const sorted = [...lines].sort((a, b) => {
     if (a.kind === 'other') return 1;
     if (b.kind === 'other') return -1;
@@ -311,6 +349,12 @@ export function LancamentosPage() {
   const [selected, setSelected] = useState<{ id: number; mode: TxSheetMode } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [groupPrefs, setGroupPrefs] = useState(loadExtratoGroups);
+  const [orderOpen, setOrderOpen] = useState(false);
+  const saveGroupPrefs = (next: { order: string[]; collapsed: string[] }) => {
+    setGroupPrefs(next);
+    localStorage.setItem(GROUPS_KEY, JSON.stringify(next));
+  };
   const q = useApi(`/transactions?month=${month}&kind=${kind}&person=${personParam(person)}`);
   const income = kind === 'income';
   const swipe = useSwipe(() => setMonth(addMonths(month, -1)), () => setMonth(addMonths(month, 1)));
@@ -362,6 +406,30 @@ export function LancamentosPage() {
     return order.map((name) => ({ name, items: map.get(name)! }));
   }, [items]);
   const invoices: InvoiceRow[] = scopedInvoices.filter(matchInvoice);
+  const sections = useMemo(() => {
+    const natural = [
+      ...invoices.map((inv) => ({ key: `invoice:${inv.card_id}`, name: inv.card_name, invoice: inv, group: null as (typeof groups)[number] | null })),
+      ...groups.map((group) => ({ key: `place:${group.name}`, name: group.name, invoice: null as InvoiceRow | null, group })),
+    ];
+    const rank = new Map(groupPrefs.order.map((key, index) => [key, index]));
+    return natural
+      .map((item, index) => ({ ...item, index }))
+      .sort((a, b) => (rank.get(a.key) ?? 10000) - (rank.get(b.key) ?? 10000) || a.index - b.index);
+  }, [invoices, groups, groupPrefs.order]);
+  const moveSection = (key: string, dir: -1 | 1) => {
+    const order = sections.map((section) => section.key);
+    const index = order.indexOf(key);
+    const next = index + dir;
+    if (index < 0 || next < 0 || next >= order.length) return;
+    [order[index], order[next]] = [order[next], order[index]];
+    saveGroupPrefs({ ...groupPrefs, order });
+  };
+  const toggleSection = (key: string) => {
+    const collapsed = groupPrefs.collapsed.includes(key)
+      ? groupPrefs.collapsed.filter((item) => item !== key)
+      : [...groupPrefs.collapsed, key];
+    saveGroupPrefs({ ...groupPrefs, collapsed });
+  };
   const current =
     selected &&
     [...items, ...invoices.flatMap((inv) => (inv.lines ?? []).flatMap((l) => (l.kind === 'other' ? [] : [l.tx])))].find((t) => t.id === selected.id);
@@ -474,42 +542,89 @@ export function LancamentosPage() {
           )}
 
           <div className="ledger">
-            {invoices.map((inv) => (
-              <InvoiceBlock key={inv.id} inv={inv} onOpen={(id, mode = 'view') => setSelected({ id, mode })} />
-            ))}
-            {groups.map((g) => (
-              <section key={g.name} className="grp">
-                <PlaceRow
-                  name={g.name}
-                  detail={(() => {
-                    if (g.items.length && g.items.every((t) => t.card_id)) return `${g.items.length} no cartão`;
-                    const pending = g.items.filter((t) => t.include_in_reports && !t.paid_on).length;
-                    if (!pending) return income ? 'Recebidas' : 'Pagas';
-                    return `${pending} ${income ? 'a receber' : 'a pagar'}`;
-                  })()}
-                  amount={g.items.filter((t) => t.include_in_reports).reduce((a, t) => a + t.amount_cents, 0)}
-                />
-                {g.items.map((t) => (
-                  <TxLine
-                    key={t.id}
-                    status={t.display_status}
-                    statusLabel={t.status_label}
-                    title={t.description || t.category_name || (income ? 'Receita' : 'Despesa')}
-                    parcel={t.installment_label ?? (t.card_id && t.recurrence_class === 'fixed' ? 'Fixa' : null)}
-                    chips={<CategoryChips tx={t} who={person === 'all'} />}
-                    date={dayLabel(t.due_on ?? t.occurred_on)}
-                    amount={t.amount_cents}
-                    dim={!t.include_in_reports}
-                    onOpen={() => setSelected({ id: t.id, mode: 'view' })}
-                    menu={<TxMenu tx={t} onOpen={(mode) => setSelected({ id: t.id, mode })} />}
+            {sections.map((section) => {
+              const collapsed = groupPrefs.collapsed.includes(section.key);
+              if (section.invoice) {
+                return (
+                  <InvoiceBlock
+                    key={section.key}
+                    inv={section.invoice}
+                    collapsed={collapsed}
+                    onToggle={() => toggleSection(section.key)}
+                    onOpen={(id, mode = 'view') => setSelected({ id, mode })}
                   />
-                ))}
-              </section>
-            ))}
+                );
+              }
+              const g = section.group!;
+              return (
+                <section key={section.key} className="grp">
+                  <PlaceRow
+                    name={g.name}
+                    detail={(() => {
+                      if (g.items.length && g.items.every((t) => t.card_id)) return `${g.items.length} no cartão`;
+                      const pending = g.items.filter((t) => t.include_in_reports && !t.paid_on).length;
+                      if (!pending) return income ? 'Recebidas' : 'Pagas';
+                      return `${pending} ${income ? 'a receber' : 'a pagar'}`;
+                    })()}
+                    amount={g.items.filter((t) => t.include_in_reports).reduce((a, t) => a + t.amount_cents, 0)}
+                    expanded={!collapsed}
+                    onToggle={() => toggleSection(section.key)}
+                  />
+                  {!collapsed && g.items.map((t) => (
+                    <TxLine
+                      key={t.id}
+                      status={t.display_status}
+                      statusLabel={t.status_label}
+                      title={t.description || t.category_name || (income ? 'Receita' : 'Despesa')}
+                      parcel={t.installment_label ?? (t.card_id && t.recurrence_class === 'fixed' ? 'Fixa' : null)}
+                      chips={<CategoryChips tx={t} who={person === 'all'} />}
+                      date={dayLabel(t.due_on ?? t.occurred_on)}
+                      amount={t.amount_cents}
+                      dim={!t.include_in_reports}
+                      onOpen={() => setSelected({ id: t.id, mode: 'view' })}
+                      menu={<TxMenu tx={t} onOpen={(mode) => setSelected({ id: t.id, mode })} />}
+                    />
+                  ))}
+                </section>
+              );
+            })}
             {items.length === 0 && invoices.length === 0 && (
               <p className="empty">{situation !== 'all' ? 'Nada nesta situação.' : search ? 'Nada encontrado.' : slice ? `Nenhuma despesa ${SLICE_EMPTY[slice]} em ${monthLabel(month).toLowerCase()}.` : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
             )}
           </div>
+          {sections.length > 1 && (
+            <section className={`card home-layout${orderOpen ? ' open' : ''}`}>
+              <button type="button" className="layout-toggle" aria-expanded={orderOpen} aria-controls="extrato-order-panel" onClick={() => setOrderOpen((value) => !value)}>
+                <span className="layout-toggle-text">
+                  <span>Ordem dos grupos</span>
+                </span>
+                <Icon.down />
+              </button>
+              {orderOpen && (
+                <div id="extrato-order-panel" className="layout-panel">
+                  <p>As setas mudam qual grupo aparece primeiro. Vale neste aparelho.</p>
+                  <div className="layout-list">
+                    {sections.map((section, index) => (
+                      <div key={section.key} className="layout-row">
+                        <span className="layout-name">{section.name}</span>
+                        <span className="layout-tools">
+                          <button type="button" className="mv" aria-label={`Subir ${section.name}`} disabled={index === 0} onClick={() => moveSection(section.key, -1)}>
+                            <Icon.arrowUp />
+                          </button>
+                          <button type="button" className="mv" aria-label={`Descer ${section.name}`} disabled={index === sections.length - 1} onClick={() => moveSection(section.key, 1)}>
+                            <Icon.arrowDown />
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="btn ghost block" onClick={() => saveGroupPrefs({ order: [], collapsed: [] })}>
+                    Restaurar padrão
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
         </>
       )}
       {current && selected && (
