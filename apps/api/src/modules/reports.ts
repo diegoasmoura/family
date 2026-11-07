@@ -87,8 +87,14 @@ async function yearMatrix(ctx: Ctx, year: number, kind: 'income' | 'expense', mo
   type Item = { key: string; base: string; day: number | null; installments: number | null; months: number[]; paid: number[]; places: Set<string> };
   const items = new Map<number | null, Map<string, Item>>();
   const origin = new Map<number | null, Set<string>>();
-  const placeOf = (r: { card_id: number | null; card_name: string | null; account_name: string | null }) =>
-    (r.card_id != null ? r.card_name : r.account_name)?.trim() || null;
+  const placeOf = (r: { card_id: number | null; card_name: string | null; account_name: string | null }) => {
+    if (r.card_id != null) {
+      const name = r.card_name?.trim();
+      return name ? `${name} · cartão` : null;
+    }
+    const name = r.account_name?.trim();
+    return name ? `${name} · conta` : null;
+  };
   const noteOrigin = (id: number | null, place: string | null) => {
     const places = origin.get(id) ?? new Set<string>();
     if (place) places.add(place);

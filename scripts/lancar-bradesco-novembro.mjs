@@ -2,7 +2,8 @@
  * Lança a fatura Bradesco de novembro/2026 (vencimento 15/11/2026) na conta da Jhersyka.
  *
  * Sem --aplicar: entra, acha o cartão e mostra onde cada valor cairia.
- * Com --aplicar: grava. Rodar de novo não duplica (client_uuid estável).
+ * Com --aplicar: grava. Os ids são da segunda geração: a primeira ficou nos lançamentos apagados.
+ * Rodar esta versão de novo não duplica.
  *
  *   FIN_BASE=http://IP-DO-NAS:3003 \
  *   FIN_EMAIL=jhersyka@live.com \
@@ -28,19 +29,19 @@ const PREPLY = 66_906;
 
 /** Última parcela, em dezembro. O plano do app exige no mínimo 2. */
 const ULTIMAS = [
-  { uuid: 'bradesco-2026-11-amz-0208', description: 'Amazon Marketplace 02/08 (4/4)', cents: 5_622 },
-  { uuid: 'bradesco-2026-11-araujo', description: 'Araujo Loja 10/09 (3/3)', cents: 15_000 },
-  { uuid: 'bradesco-2026-11-cea', description: 'CEA 11/09 (3/3)', cents: 10_332 },
-  { uuid: 'bradesco-2026-11-boticario', description: 'O Boticário 13/09 (3/3)', cents: 5_333 },
-  { uuid: 'bradesco-2026-11-amz-2209', description: 'Amazon Marketplace 22/09 (3/3)', cents: 14_041 },
-  { uuid: 'bradesco-2026-11-amz-2609', description: 'Amazon Marketplace 26/09 (3/3)', cents: 7_929 },
-  { uuid: 'bradesco-2026-11-lojasg', description: 'Lojas G 11/10 (2/2)', cents: 6_997 },
+  { uuid: 'bradesco-2026-11-v2-amz-0208', description: 'Amazon Marketplace 02/08 (4/4)', cents: 5_622 },
+  { uuid: 'bradesco-2026-11-v2-araujo', description: 'Araujo Loja 10/09 (3/3)', cents: 15_000 },
+  { uuid: 'bradesco-2026-11-v2-cea', description: 'CEA 11/09 (3/3)', cents: 10_332 },
+  { uuid: 'bradesco-2026-11-v2-boticario', description: 'O Boticário 13/09 (3/3)', cents: 5_333 },
+  { uuid: 'bradesco-2026-11-v2-amz-2209', description: 'Amazon Marketplace 22/09 (3/3)', cents: 14_041 },
+  { uuid: 'bradesco-2026-11-v2-amz-2609', description: 'Amazon Marketplace 26/09 (3/3)', cents: 7_929 },
+  { uuid: 'bradesco-2026-11-v2-lojasg', description: 'Lojas G 11/10 (2/2)', cents: 6_997 },
 ];
 
 /** Parcelas que ainda têm dezembro e pelo menos mais um mês. */
 const PLANOS = [
-  { uuid: 'bradesco-2026-11-ranigami', description: 'Shopee Ranigami 12/10', parcela: 7_289, n: 2 },
-  { uuid: 'bradesco-2026-11-amz-2010', description: 'Amazon Marketplace 20/10', parcela: 14_186, n: 3 },
+  { uuid: 'bradesco-2026-11-v2-ranigami', description: 'Shopee Ranigami 12/10', parcela: 7_289, n: 2 },
+  { uuid: 'bradesco-2026-11-v2-amz-2010', description: 'Amazon Marketplace 20/10', parcela: 14_186, n: 3 },
 ];
 
 const futuras = ULTIMAS.reduce((a, x) => a + x.cents, 0) + PLANOS.reduce((a, x) => a + x.parcela * x.n, 0);
@@ -151,7 +152,7 @@ const comp = await api('/api/transactions', {
   method: 'POST',
   body: JSON.stringify({
     ...comum,
-    client_uuid: 'bradesco-2026-11-complemento',
+    client_uuid: 'bradesco-2026-11-v2-complemento',
     description: 'Complemento cartão',
     amount_cents: COMPLEMENTO,
     occurred_on: nov,
@@ -163,7 +164,7 @@ const fixa = await api('/api/recurrences', {
   method: 'POST',
   body: JSON.stringify({
     ...comum,
-    client_uuid: 'bradesco-2026-11-preply',
+    client_uuid: 'bradesco-2026-11-v2-preply',
     description: 'Preply',
     amount_cents: PREPLY,
     day_of_month: diaPreply,

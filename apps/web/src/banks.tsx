@@ -53,6 +53,13 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
+/** Nome que distingue o cartão da conta quando os dois usam o mesmo banco. */
+export function placeLabel(name: string, kind: 'card' | 'account') {
+  const clean = name.trim();
+  if (!clean || clean === 'Sem conta') return clean || 'Sem conta';
+  return `${clean} · ${kind === 'card' ? 'cartão' : 'conta'}`;
+}
+
 export function bankByName(name: string): Bank | undefined {
   const n = norm(name);
   if (!n) return undefined;

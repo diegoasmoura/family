@@ -7,6 +7,7 @@ import { useAppState } from '../state';
 import { HistoryChart } from '../HistoryChart';
 import { BackButton, Bar, Confirm, ErrorText, Icon, Loading, MoneyInput, Sheet, brl, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
+import { placeLabel } from '../banks';
 import type { InstallmentPlan, Recurrence } from '../types';
 
 function RecurrenceForm({ rec, onClose }: { rec: Recurrence; onClose: () => void }) {
@@ -128,7 +129,7 @@ export function RecorrenciasPage() {
               {group(kind).map((r) => (
                 <button key={r.id} className={`r${r.active ? '' : ' dim'}`} onClick={() => setEditing(r)}>
                   <div className="m">
-                    <small>{r.account_name ?? r.card_name}</small>
+                    <small>{r.card_name ? placeLabel(r.card_name, 'card') : placeLabel(r.account_name ?? 'Sem conta', 'account')}</small>
                     <span className="t">{r.description}</span>
                     <small>
                       Todo dia {r.day_of_month} · desde {monthLabel(r.start_month).toLowerCase()}
@@ -187,7 +188,7 @@ export function ParcelamentosPage() {
                   <b>{p.description}</b>
                   <br />
                   <small>
-                    {p.card_name ? `Cartão ${p.card_name}` : p.account_name} · compra {shortDate(p.purchased_on)}
+                    {p.card_name ? placeLabel(p.card_name, 'card') : placeLabel(p.account_name ?? 'Sem conta', 'account')} · compra {shortDate(p.purchased_on)}
                   </small>
                 </div>
                 <b className="num">{brl(p.total_cents)}</b>

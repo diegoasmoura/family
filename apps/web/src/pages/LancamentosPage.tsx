@@ -4,7 +4,7 @@ import { addMonths, monthLabel } from '@fin/domain';
 import { useSwipe } from '../useSwipe';
 import { usePullToRefresh } from '../usePullToRefresh';
 import { useApi, type Tx } from '../api';
-import { BankMark, bankByName } from '../banks';
+import { BankMark, bankByName, placeLabel } from '../banks';
 import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
@@ -253,7 +253,7 @@ function InvoiceBlock({ inv, collapsed, onToggle, onOpen }: { inv: InvoiceRow; c
   const partial = inv.remaining_cents > 0 && inv.remaining_cents < inv.total_cents;
   const head = (
     <PlaceRow
-      name={inv.card_name}
+      name={placeLabel(inv.card_name, 'card')}
       detail={partial ? `${inv.state_label} · falta ${brl(inv.remaining_cents)}` : inv.state_label}
       amount={inv.total_cents}
       href={detailed ? undefined : invoiceHref(inv)}
@@ -380,23 +380,25 @@ export function LancamentosPage() {
   }, [scopedItems, search, situation]);
   const groups = useMemo(() => {
     const order: string[] = [];
-    const map = new Map<string, Tx[]>();
+    const map = new Map<string, { key: string; name: string; items: Tx[] }>();
     for (const t of items) {
-      const name = t.account_name ?? t.card_name ?? 'Sem conta';
-      if (!map.has(name)) {
-        map.set(name, []);
-        order.push(name);
+      const card = t.card_id != null;
+      const key = card ? `card:${t.card_id}` : `account:${t.account_id ?? 0}`;
+      if (!map.has(key)) {
+        const bank = (card ? t.card_name : t.account_name) || 'Sem conta';
+        map.set(key, { key, name: placeLabel(bank, card ? 'card' : 'account'), items: [] });
+        order.push(key);
       }
-      map.get(name)!.push(t);
+      map.get(key)!.items.push(t);
     }
-    for (const list of map.values()) list.sort(byDue);
-    return order.map((name) => ({ name, items: map.get(name)! }));
+    for (const group of map.values()) group.items.sort(byDue);
+    return order.map((key) => map.get(key)!);
   }, [items]);
   const invoices: InvoiceRow[] = scopedInvoices.filter(matchInvoice);
   const sections = useMemo(() => {
     const natural = [
-      ...invoices.map((inv) => ({ key: `invoice:${inv.card_id}`, name: inv.card_name, invoice: inv, group: null as (typeof groups)[number] | null })),
-      ...groups.map((group) => ({ key: `place:${group.name}`, name: group.name, invoice: null as InvoiceRow | null, group })),
+      ...invoices.map((inv) => ({ key: `invoice:${inv.card_id}`, name: placeLabel(inv.card_name, 'card'), invoice: inv, group: null as (typeof groups)[number] | null })),
+      ...groups.map((group) => ({ key: `place:${group.key}`, name: group.name, invoice: null as InvoiceRow | null, group })),
     ];
     const rank = new Map(groupPrefs.order.map((key, index) => [key, index]));
     return natural

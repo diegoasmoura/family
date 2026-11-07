@@ -6,7 +6,7 @@ import { PersonFilter, personParam } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { usePullToRefresh } from '../usePullToRefresh';
-import { BankMark, bankByName } from '../banks';
+import { BankMark, bankByName, placeLabel } from '../banks';
 import { BudgetYear } from '../BudgetYear';
 import { ErrorText, Icon, Loading, NewButton, PullToRefresh, Seg, Sheet, StatusIcon, shortDate } from '../ui';
 
@@ -70,7 +70,7 @@ function AuditSheet({ audit, year, mode, person, onClose, onTx }: { audit: Audit
                     {t.installment_label ? ` ${t.installment_label}` : ''}
                   </span>
                   <small>
-                    {shortDate(t.occurred_on)} · {t.card_name ?? t.account_name}
+                    {shortDate(t.occurred_on)} · {t.card_id ? placeLabel(t.card_name ?? 'Cartão', 'card') : placeLabel(t.account_name ?? 'Sem conta', 'account')}
                     {t.category_name ? ` · ${t.parent_category_name ? `${t.parent_category_name} › ` : ''}${t.category_name}` : ''}
                     {t.recurrence_id ? ' · fixa' : ''}
                   </small>
