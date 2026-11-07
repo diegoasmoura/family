@@ -1191,6 +1191,19 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(paid.items.find((i: any) => i.name === 'Cartão').paid_months[9]).toBe(7000);
     });
 
+    it('cobrança fixa prevista do cartão entra no a pagar e fecha com o total do mês', async () => {
+      await ok(
+        await agent.post('/api/recurrences').send({ kind: 'expense', description: 'Netflix', amount_cents: 5590, card_id: ids.ultra, day_of_month: 12, start_month: '2026-09' }),
+        201,
+      );
+      const view = await ok(await agent.get('/api/transactions?month=2026-11&kind=expense&person=all'));
+      const dash = await ok(await agent.get('/api/dashboard?month=2026-11&person=all'));
+      expect(view.summary.total_cents).toBe(5590);
+      expect(view.pending_cents).toBe(5590);
+      expect(dash.expense.to_pay_cents).toBe(5590);
+      expect(dash.expense.paid_cents + dash.expense.to_pay_cents).toBe(dash.expense.total_cents);
+    });
+
     it('"Saiu" do Início só conta o que foi pago, e "a pagar" soma conta e cartão (em Eu e em Nós)', async () => {
       const me = await ok(await agent.get('/api/auth/me'));
       for (const person of ['me', 'all']) {

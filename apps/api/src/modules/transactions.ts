@@ -337,13 +337,13 @@ export async function monthView(ctx: Ctx, month: string, kind: Kind, personId: n
     summary,
     // "Pago" é só caixa de conta: compra de cartão só entra aqui quando a fatura quita (vira display_status 'paid').
     settled_cents: items.filter((t) => !t.card_id && t.paid_on && t.include_in_reports).reduce((a, t) => a + t.part_cents, 0),
-    // "A pagar": caixa de conta ainda não paga, mais compra de cartão já lançada (status 'posted') cuja fatura ainda não quitou.
+    // "A pagar": caixa de conta ainda não paga, mais tudo do cartão cuja fatura ainda não quitou, inclusive a fixa prevista.
     pending_cents: items
-      .filter((t) => t.include_in_reports && (t.card_id ? t.status === 'posted' && t.display_status !== 'paid' : !t.paid_on))
+      .filter((t) => t.include_in_reports && (t.card_id ? t.display_status !== 'paid' : !t.paid_on))
       .reduce((a, t) => a + t.part_cents, 0),
     // "Saiu" do Início: caixa de conta já paga, mais compra de cartão cuja fatura já quitou. Somado ao pending_cents, fecha o total lançado.
     paid_out_cents: items
-      .filter((t) => t.include_in_reports && (t.card_id ? t.status === 'posted' && t.display_status === 'paid' : t.paid_on))
+      .filter((t) => t.include_in_reports && (t.card_id ? t.display_status === 'paid' : Boolean(t.paid_on)))
       .reduce((a, t) => a + t.part_cents, 0),
   };
 }
