@@ -215,7 +215,7 @@ Folha em tela cheia.
 4. No parcelado: de 2 a 480 vezes, com atalhos até 60. O texto diz o total e a partir de qual fatura, no cartão, ou o dia, na conta.
 5. Categoria, opcional, com criação na hora.
 6. De quem: cada pessoa ou Da casa. Começa em quem está logado. Embaixo, a linha diz se entra no Eu dessa pessoa ou só em Nós.
-7. Pagar com: em despesa, os cartões e depois as contas. Em receita, só contas. Sem escolha, a despesa cai no primeiro cartão, se houver, e senão na primeira conta. O **+** de um cartão já abre o lançamento naquele cartão. Sem conta e sem cartão, a tela pede para cadastrar uma conta.
+7. Pagar com: em despesa, os cartões e depois as contas. Em receita, só contas. Cada chip traz “cartão” ou “conta” depois do nome, e a linha de baixo repete isso (“Sai de Bradesco (cartão)” ou “Sai de Bradesco (conta)”). Sem escolha, a despesa cai no primeiro cartão, se houver, e senão na primeira conta. O **+** de um cartão já abre o lançamento naquele cartão. Sem conta e sem cartão, a tela pede para cadastrar uma conta.
 8. Data. Na fixa é a primeira data. No parcelado é a data da compra. Compra única no cartão mostra em qual fatura ela cai, pelo mês de vencimento. Na fixa o texto é “todo dia D, a partir do mês”.
 9. Descrição, opcional, até 120 caracteres.
 10. Em conta, “Já pago” ou “Já recebido”. Na fixa e no parcelado o texto é “Primeira já paga” ou “Primeira já recebida”, e só a primeira nasce paga. O controle já vem marcado quando a data é hoje ou anterior. No cartão o controle some. A compra única já nasce na fatura. A fixa no cartão ainda usa esse padrão por baixo: a primeira nasce confirmada se a data já chegou; as seguintes nascem previstas.

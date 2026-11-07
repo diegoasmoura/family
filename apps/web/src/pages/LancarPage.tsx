@@ -281,13 +281,13 @@ export function LancarPage() {
             cards.data?.map((c) => (
               <button key={`c${c.id}`} type="button" className={`chip${chosen?.type === 'card' && chosen.id === c.id ? ' on' : ''}`} onClick={() => setTarget({ type: 'card', id: c.id })}>
                 <BankMark name={c.name} size={22} />
-                {c.name}
+                {c.name} · cartão
               </button>
             ))}
           {accounts.data?.accounts.map((a) => (
             <button key={`a${a.id}`} type="button" className={`chip${chosen?.type === 'account' && chosen.id === a.id ? ' on' : ''}`} onClick={() => setTarget({ type: 'account', id: a.id })}>
               <BankMark name={a.name} size={22} />
-              {a.name}
+              {a.name} · conta
             </button>
           ))}
           <button type="button" className="chip add" onClick={() => setNewAccount(true)}>
@@ -343,7 +343,7 @@ export function LancarPage() {
             <span>
               {kind === 'income' ? 'Entra em ' : 'Sai de '}
               <b>{targetName}</b>
-              {chosen.type === 'card' ? ' (cartão)' : ''}
+              {chosen.type === 'card' ? ' (cartão)' : ' (conta)'}
             </span>
           </div>
         )}
