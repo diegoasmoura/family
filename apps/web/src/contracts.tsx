@@ -55,6 +55,18 @@ interface HouseUser {
 }
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
+/**
+ * Prévia da divisão na tela. `splitByShares` recusa valor que não fecha em centavos
+ * (o primeiro dígito de um valor grande é R$ 0,01). Isso não pode derrubar a página.
+ */
+export function previewShares(totalCents: number, bps: number[]): number[] | null {
+  try {
+    return splitByShares(totalCents, bps);
+  } catch {
+    return null;
+  }
+}
+
 export function useHouseUsers() {
   return useApi<HouseUser[]>('/users').data ?? [];
 }
@@ -154,7 +166,7 @@ export function SplitPicker({
   const bp = value.mode === 'split' ? value.bp : 5000;
   const pct = Math.round(bp / 100);
   const setPct = (p: number) => onChange({ mode: 'split', bp: Math.min(99, Math.max(1, Math.round(p))) * 100 });
-  const parts = value.mode === 'split' && perInstallment && perInstallment > 0 ? splitByShares(perInstallment, [bp, 10000 - bp]) : null;
+  const parts = value.mode === 'split' && perInstallment && perInstallment > 0 ? previewShares(perInstallment, [bp, 10000 - bp]) : null;
   return (
     <>
       <div className="chips" role="radiogroup" aria-label="De quem">

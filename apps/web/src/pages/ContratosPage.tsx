@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { monthLabel, monthOf, splitByShares } from '@fin/domain';
+import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi, type Account } from '../api';
 import { placeLabel } from '../banks';
 import { AccountForm } from '../AccountForm';
@@ -13,6 +13,7 @@ import {
   rateText,
   splitBody,
   splitFrom,
+  previewShares,
   splitLabel,
   useHouseUsers,
   type ContractType,
@@ -217,7 +218,7 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
   const ratio = c.active_count ? c.paid_count / c.active_count : 0;
   const extra = c.contracted_cents != null ? c.total_cents - c.contracted_cents : null;
   const nextParts = c.next && c.shares
-    ? splitByShares(c.next.amount_cents, c.shares.map((share) => share.bp))
+    ? previewShares(c.next.amount_cents, c.shares.map((share) => share.bp))
     : null;
   const accountName = (id?: number | null) => accountList.find((account) => account.id === id)?.name ?? null;
   const people = c.shares && nextParts
