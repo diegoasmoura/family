@@ -306,7 +306,7 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
                   <span>
                     Entra no dízimo
                     <br />
-                    <small>Despesa de 10% na mesma conta, com vencimento no dia 30. O que já foi pago não muda.</small>
+                    <small>Despesa de 10% na mesma conta, em Reino · Geral, com vencimento no dia 30. O que já foi pago não muda.</small>
                   </span>
                   <input
                     type="checkbox"

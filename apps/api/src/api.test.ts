@@ -488,6 +488,39 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       const both = await db.all<any>("SELECT amount_cents, tithe_month, tithe_income_id FROM transactions WHERE description = 'Dízimo' AND competence_month = '2026-08' AND deleted_at IS NULL ORDER BY tithe_month DESC");
       expect(both.map((row) => [Number(row.amount_cents), row.tithe_month != null])).toEqual([[15000, true], [10000, false]]);
     });
+
+    it('cada pessoa vê o próprio dízimo do mês, na categoria Reino / Geral', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      const hers = await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'jhersyka@x.com', password: 'senha-segura' }), 201);
+      await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Salario 15', amount_cents: 454258, occurred_on: '2026-11-15', account_id: ids.bradesco, for_user_id: me.id, counts_for_tithe: false }),
+        201,
+      );
+      await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Salário 30', amount_cents: 447977, occurred_on: '2026-11-30', account_id: ids.bradesco, for_user_id: me.id, counts_for_tithe: false }),
+        201,
+      );
+      await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Salário dela', amount_cents: 300000, occurred_on: '2026-11-30', account_id: ids.nubank, for_user_id: hers.id, counts_for_tithe: false }),
+        201,
+      );
+      await db.run("UPDATE transactions SET counts_for_tithe = 1 WHERE kind = 'income' AND competence_month = '2026-11'");
+      await backfillTithes(db);
+      const rows = await db.all<any>(
+        `SELECT t.amount_cents, t.account_id, t.for_user_id, t.due_on, c.name AS category_name, p.name AS parent_name
+           FROM transactions t
+           JOIN categories c ON c.id = t.category_id
+           JOIN categories p ON p.id = c.parent_id
+          WHERE t.tithe_month = '2026-11' AND t.deleted_at IS NULL
+          ORDER BY t.for_user_id`,
+      );
+      expect(rows.map((row) => [Number(row.amount_cents), row.account_id, row.for_user_id, row.due_on, row.parent_name, row.category_name])).toEqual([
+        [90224, ids.bradesco, me.id, '2026-11-30', 'Reino', 'Geral'],
+        [30000, ids.nubank, hers.id, '2026-11-30', 'Reino', 'Geral'],
+      ]);
+      const mine = await ok(await agent.get('/api/transactions?month=2026-11&kind=expense&person=me'));
+      expect(mine.items.map((item: { description: string; amount_cents: number }) => [item.description, item.amount_cents])).toEqual([['Dízimo', 90224]]);
+    });
   });
 
   describe('recorrências', () => {

@@ -1,8 +1,11 @@
 import type { Db } from '@fin/db';
-import { dateInMonth, titheCents } from '@fin/domain';
+import { dateInMonth, relatedColor, titheCents } from '@fin/domain';
 import { insert, newUuid, nowIso, num, update } from '../core';
 
 const TITHE_NAME = 'Dízimo';
+const TITHE_GROUP = 'Reino';
+const TITHE_SUB = 'Geral';
+const GROUP_COLOR = '#6B4C9A';
 
 type IncomeRow = {
   id: number;
@@ -15,33 +18,64 @@ type IncomeRow = {
   deleted_at: string | null;
 };
 
+function personKey(id: number | null | undefined) {
+  return id == null ? '' : String(Number(id));
+}
+
+async function nextSort(db: Db, householdId: number) {
+  const order = await db.get<{ n: number }>('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM categories WHERE household_id = ?', [householdId]);
+  return num(order?.n);
+}
+
+/** A mesma categoria da oferta: grupo Reino, subgrupo Geral. */
 async function ensureTitheCategory(db: Db, householdId: number): Promise<number> {
   const found = await db.get<{ id: number }>(
-    `SELECT id FROM categories WHERE household_id = ? AND kind = 'expense' AND name = ? AND deleted_at IS NULL ORDER BY id LIMIT 1`,
-    [householdId, TITHE_NAME],
+    `SELECT c.id
+       FROM categories c
+       JOIN categories p ON p.id = c.parent_id
+      WHERE c.household_id = ? AND c.kind = 'expense' AND c.deleted_at IS NULL
+        AND p.deleted_at IS NULL AND p.name = ? AND c.name = ?
+      ORDER BY c.id LIMIT 1`,
+    [householdId, TITHE_GROUP, TITHE_SUB],
   );
   if (found) return Number(found.id);
   const now = nowIso();
-  const order = await db.get<{ n: number }>('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM categories WHERE household_id = ?', [householdId]);
+  let parent = await db.get<{ id: number; color: string | null }>(
+    `SELECT id, color FROM categories
+      WHERE household_id = ? AND kind = 'expense' AND parent_id IS NULL AND name = ? AND deleted_at IS NULL
+      ORDER BY id LIMIT 1`,
+    [householdId, TITHE_GROUP],
+  );
+  if (!parent) {
+    const id = await insert(db, 'categories', {
+      client_uuid: newUuid(),
+      household_id: householdId,
+      name: TITHE_GROUP,
+      kind: 'expense',
+      color: GROUP_COLOR,
+      sort_order: await nextSort(db, householdId),
+      created_at: now,
+      updated_at: now,
+    });
+    parent = { id, color: GROUP_COLOR };
+  }
   return insert(db, 'categories', {
     client_uuid: newUuid(),
     household_id: householdId,
-    name: TITHE_NAME,
+    name: TITHE_SUB,
     kind: 'expense',
-    color: '#6B4C9A',
-    sort_order: num(order?.n),
+    parent_id: Number(parent.id),
+    color: relatedColor(parent.color || GROUP_COLOR, TITHE_SUB),
+    sort_order: await nextSort(db, householdId),
     created_at: now,
     updated_at: now,
   });
 }
 
-/** Recalcula o dízimo do mês já fechado, sem incluir receita que tem a própria despesa. */
-async function recomputeMonthTithe(db: Db, householdId: number, month: string) {
-  const monthTithe = await db.get<{ id: number; paid_on: string | null }>(
-    'SELECT id, paid_on FROM transactions WHERE household_id = ? AND tithe_month = ? AND deleted_at IS NULL',
-    [householdId, month],
-  );
-  if (!monthTithe || monthTithe.paid_on) return;
+type Bucket = { person: number | null; total: number; accounts: Map<number, number> };
+
+/** Soma o mês por pessoa. Receita que já tem a própria despesa fica de fora. */
+async function monthBuckets(db: Db, householdId: number, month: string): Promise<Bucket[]> {
   const rows = await db.all<{ account_id: number; for_user_id: number | null; amount_cents: number }>(
     `SELECT account_id, for_user_id, amount_cents
        FROM transactions t
@@ -52,28 +86,81 @@ async function recomputeMonthTithe(db: Db, householdId: number, month: string) {
         )`,
     [householdId, month],
   );
-  const now = nowIso();
-  const total = rows.reduce((sum, row) => sum + num(row.amount_cents), 0);
-  const cents = titheCents(total);
-  if (cents < 1) {
-    await update(db, 'transactions', monthTithe.id, { deleted_at: now, updated_at: now });
-    return;
-  }
-  const accounts = new Map<number, number>();
-  const people = new Set<string>();
+  const groups = new Map<string, Bucket>();
   for (const row of rows) {
+    const key = personKey(row.for_user_id);
+    const bucket = groups.get(key) ?? { person: key === '' ? null : Number(key), total: 0, accounts: new Map() };
+    const amount = num(row.amount_cents);
     const accountId = num(row.account_id);
-    accounts.set(accountId, (accounts.get(accountId) ?? 0) + num(row.amount_cents));
-    people.add(row.for_user_id == null ? '' : String(row.for_user_id));
+    bucket.total += amount;
+    bucket.accounts.set(accountId, (bucket.accounts.get(accountId) ?? 0) + amount);
+    groups.set(key, bucket);
   }
-  const accountId = [...accounts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
-  const person = people.size === 1 ? ([...people][0] === '' ? null : Number([...people][0])) : null;
-  await update(db, 'transactions', monthTithe.id, {
-    amount_cents: cents,
-    account_id: accountId,
-    for_user_id: person,
-    updated_at: now,
-  });
+  return [...groups.values()];
+}
+
+function winningAccount(accounts: Map<number, number>) {
+  return [...accounts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
+}
+
+/**
+ * Uma despesa por pessoa no mês. O que é da casa continua da casa.
+ * Despesa já paga não muda. A que não tem mais receita em aberto sai.
+ */
+async function reconcileMonthTithe(db: Db, householdId: number, userId: number, month: string) {
+  const buckets = await monthBuckets(db, householdId, month);
+  const existing = await db.all<{ id: number; paid_on: string | null; for_user_id: number | null }>(
+    'SELECT id, paid_on, for_user_id FROM transactions WHERE household_id = ? AND tithe_month = ? AND deleted_at IS NULL',
+    [householdId, month],
+  );
+  const now = nowIso();
+  const used = new Set<number>();
+  let categoryId: number | null = null;
+  const category = async () => (categoryId ??= await ensureTitheCategory(db, householdId));
+  for (const bucket of buckets) {
+    const cents = titheCents(bucket.total);
+    const match = existing.find((row) => !used.has(row.id) && personKey(row.for_user_id) === personKey(bucket.person));
+    if (cents < 1) {
+      if (match && !match.paid_on) {
+        await update(db, 'transactions', match.id, { deleted_at: now, updated_at: now });
+        used.add(match.id);
+      }
+      continue;
+    }
+    const due = dateInMonth(month, 30);
+    const fields = {
+      description: TITHE_NAME,
+      amount_cents: cents,
+      account_id: winningAccount(bucket.accounts),
+      for_user_id: bucket.person,
+      occurred_on: due,
+      due_on: due,
+      competence_month: month,
+      category_id: await category(),
+      updated_at: now,
+    };
+    if (match) {
+      used.add(match.id);
+      if (!match.paid_on) await update(db, 'transactions', match.id, fields);
+    } else {
+      await insert(db, 'transactions', {
+        ...fields,
+        client_uuid: newUuid(),
+        household_id: householdId,
+        kind: 'expense',
+        status: 'planned',
+        paid_on: null,
+        counts_for_tithe: 0,
+        tithe_month: month,
+        include_in_reports: 1,
+        created_by: userId,
+        created_at: now,
+      });
+    }
+  }
+  for (const row of existing) {
+    if (!used.has(row.id) && !row.paid_on) await update(db, 'transactions', row.id, { deleted_at: now, updated_at: now });
+  }
 }
 
 /**
@@ -126,8 +213,8 @@ export async function syncTitheForIncome(db: Db, householdId: number, userId: nu
       });
     }
   }
-  await recomputeMonthTithe(db, householdId, income.competence_month);
-  if (previousMonth && previousMonth !== income.competence_month) await recomputeMonthTithe(db, householdId, previousMonth);
+  await reconcileMonthTithe(db, householdId, userId, income.competence_month);
+  if (previousMonth && previousMonth !== income.competence_month) await reconcileMonthTithe(db, householdId, userId, previousMonth);
 }
 
 /** Apaga o dízimo ainda não pago das receitas encontradas por esse filtro. */
@@ -148,75 +235,22 @@ export async function deleteOpenTithesMatching(db: Db, whereSql: string, params:
  * com 10% da soma, vencendo no dia 30. Receita que já tem o próprio dízimo fica de fora.
  */
 export async function backfillTithes(db: Db) {
-  const houses = await db.all<{ id: number }>('SELECT id FROM households WHERE tithe_backfilled = 0');
+  const houses = await db.all<{ id: number }>('SELECT id FROM households WHERE tithe_backfilled < 2');
   for (const house of houses) {
     await db.tx(async (tx) => {
       const author = await tx.get<{ id: number }>(
         `SELECT id FROM users WHERE household_id = ? ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, id LIMIT 1`,
         [house.id],
       );
-      const rows = await tx.all<{
-        competence_month: string;
-        account_id: number;
-        for_user_id: number | null;
-        amount_cents: number;
-      }>(
-        `SELECT competence_month, account_id, for_user_id, amount_cents
-           FROM transactions t
-          WHERE t.household_id = ? AND t.kind = 'income' AND t.deleted_at IS NULL
-            AND t.counts_for_tithe = 1 AND t.account_id IS NOT NULL
-            AND NOT EXISTS (
-              SELECT 1 FROM transactions d WHERE d.tithe_income_id = t.id AND d.deleted_at IS NULL
-            )`,
-        [house.id],
-      );
-      const months = new Map<string, { total: number; accounts: Map<number, number>; people: Set<string> }>();
-      for (const row of rows) {
-        const bucket = months.get(row.competence_month) ?? { total: 0, accounts: new Map(), people: new Set() };
-        const amount = num(row.amount_cents);
-        const accountId = num(row.account_id);
-        bucket.total += amount;
-        bucket.accounts.set(accountId, (bucket.accounts.get(accountId) ?? 0) + amount);
-        bucket.people.add(row.for_user_id == null ? '' : String(row.for_user_id));
-        months.set(row.competence_month, bucket);
-      }
       if (author) {
-        for (const [month, bucket] of months) {
-          const cents = titheCents(bucket.total);
-          if (cents < 1) continue;
-          const already = await tx.get(
-            'SELECT id FROM transactions WHERE household_id = ? AND tithe_month = ? AND deleted_at IS NULL',
-            [house.id, month],
-          );
-          if (already) continue;
-          const accountId = [...bucket.accounts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
-          const person = bucket.people.size === 1 ? ([...bucket.people][0] === '' ? null : Number([...bucket.people][0])) : null;
-          const due = dateInMonth(month, 30);
-          const now = nowIso();
-          await insert(tx, 'transactions', {
-            client_uuid: newUuid(),
-            household_id: house.id,
-            kind: 'expense',
-            description: TITHE_NAME,
-            amount_cents: cents,
-            occurred_on: due,
-            due_on: due,
-            competence_month: month,
-            category_id: await ensureTitheCategory(tx, house.id),
-            account_id: accountId,
-            for_user_id: person,
-            status: 'planned',
-            paid_on: null,
-            counts_for_tithe: 0,
-            tithe_month: month,
-            include_in_reports: 1,
-            created_by: author.id,
-            created_at: now,
-            updated_at: now,
-          });
-        }
+        const months = await tx.all<{ competence_month: string }>(
+          `SELECT DISTINCT competence_month FROM transactions
+            WHERE household_id = ? AND kind = 'income' AND deleted_at IS NULL AND counts_for_tithe = 1`,
+          [house.id],
+        );
+        for (const row of months) await reconcileMonthTithe(tx, house.id, author.id, row.competence_month);
       }
-      await tx.run('UPDATE households SET tithe_backfilled = 1 WHERE id = ?', [house.id]);
+      await tx.run('UPDATE households SET tithe_backfilled = 2 WHERE id = ?', [house.id]);
     });
   }
 }

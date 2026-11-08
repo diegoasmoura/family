@@ -335,7 +335,7 @@ export function LancarPage() {
             <span>
               Entra no dízimo
               <br />
-              <small>Gera uma despesa de 10% na mesma conta, com vencimento no dia 30.</small>
+              <small>Gera uma despesa de 10% na mesma conta, em Reino · Geral, com vencimento no dia 30.</small>
             </span>
             <input type="checkbox" checked={tithe} onChange={(e) => setTithe(e.target.checked)} />
           </label>

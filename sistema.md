@@ -219,7 +219,7 @@ Folha em tela cheia.
 8. Data. Na fixa é a primeira data. No parcelado é a data da compra. Compra única no cartão mostra em qual fatura ela cai, pelo mês de vencimento. Na fixa o texto é “todo dia D, a partir do mês”.
 9. Descrição, opcional, até 120 caracteres.
 10. Em conta, “Já pago” ou “Já recebido”. Na fixa e no parcelado o texto é “Primeira já paga” ou “Primeira já recebida”, e só a primeira nasce paga. O controle já vem marcado quando a data é hoje ou anterior. No cartão o controle some. A compra única já nasce na fatura. A fixa no cartão ainda usa esse padrão por baixo: a primeira nasce confirmada se a data já chegou; as seguintes nascem previstas.
-11. Em receita, “Entra no dízimo” começa marcado. Ao salvar, nasce uma despesa **Dízimo** de 10% na mesma conta, prevista, com vencimento no dia 30 do mês da receita. Na fixa, cada ocorrência nova ganha a sua. Desmarcado, não nasce despesa.
+11. Em receita, “Entra no dízimo” começa marcado. Ao salvar, nasce uma despesa **Dízimo** de 10% na mesma conta, na categoria Reino · Geral, prevista, com vencimento no dia 30 do mês da receita. Na fixa, cada ocorrência nova ganha a sua. Desmarcado, não nasce despesa. O que já estava lançado vira uma despesa por pessoa no mês, para aparecer no Eu de quem recebeu.
 
 O total parcelado precisa ter pelo menos 1 centavo por parcela. Fixa vazia vira “Despesa fixa” ou “Receita fixa”. Parcelado vazio vira “Parcelado”.
 
@@ -231,7 +231,7 @@ Depois de lançar, o aviso é “Despesa lançada” ou “Receita lançada”, 
 
 Ver: valor, status, categorias, de quem, cartão ou conta (só leitura), data, vencimento se for diferente, pago em, parcela `n/N`, e se veio de recorrência ou parcelamento.
 
-Dá para editar descrição, valor, categoria e de quem. Na receita, “Entra no dízimo” cria, atualiza ou apaga a despesa de 10% se ela ainda não foi paga. Numa parcela, a edição também tem a quantidade de parcelas. Dá para mudar a data de um lançamento avulso. Fixa ou parcela **no cartão** não deixa mudar a data: ela segue a fatura. Fixa ou parcela **em conta** só muda o dia dentro do mesmo mês.
+Dá para editar descrição, valor, categoria e de quem. Na receita, “Entra no dízimo” cria, atualiza ou apaga a despesa de 10% em Reino · Geral, se ela ainda não foi paga. Numa parcela, a edição também tem a quantidade de parcelas. Dá para mudar a data de um lançamento avulso. Fixa ou parcela **no cartão** não deixa mudar a data: ela segue a fatura. Fixa ou parcela **em conta** só muda o dia dentro do mesmo mês.
 
 Não dá para trocar o cartão, nem levar uma compra do cartão para uma conta, nem o contrário. A tela não oferece esses campos. Mudar a data de uma compra avulsa no cartão muda a fatura.
 
