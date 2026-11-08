@@ -21,7 +21,7 @@ import {
   type Split,
 } from '../contracts';
 import { PlanSchedule } from '../PlanSchedule';
-import { Bar, Confirm, ErrorText, Icon, Loading, MoneyInput, NewButton, Sheet, brl, shortDate } from '../ui';
+import { Bar, Confirm, ErrorText, Icon, Loading, MoneyInput, NewButton, Seg, Sheet, brl, shortDate } from '../ui';
 
 /**
  * Contratos: financiamentos e empréstimos. Cada contrato é um parcelamento em conta marcado
@@ -307,6 +307,59 @@ function ContractCard({ c, mine, onOpen, onMenu }: { c: Contract; mine: boolean;
   );
 }
 
+/** Lista resumida: uma linha por contrato, com o essencial (quanto falta, progresso e a próxima). */
+function ContractRow({ c, mine, onOpen, onMenu }: { c: Contract; mine: boolean; onOpen: () => void; onMenu: (action: ContractMenuAction) => void }) {
+  const housePeople = useHousePeople();
+  const ratio = c.active_count ? c.paid_count / c.active_count : 0;
+  const split = c.shares && c.shares.length >= 2;
+  const ends = c.ends_on ? `${shortMonth(c.ends_on)}/${c.ends_on.slice(2, 4)}` : null;
+  const owners = c.shares?.length ? c.shares.map((share) => share.user_id) : c.for_user_id != null ? [c.for_user_id] : [];
+  const late = c.next?.overdue;
+  return (
+    <div className={`contract-row${late ? ' late' : ''}`}>
+      <button type="button" className="contract-row-hit" onClick={onOpen}>
+        <ContractIcon type={c.contract_type} small />
+        <span className="contract-row-body">
+          <span className="contract-row-top">
+            <b className="contract-row-name">{c.description}</b>
+            <b className="num">{brl(c.remaining_cents)}</b>
+          </span>
+          <span className="contract-row-mid">
+            <span className="contract-row-who" aria-label={owners.map((id) => personOf(housePeople, id).label).join(' e ')}>
+              {owners.map((id) => (
+                <i key={id} style={{ background: personOf(housePeople, id).color }} />
+              ))}
+            </span>
+            <small>
+              {[c.lender, `${c.paid_count}/${c.active_count}`, ends ? `até ${ends}` : null].filter(Boolean).join(' · ')}
+            </small>
+            <small className="contract-row-left">{c.remaining_cents > 0 ? (mine && split ? 'sua parte' : 'falta') : 'quitado'}</small>
+          </span>
+          <Bar ratio={ratio} />
+          {c.next && (
+            <small className="contract-row-next">
+              {late ? 'Atrasada' : 'Próxima'} {shortDate(c.next.due_on)} · <b className="num">{brl(c.next.amount_cents)}</b>
+              {mine && split ? ' (sua parte)' : ''}
+            </small>
+          )}
+        </span>
+      </button>
+      <ContractMenu contract={c} onPick={onMenu} />
+    </div>
+  );
+}
+
+const VIEW_KEY = 'fin-contratos-view';
+type ContractsLayout = 'cards' | 'list';
+
+function loadView(): ContractsLayout {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards';
+  } catch {
+    return 'cards';
+  }
+}
+
 function confirmText(contract: Contract, action: 'cancel' | 'delete', mine: boolean) {
   const kept = contract.paid_count === 1
     ? ' A prestação já paga continua no Extrato e no saldo.'
@@ -339,6 +392,15 @@ export function ContratosPage() {
   const [schedule, setSchedule] = useState<Contract | null>(null);
   const [form, setForm] = useState<Contract | null>(null);
   const [pending, setPending] = useState<{ contract: Contract; action: 'cancel' | 'delete' } | null>(null);
+  const [view, setView] = useState<ContractsLayout>(loadView);
+  const pickView = (next: ContractsLayout) => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Sem armazenamento, a escolha vale só nesta visita.
+    }
+  };
   const act = useAction(
     ({ contract, action }: { contract: Contract; action: 'cancel' | 'unmark' | 'delete' }) =>
       action === 'cancel'
@@ -375,6 +437,15 @@ export function ContratosPage() {
         <NewButton label="Novo contrato" onClick={add} />
       </div>
       <PersonFilter />
+      <Seg
+        label="Como mostrar os contratos"
+        value={view}
+        onChange={pickView}
+        options={[
+          ['cards', <><Icon.grid /> Detalhado</>],
+          ['list', <><Icon.list /> Lista</>],
+        ]}
+      />
       <p className="page-desc">
         {mine
           ? 'Seus financiamentos e empréstimos. No dividido, os valores são só a sua parte.'
@@ -403,11 +474,19 @@ export function ContratosPage() {
               <b className="num">{brl(d.month_cents)}</b>
             </div>
           </section>
-          <div className="stack">
-            {d.contracts.map((c) => (
-              <ContractCard key={c.id} c={c} mine={mine} onOpen={() => setSchedule(c)} onMenu={(action) => onMenu(c, action)} />
-            ))}
-          </div>
+          {view === 'list' ? (
+            <section className="card contract-list" aria-label="Contratos">
+              {d.contracts.map((c) => (
+                <ContractRow key={c.id} c={c} mine={mine} onOpen={() => setSchedule(c)} onMenu={(action) => onMenu(c, action)} />
+              ))}
+            </section>
+          ) : (
+            <div className="stack">
+              {d.contracts.map((c) => (
+                <ContractCard key={c.id} c={c} mine={mine} onOpen={() => setSchedule(c)} onMenu={(action) => onMenu(c, action)} />
+              ))}
+            </div>
+          )}
         </>
       )}
       {schedule && (

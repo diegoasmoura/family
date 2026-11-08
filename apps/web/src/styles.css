@@ -3711,3 +3711,37 @@ main.page { gap: 12px; }
   font-size: 12px;
   color: var(--muted);
 }
+
+/* Contratos em lista: uma linha por contrato, dentro de um cartão só. */
+.contract-list { padding: 4px 0; gap: 0; }
+.contract-row { position: relative; border-top: 1px solid var(--line); }
+.contract-row:first-child { border-top: 0; }
+.contract-row-hit {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 52px 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.contract-row-hit:active { background: var(--press); }
+.contract-row .ct-ic { margin-top: 2px; }
+.contract-row .contract-more { top: 8px; right: 4px; }
+.contract-row-body { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.contract-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.contract-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.contract-row-top .num { flex: none; font-size: 15px; font-weight: 700; }
+.contract-row-mid { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
+.contract-row-mid > small:not(.contract-row-left) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contract-row-left { flex: none; }
+.contract-row-who { display: inline-flex; flex: none; }
+.contract-row-who i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--surface); }
+.contract-row-who i + i { margin-left: -4px; }
+.contract-row-next { font-size: 12px; color: var(--muted); }
+.contract-row-next b { color: var(--ink); font-weight: 600; }
+.contract-row.late .contract-row-next,
+.contract-row.late .contract-row-next b { color: var(--neg); }

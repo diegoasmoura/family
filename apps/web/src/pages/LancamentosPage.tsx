@@ -388,7 +388,7 @@ export function LancamentosPage() {
   const sliceInvoices = useMemo(() => {
     const list: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
     if (!slice) return list;
-    return list.flatMap((inv) => keepLines(inv, (line) => lineSlice(line) === slice && (line.kind === 'other' || line.tx.include_in_reports)));
+    return list.flatMap((inv) => keepLines(inv, (line) => lineSlice(line) === slice && (line.kind === 'other' || Boolean(line.tx.include_in_reports))));
   }, [q.data, income, slice]);
   // Quanto é de cada um no Nós, com a mesma faixa de recorrência que estiver aberta.
   const whoTotals = useMemo(() => {
