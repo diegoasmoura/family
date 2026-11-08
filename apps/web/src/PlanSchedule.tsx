@@ -140,6 +140,7 @@ function asTx(line: RawLine): Tx {
     invoice_id: line.invoice_id,
     plan_id: line.plan_id,
     installment_no: Number(line.installment_no),
+    plan_installments: null,
     recurrence_id: null,
     for_user_id: line.for_user_id,
     for_user_name: line.for_user_name,

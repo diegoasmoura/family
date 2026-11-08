@@ -14,12 +14,15 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
   const [editing, setEditing] = useState(mode !== 'view');
   const amountOnly = mode === 'amount';
   const [ask, setAsk] = useState(false);
+  const planCount = tx.plan_installments ?? (tx.installment_label?.split('/')[1] ? Number(tx.installment_label.split('/')[1]) : null);
+  const [count, setCount] = useState<number | null>(planCount);
   const [form, setForm] = useState({
     description: tx.description,
     amount_cents: tx.amount_cents as number | null,
     category_id: tx.category_id,
     occurred_on: tx.occurred_on,
     for_user_id: tx.for_user_id ?? null,
+    counts_for_tithe: tx.kind === 'income' ? (tx.counts_for_tithe ?? 1) : 0,
   });
   const cats = useApi<Category[]>(`/categories?kind=${tx.kind}`);
   const createCategory = useAction(
@@ -47,9 +50,14 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
   const generated = tx.recurrence_id ? 'recorrência' : tx.plan_id ? 'parcelamento' : null;
   const amountChanged = form.amount_cents != null && form.amount_cents !== tx.amount_cents;
   const dateChanged = !amountOnly && form.occurred_on !== tx.occurred_on;
+  const nameForAll = Boolean(tx.plan_id) && !amountOnly && (form.description ?? '').trim() !== (tx.description ?? '');
+  const countChanged = Boolean(tx.plan_id) && !amountOnly && count != null && count !== planCount;
   const localChanged =
     !amountOnly &&
-    ((form.description ?? '') !== (tx.description ?? '') || form.category_id !== tx.category_id || (form.for_user_id ?? null) !== (tx.for_user_id ?? null));
+    ((!tx.plan_id && (form.description ?? '') !== (tx.description ?? '')) ||
+      form.category_id !== tx.category_id ||
+      (form.for_user_id ?? null) !== (tx.for_user_id ?? null) ||
+      (income && form.counts_for_tithe !== (tx.counts_for_tithe ?? 1)));
   const dayName = income ? 'dia de recebimento' : 'dia de pagamento';
   const question = dateChanged
     ? amountChanged
@@ -75,6 +83,14 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
           if (!covered || localChanged) await api(`/transactions/${tx.id}`, { method: 'PATCH', body });
           return;
         }
+        if (tx.plan_id && (nameForAll || countChanged)) {
+          await api(`/installments/${tx.plan_id}/reshape`, {
+            body: {
+              ...(nameForAll ? { description: (form.description ?? '').trim() } : {}),
+              ...(countChanged ? { installments: count } : {}),
+            },
+          });
+        }
         if (series && tx.plan_id && tx.installment_no) {
           await api(`/installments/${tx.plan_id}/apply-from`, {
             body: {
@@ -93,7 +109,13 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
         }
         await api(`/transactions/${tx.id}`, { method: 'PATCH', body });
       },
-      series ? 'Esta e as seguintes foram atualizadas' : amountOnly ? 'Valor alterado' : 'Lançamento atualizado',
+      series
+        ? 'Esta e as seguintes foram atualizadas'
+        : nameForAll || countChanged
+          ? 'Nome e quantidade atualizados em todas as parcelas'
+          : amountOnly
+            ? 'Valor alterado'
+            : 'Lançamento atualizado',
     );
   };
 
@@ -246,8 +268,31 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
             <>
               <label className="f">
                 <span>Descrição</span>
-                <input value={form.description ?? ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+                <input value={form.description ?? ''} maxLength={120} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
               </label>
+              {tx.plan_id && (
+                <div className="parcel-count">
+                  <span>Parcelas</span>
+                  <div className="stepper">
+                    <button type="button" aria-label="Menos uma parcela" onClick={() => setCount((n) => Math.max(2, (n ?? 2) - 1))}>
+                      −
+                    </button>
+                    <input
+                      inputMode="numeric"
+                      aria-label="Quantidade de parcelas"
+                      value={count ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, '');
+                        setCount(raw ? Math.min(480, Number(raw)) : null);
+                      }}
+                    />
+                    <button type="button" aria-label="Mais uma parcela" onClick={() => setCount((n) => Math.min(480, (n ?? 1) + 1))}>
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+              {tx.plan_id && <small>O nome e a quantidade valem para todas as parcelas.</small>}
               <CategoryPicker
                 categories={cats.data}
                 value={form.category_id}
@@ -256,6 +301,20 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
                 creating={createCategory.isPending}
               />
               <ForWhom value={form.for_user_id} onChange={(for_user_id) => setForm((f) => ({ ...f, for_user_id }))} />
+              {income && (
+                <label className="toggle">
+                  <span>
+                    Entra no dízimo
+                    <br />
+                    <small>Despesa de 10% na mesma conta, com vencimento no dia 30. O que já foi pago não muda.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.counts_for_tithe)}
+                    onChange={(e) => setForm((f) => ({ ...f, counts_for_tithe: e.target.checked ? 1 : 0 }))}
+                  />
+                </label>
+              )}
             </>
           )}
           {!amountOnly && !(generated && tx.card_id) && (
@@ -282,7 +341,10 @@ export function TxSheet({ tx, onClose, mode = 'view' }: { tx: Tx; onClose: () =>
             <button type="button" className="btn ghost grow" onClick={() => (mode === 'view' ? setEditing(false) : onClose())}>
               Cancelar
             </button>
-            <button className="btn grow" disabled={!form.amount_cents || act.isPending}>
+            <button
+              className="btn grow"
+              disabled={!form.amount_cents || act.isPending || (Boolean(tx.plan_id) && !amountOnly && (!(form.description ?? '').trim() || count == null || count < 2))}
+            >
               Salvar
             </button>
           </div>

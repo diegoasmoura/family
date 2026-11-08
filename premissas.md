@@ -57,6 +57,8 @@ Excluir é lógico: o registro some da tela e o histórico de exclusão fica no 
 
 Receita não entra em cartão.
 
+**Dízimo.** Receita pode entrar no dízimo. A opção começa marcada, e o que já estava lançado também entra. Dez por cento, em centavos arredondados, vira uma despesa prevista na mesma conta, com vencimento no dia 30 do mês da receita. Fevereiro usa o último dia. Essa despesa não nasce paga. O que já estava lançado vira uma despesa por mês, com dez por cento da soma daquele mês, na conta que mais recebeu. Receita lançada depois disso ganha a própria despesa e não entra de novo nessa soma. Mudar o valor atualiza o dízimo se ele ainda não foi pago. Desmarcar ou excluir a receita apaga o dízimo em aberto. O que já foi pago fica.
+
 **Conta.** A competência é o mês da data. Se a data é hoje ou já passou, ou se a pessoa marcou como pago, nasce efetivado e com data de pagamento. Senão nasce previsto. Pagar ou receber abre a folha Efetivar: valor, data de pagamento, vencimento e conta. Na despesa, se a data de pagamento passa do vencimento, a folha avisa o atraso e oferece encargos. A soma do valor com os encargos vale só para esta ocorrência e é o que sai da conta. Encargos em zero não mudam o valor. Desfazer o pagamento devolve a linha para previsto e mantém o valor já somado.
 
 **Cartão.** Compra avulsa ou parcela nasce efetivada na fatura, sem data de pagamento. Ela só fica “paga” quando a fatura quita. Cobrança fixa no cartão nasce prevista até alguém confirmar a ocorrência. Compra de cartão não usa a folha Efetivar: a quitação é a fatura. O menu só confirma a compra ainda prevista.
@@ -84,7 +86,9 @@ O estado da linha (Pago, Atrasado, Próximo, Previsto) é calculado, não gravad
 
 **Parcelamento.** Na criação, todas as parcelas nascem juntas. Em conta, a primeira cai no mês da compra e pode nascer paga. No cartão, todas nascem efetivadas, uma fatura por mês. Receita não parcela. Cancelar o restante apaga, na conta, o que ainda não foi pago e, no cartão, o que ainda está em fatura que não fechou.
 
-Na fixa e no parcelamento em conta, mudar o valor ou o dia pergunta se vale só para esta ou também para as seguintes. O mês não muda. O dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Descrição, categoria e de quem mudam só a ocorrência aberta. No cartão a data segue a fatura.
+Na fixa e no parcelamento em conta, mudar o valor ou o dia pergunta se vale só para esta ou também para as seguintes. O mês não muda. O dia novo entra nas seguintes, mesmo nas já pagas. O valor novo não mexe no que já foi pago. Na fixa, descrição, categoria e de quem mudam só a ocorrência aberta. No parcelamento, o nome e a quantidade mudam em todas as parcelas, pagas ou não. Categoria e de quem continuam só na ocorrência aberta. No cartão a data segue a fatura.
+
+A quantidade nova acrescenta parcelas depois da última, cada uma com o valor da última. Em conta, a data segue o dia da última, mês a mês. No cartão, cada parcela nova cai na fatura seguinte do plano. Reduzir a quantidade tira as que passam do número, só se ainda estiverem em aberto: em conta, não pagas; no cartão, em fatura que ainda não fechou. O total gravado no plano passa a ser a soma das parcelas que ficam.
 
 **Contrato (financiamento ou empréstimo).** É um parcelamento em conta marcado como contrato, não um segundo sistema: cada prestação continua sendo uma despesa normal do mês, com as mesmas regras do parcelamento, e por isso não conta duas vezes em lugar nenhum. A aba Contratos só mostra esses parcelamentos de outro jeito (quanto falta, em que parcela está, quando termina). O dinheiro do empréstimo que cai na conta sobe o saldo, mas não é receita do mês, como uma transferência. Compra parcelada no cartão não é contrato.
 

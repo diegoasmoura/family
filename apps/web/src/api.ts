@@ -164,11 +164,15 @@ export interface Tx {
   invoice_due_on?: string | null;
   plan_id: number | null;
   installment_no: number | null;
+  /** Quantidade de parcelas do plano, o N de "2/12". */
+  plan_installments: number | null;
   recurrence_id: number | null;
   for_user_id: number | null;
   for_user_name: string | null;
   status: 'planned' | 'posted';
   include_in_reports: number;
+  /** 1 quando a receita entra no dízimo. */
+  counts_for_tithe?: number;
   overridden: number;
   deleted_at: string | null;
   /** paid, overdue, near (até 7 dias), planned. `card` permanece no tipo e não volta da API: a compra segue o vencimento da fatura. */

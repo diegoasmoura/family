@@ -26,6 +26,7 @@ import {
   personPart,
   splitByShares,
   splitInstallments,
+  titheCents,
   visibleStreak,
   type Movement,
 } from './index';
@@ -36,6 +37,13 @@ describe('dinheiro', () => {
     expect(formatBRL(1151118)).toBe('R$ 11.511,18');
     expect(formatBRL(-500)).toBe('-R$ 5,00');
     expect(formatBRL(0)).toBe('R$ 0,00');
+  });
+
+  it('tira 10% em centavos arredondados', () => {
+    expect(titheCents(100000)).toBe(10000);
+    expect(titheCents(10001)).toBe(1000);
+    expect(titheCents(335)).toBe(34);
+    expect(titheCents(4)).toBe(0);
   });
 
   it('converte texto em centavos sem ponto flutuante', () => {

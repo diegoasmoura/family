@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Db } from '@fin/db';
 import { addMonthsToDate, dateInMonth, monthOf, splitByShares, splitInstallments } from '@fin/domain';
 import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, parse, update, zCents, zDate, zFlag, zId, zUuid, type Ctx } from '../core';
-import { invoiceForCardPurchase } from './cards';
+import { invoiceForCardPurchase, type Card } from './cards';
 import { assertCategory } from './categories';
 import { normalizeSplit, splitFields } from './split';
 import { assertHouseholdUser, assertPaymentTarget, decorateTransactions, TX_SELECT } from './transactions';
@@ -313,6 +313,15 @@ export async function createPlan(ctx: Ctx, input: z.input<typeof planBody>) {
   return { plan: await loadPlan(ctx, result), created: true };
 }
 
+/** Parcela que não pode sair: em conta, já paga; no cartão, fatura já fechada. */
+function parcelKept(
+  row: { account_id: number | null; card_id: number | null; paid_on: string | null; closing_date: string | null },
+  today: string,
+) {
+  if (row.card_id != null) return row.closing_date != null && row.closing_date <= today;
+  return row.paid_on != null;
+}
+
 export function installmentsRouter(): Router {
   const r = Router();
 
@@ -609,6 +618,152 @@ export function installmentsRouter(): Router {
       return rows.length;
     });
     res.json({ restored, plan: await loadPlan(req.ctx, id) });
+  });
+
+  /**
+   * O nome passa a valer em todas as parcelas, pagas ou não.
+   * A quantidade nova acrescenta parcelas depois da última, com o mesmo valor,
+   * ou tira as que passam do número quando ainda estão em aberto.
+   * Ao mudar a quantidade, o total do plano vira a soma das que ficam.
+   */
+  r.post('/:id/reshape', async (req, res) => {
+    const id = idParam(req.params.id);
+    const plan = await owned<{
+      description: string;
+      installments: number;
+      card_id: number | null;
+      purchased_on: string;
+      household_id: number;
+    }>(req.ctx, 'installment_plans', id, 'Parcelamento');
+    const body = parse(
+      z.object({
+        description: z.string().trim().min(1, 'Dê um nome ao parcelamento').max(120).optional(),
+        installments: z.number().int().min(2).max(480).optional(),
+      }),
+      req.body,
+    );
+    if (body.description === undefined && body.installments === undefined) throw badRequest('Informe o nome ou a quantidade de parcelas');
+    const currentCount = num(plan.installments);
+    const nextCount = body.installments ?? currentCount;
+    await req.ctx.db.tx(async (db) => {
+      const now = nowIso();
+      if (body.description !== undefined) {
+        await update(db, 'installment_plans', id, { description: body.description, updated_at: now });
+        await db.run('UPDATE transactions SET description = ?, updated_at = ? WHERE plan_id = ? AND deleted_at IS NULL', [
+          body.description,
+          now,
+          id,
+        ]);
+      }
+      if (nextCount === currentCount) return;
+
+      const rows = await db.all<{
+        installment_no: number;
+        description: string;
+        amount_cents: number;
+        occurred_on: string;
+        due_on: string | null;
+        paid_on: string | null;
+        account_id: number | null;
+        card_id: number | null;
+        category_id: number | null;
+        for_user_id: number | null;
+        split_user_id: number | null;
+        split_bp: number | null;
+        include_in_reports: number;
+        closing_date: string | null;
+      }>(
+        `SELECT t.installment_no, t.description, t.amount_cents, t.occurred_on, t.due_on, t.paid_on, t.account_id, t.card_id,
+                t.category_id, t.for_user_id, t.split_user_id, t.split_bp, t.include_in_reports, i.closing_date
+           FROM transactions t
+           LEFT JOIN invoices i ON i.id = t.invoice_id
+          WHERE t.plan_id = ? AND t.deleted_at IS NULL
+          ORDER BY t.installment_no, t.id`,
+        [id],
+      );
+      const locked = rows.find((row) => num(row.installment_no) > nextCount && parcelKept(row, req.ctx.today));
+      if (locked) {
+        const no = num(locked.installment_no);
+        const why = locked.card_id != null ? 'já está numa fatura fechada' : 'já foi paga';
+        throw badRequest(`A parcela ${no} ${why}. A quantidade precisa ser pelo menos ${no}.`);
+      }
+      if (nextCount < currentCount) {
+        await db.run('UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE plan_id = ? AND deleted_at IS NULL AND installment_no > ?', [
+          now,
+          now,
+          id,
+          nextCount,
+        ]);
+      } else {
+        const lastNo = rows.reduce((max, row) => Math.max(max, num(row.installment_no)), 0);
+        const template = rows.filter((row) => num(row.installment_no) === lastNo);
+        if (!template.length) throw badRequest('Não há parcela para copiar');
+        const card = plan.card_id
+          ? await db.get<Card>('SELECT * FROM credit_cards WHERE id = ? AND deleted_at IS NULL', [plan.card_id])
+          : undefined;
+        if (plan.card_id && !card) throw badRequest('Cartão não encontrado');
+        const lastDate = String(template[0].due_on || template[0].occurred_on);
+        const description = String(template[0].description || plan.description);
+        for (let k = currentCount + 1; k <= nextCount; k++) {
+          if (rows.some((row) => num(row.installment_no) === k)) continue;
+          let schedule: Record<string, unknown>;
+          if (card) {
+            const { invoiceId, referenceMonth } = await invoiceForCardPurchase(
+              db,
+              { ...card, id: num(card.id), closing_day: num(card.closing_day), due_day: num(card.due_day) },
+              plan.purchased_on,
+              k - 1,
+            );
+            schedule = {
+              card_id: num(card.id),
+              invoice_id: invoiceId,
+              account_id: null,
+              competence_month: referenceMonth,
+              occurred_on: plan.purchased_on,
+              due_on: null,
+              status: 'posted',
+              paid_on: null,
+            };
+          } else {
+            const date = addMonthsToDate(lastDate, k - lastNo);
+            schedule = {
+              card_id: null,
+              invoice_id: null,
+              competence_month: monthOf(date),
+              occurred_on: date,
+              due_on: date,
+              status: 'planned',
+              paid_on: null,
+            };
+          }
+          for (const line of template) {
+            await insert(db, 'transactions', {
+              client_uuid: newUuid(),
+              household_id: plan.household_id,
+              kind: 'expense',
+              description,
+              amount_cents: num(line.amount_cents),
+              category_id: line.category_id,
+              plan_id: id,
+              installment_no: k,
+              for_user_id: line.for_user_id,
+              split_user_id: line.split_user_id,
+              split_bp: line.split_bp,
+              include_in_reports: num(line.include_in_reports) ? 1 : 0,
+              overridden: 0,
+              created_by: req.ctx.userId,
+              created_at: now,
+              updated_at: now,
+              ...schedule,
+              ...(!card ? { account_id: line.account_id } : {}),
+            });
+          }
+        }
+      }
+      const sum = await db.get<{ s: number }>('SELECT COALESCE(SUM(amount_cents), 0) AS s FROM transactions WHERE plan_id = ? AND deleted_at IS NULL', [id]);
+      await update(db, 'installment_plans', id, { installments: nextCount, total_cents: num(sum?.s), updated_at: now });
+    });
+    res.json(await loadPlan(req.ctx, id));
   });
 
   /**

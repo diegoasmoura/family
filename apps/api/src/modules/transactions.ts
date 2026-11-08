@@ -33,6 +33,7 @@ import {
   type Ctx,
 } from '../core';
 import { cardInvoiceBalances, invoiceForCardPurchase, type Card } from './cards';
+import { syncTitheForIncome } from './tithe';
 import { assertCategory } from './categories';
 import { ensureRecurrences } from './recurrences';
 import { personWhere } from './queries';
@@ -96,6 +97,7 @@ export function decorateTransactions(rows: any[], today: string) {
       status_label: statusLabel(display, t.kind),
       recurrence_class: classifyRecurrence(t),
       installment_label: t.plan_id ? `${t.installment_no}/${t.plan_installments}` : null,
+      plan_installments: t.plan_id ? num(t.plan_installments) : null,
       has_following: num(t.has_following),
     };
   });
@@ -133,6 +135,7 @@ export const createTxBody = z.object({
   account_id: zId.nullish(),
   card_id: zId.nullish(),
   include_in_reports: zFlag.optional(),
+  counts_for_tithe: zFlag.optional(),
   for_user_id: zId.nullable().optional(),
   ...splitFields,
 });
@@ -178,6 +181,7 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
       occurred_on: occurredOn,
       category_id: body.category_id ?? null,
       include_in_reports: body.include_in_reports ?? 1,
+      counts_for_tithe: body.kind === 'income' ? (body.counts_for_tithe ?? 0) : 0,
       for_user_id: forUserId,
       ...split,
       created_by: ctx.userId,
@@ -185,6 +189,7 @@ export async function createTransaction(ctx: Ctx, input: z.input<typeof createTx
       updated_at: now,
       ...fields,
     });
+    if (body.kind === 'income') await syncTitheForIncome(db, ctx.householdId, ctx.userId, txId, true);
     return txId;
   });
   return { transaction: await loadTx(ctx, id), created: true };
@@ -395,6 +400,7 @@ export function transactionsRouter(): Router {
         amount_cents: zCents.optional(),
         category_id: zId.nullable().optional(),
         include_in_reports: zFlag.optional(),
+        counts_for_tithe: zFlag.optional(),
         for_user_id: zId.nullable().optional(),
         ...splitFields,
         occurred_on: zDate.optional(),
@@ -437,6 +443,7 @@ export function transactionsRouter(): Router {
       // Editar uma ocorrência gerada a desliga da recorrência/plano original.
       if (generated && Object.keys(body).some((k) => k !== 'include_in_reports')) patch.overridden = 1;
       await update(db, 'transactions', id, patch);
+      if (tx.kind === 'income') await syncTitheForIncome(db, req.ctx.householdId, req.ctx.userId, id, false, tx.competence_month);
     });
     res.json(await loadTx(req.ctx, id));
   });
@@ -464,7 +471,10 @@ export function transactionsRouter(): Router {
     const id = idParam(req.params.id);
     await loadTx(req.ctx, id);
     const now = nowIso();
-    await update(req.ctx.db, 'transactions', id, { deleted_at: now, updated_at: now });
+    await req.ctx.db.tx(async (db) => {
+      await update(db, 'transactions', id, { deleted_at: now, updated_at: now });
+      await syncTitheForIncome(db, req.ctx.householdId, req.ctx.userId, id);
+    });
     res.json(await loadTx(req.ctx, id));
   });
 

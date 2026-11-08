@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createDb, migrate, type Db } from '@fin/db';
 import { createApp } from './app';
 import { loadConfig } from './config';
+import { backfillTithes } from './modules/tithe';
 
 const TODAY = '2026-10-08';
 const targets: [string, string][] = [['sqlite', 'sqlite::memory:']];
@@ -398,6 +399,94 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await ok(await agent.get('/api/transactions?month=2026-10&kind=income'))).items).toHaveLength(0);
       await ok(await agent.post(`/api/transactions/${t.id}/restore`).send({}));
       expect((await ok(await agent.get('/api/transactions?month=2026-10&kind=income'))).items).toHaveLength(1);
+    });
+
+    it('receita marcada gera dízimo de 10% na mesma conta, no dia 30', async () => {
+      const { transaction } = await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Salário', amount_cents: 100000, occurred_on: '2026-10-05', account_id: ids.bradesco, counts_for_tithe: true }),
+        201,
+      );
+      const tithe = await db.get<any>('SELECT * FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [transaction.id]);
+      expect(tithe).toMatchObject({
+        kind: 'expense', description: 'Dízimo', amount_cents: 10000, account_id: ids.bradesco,
+        due_on: '2026-10-30', occurred_on: '2026-10-30', competence_month: '2026-10', status: 'planned', paid_on: null,
+      });
+
+      const feb = await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Extra', amount_cents: 10000, occurred_on: '2026-02-10', account_id: ids.bradesco, counts_for_tithe: true }),
+        201,
+      );
+      const febTithe = await db.get<any>('SELECT due_on, amount_cents FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [feb.transaction.id]);
+      expect(febTithe).toMatchObject({ due_on: '2026-02-28', amount_cents: 1000 });
+
+      const skipped = await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Presente', amount_cents: 80000, occurred_on: '2026-10-06', account_id: ids.bradesco, counts_for_tithe: false }),
+        201,
+      );
+      expect(await db.get('SELECT id FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [skipped.transaction.id])).toBeUndefined();
+
+      await ok(await agent.patch(`/api/transactions/${transaction.id}`).send({ amount_cents: 200000 }));
+      expect(Number((await db.get<any>('SELECT amount_cents FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [transaction.id])).amount_cents)).toBe(20000);
+
+      const open = await db.get<any>('SELECT id FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [transaction.id]);
+      await ok(await agent.post(`/api/transactions/${open.id}/pay`).send({ paid_on: '2026-10-30' }));
+      await ok(await agent.patch(`/api/transactions/${transaction.id}`).send({ amount_cents: 300000 }));
+      expect(Number((await db.get<any>('SELECT amount_cents, paid_on FROM transactions WHERE id = ?', [open.id])).amount_cents)).toBe(20000);
+
+      await ok(await agent.patch(`/api/transactions/${feb.transaction.id}`).send({ counts_for_tithe: 0 }));
+      expect(await db.get('SELECT id FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [feb.transaction.id])).toBeUndefined();
+
+      await ok(await agent.delete(`/api/transactions/${skipped.transaction.id}`));
+      const linked = await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Freelance', amount_cents: 50000, occurred_on: '2026-11-02', account_id: ids.nubank, counts_for_tithe: true }),
+        201,
+      );
+      await ok(await agent.delete(`/api/transactions/${linked.transaction.id}`));
+      expect(await db.get('SELECT id FROM transactions WHERE tithe_income_id = ? AND deleted_at IS NULL', [linked.transaction.id])).toBeUndefined();
+    });
+
+    it('fixa de receita gera o dízimo de cada ocorrência nova', async () => {
+      await ok(
+        await agent.post('/api/recurrences').send({ kind: 'income', description: 'Salário', amount_cents: 100000, account_id: ids.bradesco, day_of_month: 15, start_month: '2026-10', counts_for_tithe: true }),
+        201,
+      );
+      const rows = await db.all<any>("SELECT competence_month, amount_cents, due_on, status FROM transactions WHERE description = 'Dízimo' AND deleted_at IS NULL ORDER BY competence_month");
+      expect(rows.map((row) => [row.competence_month, Number(row.amount_cents), row.due_on, row.status])).toEqual([
+        ['2026-10', 10000, '2026-10-30', 'planned'],
+        ['2026-11', 10000, '2026-11-30', 'planned'],
+        ['2026-12', 10000, '2026-12-30', 'planned'],
+      ]);
+    });
+
+    it('o que já estava lançado vira um dízimo por mês, com 10% da soma', async () => {
+      const big = await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Salário', amount_cents: 200000, occurred_on: '2026-08-05', account_id: ids.bradesco, counts_for_tithe: false }),
+        201,
+      );
+      const small = await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Extra', amount_cents: 50000, occurred_on: '2026-08-20', account_id: ids.nubank, counts_for_tithe: false }),
+        201,
+      );
+      await db.run('UPDATE transactions SET counts_for_tithe = 1 WHERE id IN (?, ?)', [big.transaction.id, small.transaction.id]);
+      await backfillTithes(db);
+      const rows = await db.all<any>("SELECT description, amount_cents, account_id, due_on, status, tithe_month, for_user_id FROM transactions WHERE tithe_month IS NOT NULL AND deleted_at IS NULL");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        description: 'Dízimo', amount_cents: 25000, account_id: ids.bradesco, due_on: '2026-08-30', status: 'planned', tithe_month: '2026-08', for_user_id: null,
+      });
+      await backfillTithes(db);
+      expect(await db.all("SELECT id FROM transactions WHERE tithe_month = '2026-08' AND deleted_at IS NULL")).toHaveLength(1);
+
+      await ok(await agent.patch(`/api/transactions/${big.transaction.id}`).send({ amount_cents: 100000 }));
+      const after = await db.all<any>("SELECT amount_cents, tithe_income_id FROM transactions WHERE deleted_at IS NULL AND (tithe_month = '2026-08' OR tithe_income_id = ?)", [big.transaction.id]);
+      expect(after).toEqual([expect.objectContaining({ amount_cents: 15000, tithe_income_id: null })]);
+
+      await ok(
+        await agent.post('/api/transactions').send({ kind: 'income', description: 'Nova', amount_cents: 100000, occurred_on: '2026-08-28', account_id: ids.bradesco, counts_for_tithe: true }),
+        201,
+      );
+      const both = await db.all<any>("SELECT amount_cents, tithe_month, tithe_income_id FROM transactions WHERE description = 'Dízimo' AND competence_month = '2026-08' AND deleted_at IS NULL ORDER BY tithe_month DESC");
+      expect(both.map((row) => [Number(row.amount_cents), row.tithe_month != null])).toEqual([[15000, true], [10000, false]]);
     });
   });
 
@@ -930,6 +1019,93 @@ describe.each(targets)('API (%s)', (dialect, url) => {
         [2, 10000, '2026-09'],
         [3, 9000, '2026-10'],
       ]);
+    });
+
+    it('nome e quantidade do parcelamento valem para todas as parcelas', async () => {
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Geladeira', total_cents: 10000, installments: 3, account_id: ids.bradesco, purchased_on: '2026-10-01', first_paid: true,
+        }),
+        201,
+      );
+      const renamed = await ok(await agent.post(`/api/installments/${plan.id}/reshape`).send({ description: 'Geladeira nova' }));
+      const names = await db.all('SELECT description, paid_on FROM transactions WHERE plan_id = ? AND deleted_at IS NULL ORDER BY installment_no', [plan.id]);
+      expect(names.every((row) => row.description === 'Geladeira nova')).toBe(true);
+      expect(names[0].paid_on).toBeTruthy();
+      expect(renamed.description).toBe('Geladeira nova');
+      expect(renamed.installments).toBe(3);
+
+      const grown = await ok(await agent.post(`/api/installments/${plan.id}/reshape`).send({ installments: 4 }));
+      const rows = await db.all(
+        'SELECT installment_no, amount_cents, due_on, paid_on, description FROM transactions WHERE plan_id = ? AND deleted_at IS NULL ORDER BY installment_no',
+        [plan.id],
+      );
+      expect(rows.map((row) => [row.installment_no, Number(row.amount_cents), row.due_on, row.paid_on != null, row.description])).toEqual([
+        [1, 3334, '2026-10-01', true, 'Geladeira nova'],
+        [2, 3333, '2026-11-01', false, 'Geladeira nova'],
+        [3, 3333, '2026-12-01', false, 'Geladeira nova'],
+        [4, 3333, '2027-01-01', false, 'Geladeira nova'],
+      ]);
+      expect(grown.total_cents).toBe(13333);
+      expect(grown.installments).toBe(4);
+
+      const third = await db.get<{ id: number }>('SELECT id FROM transactions WHERE plan_id = ? AND installment_no = 3', [plan.id]);
+      await ok(await agent.post(`/api/transactions/${third.id}/pay`).send({ paid_on: '2026-12-01' }));
+      const blocked = await agent.post(`/api/installments/${plan.id}/reshape`).send({ installments: 2 });
+      expect(blocked.status).toBe(400);
+      expect(blocked.body.error).toMatch(/parcela 3 já foi paga/);
+
+      await ok(await agent.post(`/api/installments/${plan.id}/reshape`).send({ installments: 3 }));
+      const left = await db.all('SELECT installment_no FROM transactions WHERE plan_id = ? AND deleted_at IS NULL ORDER BY installment_no', [plan.id]);
+      expect(left.map((row) => row.installment_no)).toEqual([1, 2, 3]);
+      const shrunk = await ok(await agent.get(`/api/installments/${plan.id}`));
+      expect(shrunk.total_cents).toBe(10000);
+      expect(shrunk.installments).toBe(3);
+    });
+
+    it('parcela nova no cartão cai na fatura seguinte e a dividida copia as duas partes', async () => {
+      const me = await ok(await agent.get('/api/auth/me'));
+      await ok(await agent.post('/api/users').send({ name: 'Jhersyka', email: 'reshape@x.com', password: 'senha-segura' }), 201);
+      const hers = (await ok(await agent.get('/api/users'))).find((u: any) => u.email === 'reshape@x.com');
+      const { plan } = await ok(
+        await agent.post('/api/installments').send({
+          description: 'Casa', total_cents: 10000, installments: 2, account_id: ids.bradesco, purchased_on: '2026-10-05',
+          shares: [{ user_id: me.id, bp: 6000, account_id: ids.bradesco }, { user_id: hers.id, bp: 4000, account_id: ids.nubank }],
+        }),
+        201,
+      );
+      await ok(await agent.post(`/api/installments/${plan.id}/reshape`).send({ description: 'Casa nova', installments: 3 }));
+      const lines = await db.all(
+        'SELECT installment_no, for_user_id, amount_cents, account_id, description FROM transactions WHERE plan_id = ? AND deleted_at IS NULL ORDER BY installment_no, for_user_id',
+        [plan.id],
+      );
+      expect(lines.map((row) => [row.installment_no, row.for_user_id, Number(row.amount_cents), row.account_id, row.description])).toEqual([
+        [1, me.id, 3000, ids.bradesco, 'Casa nova'],
+        [1, hers.id, 2000, ids.nubank, 'Casa nova'],
+        [2, me.id, 3000, ids.bradesco, 'Casa nova'],
+        [2, hers.id, 2000, ids.nubank, 'Casa nova'],
+        [3, me.id, 3000, ids.bradesco, 'Casa nova'],
+        [3, hers.id, 2000, ids.nubank, 'Casa nova'],
+      ]);
+
+      const cardPlan = (await ok(
+        await agent.post('/api/installments').send({ description: 'Notebook', total_cents: 20000, installments: 2, card_id: ids.ultra, purchased_on: '2026-10-08' }),
+        201,
+      )).plan;
+      await ok(await agent.post(`/api/installments/${cardPlan.id}/reshape`).send({ installments: 3 }));
+      const months = await db.all('SELECT installment_no, competence_month, amount_cents FROM transactions WHERE plan_id = ? AND deleted_at IS NULL ORDER BY installment_no', [cardPlan.id]);
+      expect(months.map((row) => [row.installment_no, row.competence_month, Number(row.amount_cents)])).toEqual([
+        [1, '2026-12', 10000],
+        [2, '2027-01', 10000],
+        [3, '2027-02', 10000],
+      ]);
+      const old = (await ok(
+        await agent.post('/api/installments').send({ description: 'Antigo', total_cents: 30000, installments: 3, card_id: ids.ultra, purchased_on: '2026-06-08' }),
+        201,
+      )).plan;
+      const closed = await agent.post(`/api/installments/${old.id}/reshape`).send({ installments: 2 });
+      expect(closed.status).toBe(400);
+      expect(closed.body.error).toMatch(/fatura fechada/);
     });
 
     it('rejeita parcela repetida no mesmo plano', async () => {

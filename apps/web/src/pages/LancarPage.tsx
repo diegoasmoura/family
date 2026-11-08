@@ -46,6 +46,7 @@ export function LancarPage() {
     return asked === 'fixed' || asked === 'installment' ? asked : 'single';
   });
   const [amount, setAmount] = useState<number | null>(null);
+  const [tithe, setTithe] = useState(true);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [target, setTarget] = useState<Target>(() => {
     const cardId = (location.state as any)?.cardId;
@@ -114,7 +115,13 @@ export function LancarPage() {
       if (!totalCents || !chosen) throw new Error('Informe o valor e onde pagar');
       if (effectiveMode === 'installment' && (!countOk || installments == null || totalCents < installments)) throw new Error('O total precisa cobrir todas as parcelas');
       const where = chosen.type === 'card' ? { card_id: chosen.id } : { account_id: chosen.id };
-      const base = { description: description.trim(), category_id: categoryId, for_user_id: forUser, ...where };
+      const base = {
+        description: description.trim(),
+        category_id: categoryId,
+        for_user_id: forUser,
+        ...(kind === 'income' ? { counts_for_tithe: tithe } : {}),
+        ...where,
+      };
       if (effectiveMode === 'installment' && installments != null) {
         await api('/installments', { body: { ...base, description: base.description || 'Parcelado', total_cents: totalCents, installments, purchased_on: date, first_paid: chosen.type === 'account' && paid } });
         return;
@@ -323,6 +330,16 @@ export function LancarPage() {
             {sugg.data?.map((s) => <option key={s.description} value={s.description} />)}
           </datalist>
         </label>
+        {kind === 'income' && (
+          <label className="toggle">
+            <span>
+              Entra no dízimo
+              <br />
+              <small>Gera uma despesa de 10% na mesma conta, com vencimento no dia 30.</small>
+            </span>
+            <input type="checkbox" checked={tithe} onChange={(e) => setTithe(e.target.checked)} />
+          </label>
+        )}
         {chosen?.type === 'account' && (
           <label className="toggle">
             <span>

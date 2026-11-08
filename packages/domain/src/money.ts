@@ -61,3 +61,8 @@ export function parseBRL(input: string): Cents | null {
 export function sumCents(values: Cents[]): Cents {
   return values.reduce((acc, v) => acc + v, 0);
 }
+
+/** 10% em centavos, arredondado. Abaixo de 1 centavo o dízimo não nasce. */
+export function titheCents(amountCents: Cents): Cents {
+  return Math.round(amountCents * 10 / 100);
+}

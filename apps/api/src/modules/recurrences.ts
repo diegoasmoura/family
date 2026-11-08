@@ -13,6 +13,7 @@ import {
   parse,
   update,
   zCents,
+  zFlag,
   zId,
   zMonth,
   zUuid,
@@ -21,6 +22,7 @@ import {
 import { ensureInvoice, type Card } from './cards';
 import { assertCategory } from './categories';
 import { normalizeSplit, splitFields } from './split';
+import { deleteOpenTithesMatching, syncTitheForIncome } from './tithe';
 import { assertHouseholdUser, assertPaymentTarget } from './transactions';
 
 /** Quantos meses à frente as recorrências ficam materializadas. */
@@ -43,6 +45,7 @@ interface Recurrence {
   for_user_id: number | null;
   split_user_id: number | null;
   split_bp: number | null;
+  counts_for_tithe: number;
 }
 
 /** Datas e fatura de uma ocorrência. No cartão, a competência é o mês da fatura. */
@@ -96,6 +99,7 @@ export async function ensureRecurrences(ctx: Ctx, untilMonth: string, onlyId?: n
           status: 'planned',
           paid_on: null,
           for_user_id: rec.for_user_id ?? null,
+          counts_for_tithe: rec.kind === 'income' ? num(rec.counts_for_tithe) : 0,
           split_user_id: rec.split_user_id ?? null,
           split_bp: rec.split_bp ?? null,
           created_by: rec.created_by,
@@ -104,6 +108,13 @@ export async function ensureRecurrences(ctx: Ctx, untilMonth: string, onlyId?: n
           ...(await occurrenceFields(ctx, rec, m, card)),
         });
         created++;
+        if (rec.kind === 'income' && num(rec.counts_for_tithe)) {
+          const born = await ctx.db.get<{ id: number }>(
+            'SELECT id FROM transactions WHERE recurrence_id = ? AND competence_month = ? AND deleted_at IS NULL',
+            [rec.id, m],
+          );
+          if (born) await syncTitheForIncome(ctx.db, ctx.householdId, rec.created_by, born.id, true);
+        }
       } catch (err) {
         // Outra requisição gerou a mesma competência ao mesmo tempo.
         if (!/unique/i.test(String(err))) throw err;
@@ -125,6 +136,7 @@ const recBody = z.object({
   start_month: zMonth,
   end_month: zMonth.nullish(),
   first_paid: z.boolean().optional(),
+  counts_for_tithe: zFlag.optional(),
   for_user_id: zId.nullable().optional(),
   ...splitFields,
 });
@@ -191,6 +203,7 @@ export function recurrencesRouter(): Router {
         start_month: body.start_month,
         end_month: body.end_month ?? null,
         for_user_id: forUserId,
+        counts_for_tithe: body.kind === 'income' ? (body.counts_for_tithe ?? 0) : 0,
         ...split,
         created_by: ctx.userId,
         created_at: now,
@@ -257,6 +270,7 @@ export function recurrencesRouter(): Router {
       for (const occ of future) {
         if (next.end_month && occ.competence_month > next.end_month) {
           await update(db, 'transactions', occ.id, { deleted_at: nowIso(), updated_at: nowIso() });
+          if (next.kind === 'income') await syncTitheForIncome(db, req.ctx.householdId, req.ctx.userId, occ.id);
           continue;
         }
         await update(db, 'transactions', occ.id, {
@@ -269,6 +283,7 @@ export function recurrencesRouter(): Router {
           ...(changes.day_of_month ? await occurrenceFields(ctx, next, occ.competence_month, card) : {}),
           updated_at: nowIso(),
         });
+        if (next.kind === 'income') await syncTitheForIncome(db, req.ctx.householdId, req.ctx.userId, occ.id);
       }
       if (include_settled && changes.day_of_month && !next.card_id) {
         const settled = await db.all<{ id: number; competence_month: string; paid_on: string | null }>(
@@ -301,6 +316,11 @@ export function recurrencesRouter(): Router {
     await req.ctx.db.tx(async (db) => {
       const now = nowIso();
       await update(db, 'recurrences', id, { end_month: end, active: end < monthOf(req.ctx.today) ? 0 : 1, updated_at: now });
+      await deleteOpenTithesMatching(
+        db,
+        'recurrence_id = ? AND competence_month > ? AND status = \'planned\' AND overridden = 0 AND deleted_at IS NULL',
+        [id, end],
+      );
       await db.run(
         `UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE recurrence_id = ? AND competence_month > ?
            AND status = 'planned' AND overridden = 0 AND deleted_at IS NULL`,
@@ -319,6 +339,7 @@ export function recurrencesRouter(): Router {
     const now = nowIso();
     const previous = addMonths(body.from_month, -1);
     const removed = await req.ctx.db.tx(async (db) => {
+      await deleteOpenTithesMatching(db, 'recurrence_id = ? AND deleted_at IS NULL AND competence_month >= ?', [id, body.from_month]);
       const result = await db.run(
         `UPDATE transactions SET deleted_at = ?, updated_at = ?
           WHERE recurrence_id = ? AND deleted_at IS NULL AND competence_month >= ?`,
@@ -342,6 +363,11 @@ export function recurrencesRouter(): Router {
     const removed = await req.ctx.db.tx(async (db) => {
       const now = nowIso();
       await update(db, 'recurrences', id, { deleted_at: now, active: 0, updated_at: now });
+      await deleteOpenTithesMatching(
+        db,
+        'recurrence_id = ? AND competence_month >= ? AND status = \'planned\' AND overridden = 0 AND deleted_at IS NULL',
+        [id, fromMonth],
+      );
       const result = await db.run(
         `UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE recurrence_id = ? AND competence_month >= ?
            AND status = 'planned' AND overridden = 0 AND deleted_at IS NULL`,

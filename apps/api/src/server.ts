@@ -4,6 +4,7 @@ import { createDb, migrate } from '@fin/db';
 import { createApp } from './app';
 import { loadConfig } from './config';
 import { startDailyPush } from './modules/push';
+import { backfillTithes } from './modules/tithe';
 
 const config = loadConfig();
 if (config.databaseUrl.startsWith('sqlite:') && !config.databaseUrl.includes(':memory:')) {
@@ -13,6 +14,7 @@ const db = createDb(config.databaseUrl);
 
 const applied = await migrate(db);
 if (applied.length) console.log(`[api] migrations aplicadas: ${applied.join(', ')}`);
+await backfillTithes(db);
 startDailyPush(db);
 
 const server = createApp(db, config).listen(config.port, (error?: Error) => {
