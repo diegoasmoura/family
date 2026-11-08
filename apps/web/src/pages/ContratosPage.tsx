@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { monthLabel, monthOf, splitByShares } from '@fin/domain';
 import { api, useAction, useApi, type Account } from '../api';
+import { placeLabel } from '../banks';
 import { AccountForm } from '../AccountForm';
 import { useAppState } from '../state';
 import {
@@ -241,7 +242,7 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
           <div className="contract-name">
             <b>{c.description}</b>
             <small>
-              {[c.lender || who, source ? `sai de ${source}` : ''].filter(Boolean).join(' · ')}
+              {[c.lender || who, source ? `sai de ${placeLabel(source, 'account')}` : ''].filter(Boolean).join(' · ')}
             </small>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MONTHS_SHORT_PT, splitByShares, statusLabel, type DisplayStatus } from '@fin/domain';
 import { api, useAction, useApi, type Tx } from './api';
+import { placeLabel } from './banks';
 import { ContractIcon, contractTypeOf } from './contracts';
 import { InstallmentSettleSheet } from './InstallmentSettleSheet';
 import { useAppState } from './state';
@@ -594,7 +595,7 @@ export function PlanSchedule({
                     <div><dt>Credor</dt><dd>{plan.lender || 'Não informado'}</dd></div>
                     <div><dt>Início</dt><dd>{dateText(plan.purchased_on)}</dd></div>
                     <div><dt>Término previsto</dt><dd>{dateText(endOn)}</dd></div>
-                    <div><dt>Sai de</dt><dd>{planPlaces.join(' e ') || plan.account_name || '—'}</dd></div>
+                    <div><dt>Sai de</dt><dd>{(planPlaces.length ? planPlaces : plan.account_name ? [plan.account_name] : []).map((name) => placeLabel(name, 'account')).join(' e ') || '—'}</dd></div>
                     <div><dt>Categoria</dt><dd>{plan.category_name || 'Sem categoria'}</dd></div>
                   </dl>
                 </section>

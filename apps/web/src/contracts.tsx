@@ -1,6 +1,6 @@
 import { splitByShares } from '@fin/domain';
 import { useApi } from './api';
-import { BankMark } from './banks';
+import { BankMark, placeLabel } from './banks';
 import { Icon, brl } from './ui';
 
 /**
@@ -98,7 +98,7 @@ export function splitLabel(shares: { user_id: number; bp: number }[] | null | un
   return forUserId == null ? 'Da casa' : name(forUserId);
 }
 
-/** "Diego sai de Bradesco. Jhersyka sai de Nubank." Quando a conta é a mesma, "Sai de Bradesco". */
+/** "Diego sai de Bradesco · conta. Jhersyka sai de Nubank · conta." Quando a conta é a mesma, "Sai de Bradesco · conta". */
 export function accountPhrase(
   shares: { user_id: number; account_id?: number | null }[] | null | undefined,
   users: HouseUser[],
@@ -106,14 +106,17 @@ export function accountPhrase(
   fallbackName?: string | null,
 ): string | null {
   const who = (id: number) => firstName(users.find((u) => u.id === id)?.name ?? '');
-  const account = (id: number | null | undefined) => accounts.find((a) => a.id === id)?.name;
+  const account = (id: number | null | undefined) => {
+    const name = accounts.find((a) => a.id === id)?.name;
+    return name ? placeLabel(name, 'account') : undefined;
+  };
   if (shares && shares.length >= 2) {
     const first = account(shares[0].account_id);
     const second = account(shares[1].account_id);
     if (first && second) return `${who(shares[0].user_id)} sai de ${first}. ${who(shares[1].user_id)} sai de ${second}.`;
     if (first) return `Sai de ${first}`;
   }
-  return fallbackName ? `Sai de ${fallbackName}` : null;
+  return fallbackName ? `Sai de ${placeLabel(fallbackName, 'account')}` : null;
 }
 
 function whoHint(value: Split, users: HouseUser[]): string {
@@ -205,7 +208,7 @@ export function SplitPicker({
                 {accounts.map((account) => (
                   <button key={account.id} type="button" className={`chip sm${shareAccounts?.[user.id] === account.id ? ' on' : ''}`} onClick={() => onShareAccount(user.id, account.id)}>
                     <BankMark name={account.name} size={18} />
-                    {account.name}
+                    {placeLabel(account.name, 'account')}
                   </button>
                 ))}
                 {onNewAccount && (

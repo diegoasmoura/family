@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { addMonthsToDate, dayOf, monthOf, splitInstallments } from '@fin/domain';
 import { api, useAction, useApi, type Account, type Category } from './api';
 import { AccountForm } from './AccountForm';
-import { BankMark } from './banks';
+import { BankMark, placeLabel } from './banks';
 import { CategoryPicker } from './categories';
 import { ContractTypePicker, SplitPicker, accountPhrase, contractTypeOf, parseRate, splitBody, splitFrom, useHouseUsers, type ContractType, type Split } from './contracts';
 import { useAppState } from './state';
@@ -86,7 +86,7 @@ export function ContractLaunch({ onClose }: { onClose: () => void }) {
         )
       : null
     : accountName
-      ? `Sai de ${accountName}, todo mês`
+      ? `Sai de ${placeLabel(accountName, 'account')}, todo mês`
       : null;
 
   const hint = useMemo(() => {
@@ -270,7 +270,7 @@ export function ContractLaunch({ onClose }: { onClose: () => void }) {
               {accountList.map((a) => (
                 <button key={a.id} type="button" className={`chip${account === a.id ? ' on' : ''}`} onClick={() => setAccountId(a.id)}>
                   <BankMark name={a.name} size={22} />
-                  {a.name}
+                  {placeLabel(a.name, 'account')}
                 </button>
               ))}
               <button type="button" className="chip add" onClick={() => setNewAccountFor('one')}>
