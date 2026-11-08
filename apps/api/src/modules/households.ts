@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { todayIn } from '@fin/domain';
+import { normalizeAvatar, todayIn } from '@fin/domain';
 import { badRequest, idParam, insert, notFound, nowIso, parse, requireAdmin, update } from '../core';
 import { hashPassword } from './auth';
 
@@ -33,7 +33,9 @@ export function usersRouter(): Router {
   const cols = 'id, name, email, role, created_at';
 
   r.get('/', async (req, res) => {
-    res.json(await req.ctx.db.all(`SELECT ${cols} FROM users WHERE household_id = ? ORDER BY id`, [req.ctx.householdId]));
+    const rows = await req.ctx.db.all<{ name: string; avatar: string | null }>(`SELECT ${cols}, avatar FROM users WHERE household_id = ? ORDER BY id`, [req.ctx.householdId]);
+    // O avatar vai junto para a interface pintar cada pessoa sempre com a mesma cor (Nós).
+    res.json(rows.map((row) => ({ ...row, avatar: normalizeAvatar(row.avatar, row.name) })));
   });
 
   r.post('/', async (req, res) => {

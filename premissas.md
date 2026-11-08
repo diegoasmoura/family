@@ -26,7 +26,7 @@ Não há “esqueci a senha” por e-mail. A senha nova tem no mínimo 8 caracte
 
 ## Eu, Nós e da casa
 
-Início, Lançamentos, Calendário e Ano abrem em **Eu**. A escolha vale a sessão inteira e não fica gravada no aparelho. Recarregar volta para Eu. A faixa é a mesma: Eu e Nós dividem a largura da coluna. A aba Cartões não tem essa faixa.
+Início, Lançamentos, Calendário, Ano e Contratos abrem em **Eu**. A escolha vale a sessão inteira e não fica gravada no aparelho. Recarregar volta para Eu. A faixa é a mesma: Eu e Nós dividem a largura da coluna. A aba Cartões não tem essa faixa.
 
 - **Eu** mostra só o que tem `for_user_id` de quem está logado. O que está “Da casa” (`for_user_id` vazio) fica de fora.
 - **Nós** não filtra. Entram as duas pessoas e o que é da casa. Nós é a casa inteira, não só “Da casa”.
@@ -92,7 +92,7 @@ A quantidade nova acrescenta parcelas depois da última, cada uma com o valor da
 
 **Contrato (financiamento ou empréstimo).** É um parcelamento em conta marcado como contrato, não um segundo sistema: cada prestação continua sendo uma despesa normal do mês, com as mesmas regras do parcelamento, e por isso não conta duas vezes em lugar nenhum. A aba Contratos só mostra esses parcelamentos de outro jeito (quanto falta, em que parcela está, quando termina). O dinheiro do empréstimo que cai na conta sobe o saldo, mas não é receita do mês, como uma transferência. Compra parcelada no cartão não é contrato.
 
-Quando a prestação é dividida, cada prestação vira uma linha por pessoa, cada uma com a parte dela e com a conta de onde essa parte sai. No Eu entra só a linha de quem está logado. No Nós as duas somam a prestação. O plano guarda uma conta só, a da primeira pessoa, porque o cadastro exige uma; o saldo usa a conta da linha. Mudar a divisão ou a conta reescreve as prestações em aberto; as já pagas ficam como estão. No contrato não existe “Da casa”: é de uma pessoa ou dividido. Compra no cartão não se divide assim.
+Quando a prestação é dividida, cada prestação vira uma linha por pessoa, cada uma com a parte dela e com a conta de onde essa parte sai. No Eu entra só a linha de quem está logado. No Nós as duas somam a prestação. A aba Contratos segue a mesma regra: no Eu entram só os contratos em que a pessoa tem parte, com os valores da parte dela; no Nós, a prestação inteira e a parte de cada um. O plano guarda uma conta só, a da primeira pessoa, porque o cadastro exige uma; o saldo usa a conta da linha. Mudar a divisão ou a conta reescreve as prestações em aberto; as já pagas ficam como estão. No contrato não existe “Da casa”: é de uma pessoa ou dividido. Compra no cartão não se divide assim.
 
 Uma pessoa pode quitar sozinha todas as partes ainda abertas de uma prestação dividida, inclusive antes do vencimento. Isso não muda a responsabilidade: a parte continua sendo de quem era e o histórico separa **de quem é** de **quem pagou**. O total sai da conta escolhida por quem paga. A competência e o vencimento não mudam; a data informada é a data efetiva do pagamento. O valor realmente cobrado é informado manualmente e repartido pela divisão da prestação; desconto ou acréscimo muda só essa prestação, entra em Poupado/A mais e não recalcula Price, SAC nem as seguintes. Desfazer restaura a quitação inteira, nunca apenas uma das linhas.
 

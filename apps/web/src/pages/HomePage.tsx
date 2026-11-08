@@ -10,7 +10,7 @@ import { ErrorText, Icon, MonthNav, NewButton, PullToRefresh, Sheet, SkeletonCar
 import { api, useAction, useApi, type Card, type Category, type Invoice, type Me, type Member, type Tx } from "../api";
 import { CardRail } from "../CardFace";
 import { CategoryIcon } from "../categories";
-import { PersonFilter, personParam, withPerson } from "../people";
+import { HOUSE_COLOR, PersonFilter, PersonTag, personOf, personParam, useHousePeople, withPerson } from "../people";
 import { useAppState, type PersonScope } from "../state";
 
 const LAYOUT_KEY = "fin-home-layout";
@@ -172,6 +172,7 @@ export function HomePage({ me }: { me: Me }) {
   const year = Number(month.slice(0, 4));
   const yearQ = useApi(yearSeen ? `/reports/year?year=${year}&mode=planned&person=${personParam(person)}` : null);
   const sel = Number(month.slice(5, 7)) - 1;
+  const people = useHousePeople();
 
   if (!d) {
     return (
@@ -217,17 +218,25 @@ export function HomePage({ me }: { me: Me }) {
     return [...map.values()].sort((a, b) => b.total_cents - a.total_cents);
   };
 
-  const whoMap = new Map<string, number>();
-  for (const row of (d.spent_by_person ?? []) as { name: string | null; total_cents: number }[]) {
-    const who = row.name ? row.name.trim().split(/\s+/)[0] : "Da casa";
-    whoMap.set(who, (whoMap.get(who) ?? 0) + row.total_cents);
-  }
-  const whoRows = [...whoMap.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents);
+  // Quem gastou: cada pessoa sempre na cor do avatar dela; Da casa no cinza.
+  const whoRows = ((d.spent_by_person ?? []) as { user_id: number | null; name: string | null; total_cents: number }[])
+    .map((row) => {
+      const who = personOf(people, row.user_id, row.name);
+      return { key: row.user_id ?? "house", name: who.label, color: who.color, cents: row.total_cents };
+    })
+    .filter((row) => row.cents > 0)
+    .sort((a, b) => b.cents - a.cents);
+  // Resumo no Nós: receitas e despesas do mês de cada um (e o que é da casa), na mesma conta dos totais.
+  const byPerson = (rows: { user_id: number | null; total_cents: number }[] | undefined, key: number | null) =>
+    (rows ?? []).filter((row) => row.user_id === key).reduce((sum, row) => sum + row.total_cents, 0);
+  const peopleRows = [
+    ...people.map((p) => ({ key: String(p.id), label: p.first, color: p.color, income: byPerson(d.income_by_person, p.id), expense: byPerson(d.spent_by_person, p.id) })),
+    { key: "house", label: "Da casa", color: HOUSE_COLOR, income: byPerson(d.income_by_person, null), expense: byPerson(d.spent_by_person, null) },
+  ].filter((row) => row.key !== "house" || row.income > 0 || row.expense > 0);
   const recurrenceByAmount = [...(d.recurrence as { key: string; name: string; color: string; total_cents: number }[])].sort(
     (a, b) => b.total_cents - a.total_cents,
   );
   const whoTotal = whoRows.reduce((sum, row) => sum + row.cents, 0);
-  const WHO_COLORS = ["var(--chart-inc)", "var(--chart-cum)", "var(--chart-prev)"];
 
   const cardList = (cards.data ?? []).filter((card) => !card.archived);
 
@@ -295,6 +304,26 @@ export function HomePage({ me }: { me: Me }) {
             )}
           </Link>
         </div>
+        {person === "all" && people.length > 0 && (
+          <div className="sum-people" role="table" aria-label="Receitas e despesas do mês por pessoa">
+            <span className="h" role="columnheader">Por pessoa no mês</span>
+            <span className="h r" role="columnheader">Receitas</span>
+            <span className="h r" role="columnheader">Despesas</span>
+            {peopleRows.map((row) => (
+              <div key={row.key} role="row" style={{ display: "contents" }}>
+                <span role="cell">
+                  <PersonTag color={row.color} label={row.label} />
+                </span>
+                <span role="cell" className={`v in${row.income ? "" : " zero"}`}>
+                  {row.income ? <MoneyText cents={row.income} /> : "–"}
+                </span>
+                <span role="cell" className={`v out${row.expense ? "" : " zero"}`}>
+                  {row.expense ? <MoneyText cents={row.expense} /> : "–"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="sum-foot">
           {month === today.slice(0, 7) && (
             <div className="sum-foot-row">
@@ -340,14 +369,14 @@ export function HomePage({ me }: { me: Me }) {
               <div className="who-split">
                 <small>Quem gastou</small>
                 <div className="who-bar" role="img" aria-label={whoRows.map((row) => `${row.name} ${Math.round((row.cents / whoTotal) * 100)}%`).join(", ")}>
-                  {whoRows.map((row, i) => (
-                    <i key={row.name} style={{ width: `${(row.cents / whoTotal) * 100}%`, background: WHO_COLORS[Math.min(i, WHO_COLORS.length - 1)] }} />
+                  {whoRows.map((row) => (
+                    <i key={row.key} style={{ width: `${(row.cents / whoTotal) * 100}%`, background: row.color }} />
                   ))}
                 </div>
                 <div className="who-legend">
-                  {whoRows.map((row, i) => (
-                    <span key={row.name}>
-                      <i className="sw" style={{ background: WHO_COLORS[Math.min(i, WHO_COLORS.length - 1)] }} />
+                  {whoRows.map((row) => (
+                    <span key={row.key}>
+                      <i className="sw" style={{ background: row.color }} />
                       {row.name} <b>{Math.round((row.cents / whoTotal) * 100)}%</b> · <MoneyText cents={row.cents} />
                     </span>
                   ))}

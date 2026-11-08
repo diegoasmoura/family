@@ -2250,7 +2250,8 @@ a.kebab {
 .page.home .who,
 .page.lanc .who,
 .page.wide .who,
-.page.calendar .who {
+.page.calendar .who,
+.page.contratos > .who {
   display: flex;
   align-self: stretch;
   width: 100%;
@@ -2263,7 +2264,8 @@ a.kebab {
 .page.home .who button,
 .page.lanc .who button,
 .page.wide .who button,
-.page.calendar .who button {
+.page.calendar .who button,
+.page.contratos > .who button {
   flex: 1;
   min-height: 36px;
   border-radius: 10px;
@@ -2274,7 +2276,8 @@ a.kebab {
 .page.home .who button[aria-selected='true'],
 .page.lanc .who button[aria-selected='true'],
 .page.wide .who button[aria-selected='true'],
-.page.calendar .who button[aria-selected='true'] {
+.page.calendar .who button[aria-selected='true'],
+.page.contratos > .who button[aria-selected='true'] {
   background: var(--surface);
   box-shadow: none;
 }
@@ -3616,3 +3619,95 @@ main.page { gap: 12px; }
 .ct-more summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--green-text); min-height: 44px; display: flex; align-items: center; }
 .ct-more[open] { display: flex; }
 .ct-more > *:not(summary) { margin-top: 8px; }
+
+/* ── Nós: cada pessoa com a cor do avatar dela ─────────────────────────── */
+.ptag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ptag-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--who);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--who) 25%, transparent);
+}
+/* No meio da linha do extrato, a etiqueta vira um "pill" leve, para achar de quem é sem ler a linha inteira. */
+.tx-who.ptag {
+  flex: none;
+  margin-left: 8px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--who) 16%, transparent);
+  font-size: 12px;
+}
+.tx-who.ptag::before { content: none; margin: 0; }
+.tx-cats > .tx-who.ptag:first-child { margin-left: 0; }
+
+/* Extrato no Nós: de quem, com o quanto é de cada um. */
+.who-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 2px 16px;
+}
+.who-chips::-webkit-scrollbar { display: none; }
+.who-chip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.who-chip > span:only-child { font-weight: 600; font-size: 14px; }
+.who-chip b { font-size: 14px; font-weight: 700; }
+.who-chip.on { background: var(--surface-alt); border-color: var(--ink); }
+.who-chip:active { transform: scale(0.98); }
+
+/* Início no Nós: receitas e despesas do mês de cada um, dentro do Resumo. */
+.sum-people {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 16px;
+  row-gap: 8px;
+  align-items: baseline;
+  padding: 12px 0 2px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.sum-people > .h { color: var(--muted); font-size: 12px; font-weight: 600; }
+.sum-people > .h.r { text-align: right; }
+.sum-people > .v { text-align: right; font-weight: 600; white-space: nowrap; }
+.sum-people > .v.in { color: var(--pos); }
+.sum-people > .v.out { color: var(--exp); }
+.sum-people > .v.zero { color: var(--muted); font-weight: 400; }
+.sum-people .ptag { font-size: 14px; }
+
+/* Contratos: parte de cada um em destaque com a cor da pessoa. */
+.contract-shares li { border-left: 3px solid var(--who, transparent); }
+.contract-mine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}

@@ -1,10 +1,57 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { AVATAR_TONES, type Avatar } from '@fin/domain';
 import { useApi, type Me } from './api';
 import { useAppState, type PersonScope } from './state';
 
 interface HouseUser {
   id: number;
   name: string;
+  avatar?: Avatar;
+}
+
+/**
+ * Cada pessoa tem uma cor só, a do avatar dela, em todo o Nós (resumo, quem gastou, extrato,
+ * contratos). "Da casa" é sempre o cinza neutro. Se as duas escolheram o mesmo tom, a segunda
+ * pega o tom seguinte, para nunca ficarem iguais lado a lado.
+ */
+export interface HousePerson {
+  id: number;
+  name: string;
+  first: string;
+  color: string;
+}
+
+export const HOUSE_COLOR = '#8E9AAF';
+
+export function useHousePeople(): HousePerson[] {
+  const users = useApi<HouseUser[]>('/users');
+  return useMemo(() => {
+    const used = new Set<number>();
+    return (users.data ?? []).map((user) => {
+      let tone = user.avatar?.tone ?? 0;
+      for (let i = 0; used.has(tone) && i < AVATAR_TONES.length; i++) tone = (tone + 1) % AVATAR_TONES.length;
+      used.add(tone);
+      return { id: user.id, name: user.name, first: firstName(user.name), color: AVATAR_TONES[tone].bg };
+    });
+  }, [users.data]);
+}
+
+/** Cor e primeiro nome de quem é (id vazio = Da casa). */
+export function personOf(people: HousePerson[], userId: number | null | undefined, name?: string | null) {
+  const found = userId != null ? people.find((p) => p.id === userId) : name ? people.find((p) => p.name === name) : undefined;
+  if (found) return { label: found.first, color: found.color };
+  if (userId == null && !name) return { label: 'Da casa', color: HOUSE_COLOR };
+  return { label: firstName(name ?? 'Pessoa'), color: HOUSE_COLOR };
+}
+
+/** Etiqueta de pessoa: bolinha na cor dela e o primeiro nome. */
+export function PersonTag({ color, label, className = '' }: { color: string; label: string; className?: string }) {
+  return (
+    <span className={`ptag ${className}`.trim()} style={{ '--who': color } as CSSProperties}>
+      <i className="ptag-dot" aria-hidden />
+      {label}
+    </span>
+  );
 }
 
 export function personParam(person: PersonScope): string {

@@ -852,6 +852,15 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect((await balanceOf(ids.nubank, '2026-11')).forecast_balance_cents).toBe(-50000);
       const card = (await ok(await agent.get('/api/installments/contracts'))).contracts.find((c: any) => c.description === 'Apto');
       expect(card.shares).toEqual(shares);
+      expect(card.next.amount_cents).toBe(50000);
+      // No Eu, o mesmo contrato mostra só a parte de quem está logado; a divisão continua inteira.
+      const mineView = await ok(await agent.get('/api/installments/contracts?person=me'));
+      const mine = mineView.contracts.find((c: any) => c.description === 'Apto');
+      expect(mine.shares).toEqual(shares);
+      expect(mine.next.amount_cents).toBe(25000);
+      expect(mine.remaining_cents).toBe(card.remaining_cents / 2);
+      expect(mine.saved_cents).toBeNull();
+      expect(mineView.remaining_cents).toBe(mineView.contracts.reduce((sum: number, c: any) => sum + c.remaining_cents, 0));
 
       await ok(await agent.patch(`/api/installments/${plan.id}`).send({
         shares: [

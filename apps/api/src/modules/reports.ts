@@ -351,6 +351,19 @@ export function dashboardRouter(): Router {
       name: r.name ?? null,
       total_cents: num(r.total),
     }));
+    // Mesma conta para as receitas: no Nós, o Resumo mostra quanto entrou e saiu de cada um.
+    const incomeByPersonRows = await ctx.db.all(
+      `SELECT t.for_user_id AS user_id, u.name AS name, SUM(${amt.sql}) AS total FROM transactions t
+         LEFT JOIN users u ON u.id = t.for_user_id
+        WHERE ${spendWhere.replace("t.kind = 'expense'", "t.kind = 'income'")}
+        GROUP BY t.for_user_id, u.name ORDER BY total DESC`,
+      [...amt.params, ...catParams],
+    );
+    const income_by_person = incomeByPersonRows.map((r) => ({
+      user_id: r.user_id == null ? null : Number(r.user_id),
+      name: r.name ?? null,
+      total_cents: num(r.total),
+    }));
     const breakdownRows = await ctx.db.all(
       `SELECT c.name AS name, c.color AS color, pc.name AS parent_name, SUM(${amt.sql}) AS total FROM transactions t
          LEFT JOIN categories c ON c.id = t.category_id
@@ -498,6 +511,7 @@ export function dashboardRouter(): Router {
       result_cents: totals.income_posted + totals.income_planned - totals.expense_posted - totals.expense_planned,
       categories,
       spent_by_person,
+      income_by_person,
       category_breakdown,
       recurrence,
       future_installments_cents: num(futureInstallments?.total),

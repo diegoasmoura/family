@@ -5,7 +5,7 @@ import { useSwipe } from '../useSwipe';
 import { usePullToRefresh } from '../usePullToRefresh';
 import { useApi, type Tx } from '../api';
 import { BankMark, bankByName, placeLabel } from '../banks';
-import { PersonFilter, personParam } from '../people';
+import { HOUSE_COLOR, PersonFilter, PersonTag, personOf, personParam, useHousePeople, type HousePerson } from '../people';
 import { useAppState } from '../state';
 import { TxSheet } from '../TxSheet';
 import { TxMenu, type TxSheetMode } from '../TxMenu';
@@ -55,6 +55,15 @@ function lineSlice(line: InvoiceLine): Slice {
   if (line.kind === 'other') return 'variable';
   if (line.tx.recurrence_class === 'contract') return 'contract';
   return line.kind === 'fixed' ? 'fixed' : 'installment';
+}
+
+/** A fatura só com as linhas que passam no filtro, com total e restante refeitos a partir delas. */
+function keepLines(inv: InvoiceRow, keep: (line: InvoiceLine) => boolean): InvoiceRow[] {
+  const lines = (inv.lines ?? []).filter(keep);
+  if (!lines.length) return [];
+  const total = lines.reduce((sum, line) => sum + line.amount_cents, 0);
+  const remaining = lines.reduce((sum, line) => sum + ((line.kind === 'other' ? inv.state === 'paid' : line.tx.display_status === 'paid') ? 0 : line.amount_cents), 0);
+  return [{ ...inv, lines, total_cents: total, remaining_cents: remaining }];
 }
 
 function SummarySheet({ kind, summary, month, onClose }: { kind: Kind; summary: any; month: string; onClose: () => void }) {
@@ -115,16 +124,29 @@ function byDue(a: Tx, b: Tx) {
 
 const CHIP_FALLBACK = '#8E9AAF';
 
-function whoLabel(name: string | null | undefined) {
-  const first = name?.trim().split(/\s+/)[0];
-  return first || 'Da casa';
+/** No Nós, de quem é a linha: bolinha na cor da pessoa (a mesma do avatar) e o primeiro nome. */
+function WhoChip({ userId, name }: { userId?: number | null; name: string | null | undefined }) {
+  const people = useHousePeople();
+  const who = personOf(people, userId, name);
+  return <PersonTag className="tx-who" color={who.color} label={who.label} />;
 }
 
-function WhoChip({ name }: { name: string | null | undefined }) {
-  return <span className="tx-who">{whoLabel(name)}</span>;
+/** Filtro por pessoa dentro do Nós: 'all', o id de uma pessoa ou 'house' (Da casa). */
+type WhoKey = 'all' | 'house' | number;
+
+function txWho(t: Pick<Tx, 'for_user_id'>): WhoKey {
+  return t.for_user_id == null ? 'house' : t.for_user_id;
 }
 
-function CategoryChips({ tx, who }: { tx: Pick<Tx, 'parent_category_name' | 'category_name' | 'parent_category_color' | 'category_color' | 'for_user_name'>; who?: boolean }) {
+/** Linha da fatura que pertence a quem está filtrado. "Outras compras" só tem dono quando todas são da mesma pessoa. */
+function lineWho(line: InvoiceLine, people: HousePerson[]): WhoKey | null {
+  if (line.kind !== 'other') return txWho(line.tx);
+  if (!('for_user_name' in line)) return null;
+  if (line.for_user_name == null) return 'house';
+  return people.find((p) => p.name === line.for_user_name)?.id ?? null;
+}
+
+function CategoryChips({ tx, who }: { tx: Pick<Tx, 'parent_category_name' | 'category_name' | 'parent_category_color' | 'category_color' | 'for_user_name' | 'for_user_id'>; who?: boolean }) {
   const cols = categoryCols(tx.parent_category_name, tx.category_name);
   if (!cols.group && !who) return null;
   const groupColor = tx.parent_category_color || tx.category_color || CHIP_FALLBACK;
@@ -137,7 +159,7 @@ function CategoryChips({ tx, who }: { tx: Pick<Tx, 'parent_category_name' | 'cat
         </>
       )}
       {cols.sub && <span className="tx-sub">{cols.sub}</span>}
-      {who && <WhoChip name={tx.for_user_name} />}
+      {who && <WhoChip userId={tx.for_user_id} name={tx.for_user_name} />}
     </span>
   );
 }
@@ -333,6 +355,10 @@ export function LancamentosPage() {
   };
   const [search, setSearch] = useState<string | null>(null);
   const [situation, setSituation] = useState<Situation>('all');
+  const [whoPick, setWhoPick] = useState<WhoKey>('all');
+  // A divisão por pessoa só existe no Nós; no Eu a lista já é de uma pessoa.
+  const who: WhoKey = person === 'all' ? whoPick : 'all';
+  const people = useHousePeople();
   const [selected, setSelected] = useState<{ id: number; mode: TxSheetMode } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -354,22 +380,33 @@ export function LancamentosPage() {
     situation === 'all' ||
     (situation === 'paid' ? inv.state === 'paid' : situation === 'overdue' ? inv.state === 'overdue' : inv.state !== 'paid');
 
-  const scopedItems = useMemo(() => {
+  const sliceItems = useMemo(() => {
     const list: Tx[] = q.data?.items ?? [];
     if (!slice) return list;
     return list.filter((t) => t.include_in_reports && t.recurrence_class === slice);
   }, [q.data, slice]);
-  const scopedInvoices = useMemo(() => {
+  const sliceInvoices = useMemo(() => {
     const list: InvoiceRow[] = income ? [] : (q.data?.invoices ?? []);
     if (!slice) return list;
-    return list.flatMap((inv) => {
-      const lines = (inv.lines ?? []).filter((line) => lineSlice(line) === slice && (line.kind === 'other' || line.tx.include_in_reports));
-      if (!lines.length) return [];
-      const total = lines.reduce((sum, line) => sum + line.amount_cents, 0);
-      const remaining = lines.reduce((sum, line) => sum + ((line.kind === 'other' ? inv.state === 'paid' : line.tx.display_status === 'paid') ? 0 : line.amount_cents), 0);
-      return [{ ...inv, lines, total_cents: total, remaining_cents: remaining }];
-    });
+    return list.flatMap((inv) => keepLines(inv, (line) => lineSlice(line) === slice && (line.kind === 'other' || line.tx.include_in_reports)));
   }, [q.data, income, slice]);
+  // Quanto é de cada um no Nós, com a mesma faixa de recorrência que estiver aberta.
+  const whoTotals = useMemo(() => {
+    const totals = new Map<WhoKey, number>();
+    const add = (key: WhoKey | null, cents: number) => {
+      if (key != null) totals.set(key, (totals.get(key) ?? 0) + cents);
+    };
+    for (const t of sliceItems) if (t.include_in_reports) add(txWho(t), t.amount_cents);
+    for (const inv of sliceInvoices) {
+      for (const line of inv.lines) if (line.kind === 'other' || line.tx.include_in_reports) add(lineWho(line, people), line.amount_cents);
+    }
+    return totals;
+  }, [sliceItems, sliceInvoices, people]);
+  const scopedItems = useMemo(() => (who === 'all' ? sliceItems : sliceItems.filter((t) => txWho(t) === who)), [sliceItems, who]);
+  const scopedInvoices = useMemo(
+    () => (who === 'all' ? sliceInvoices : sliceInvoices.flatMap((inv) => keepLines(inv, (line) => lineWho(line, people) === who))),
+    [sliceInvoices, who, people],
+  );
   const items: Tx[] = useMemo(() => {
     const list = scopedItems;
     const searched = !search ? list : list.filter((t) => {
@@ -431,7 +468,7 @@ export function LancamentosPage() {
   // A API já inclui no "A pagar" a compra de cartão cuja fatura ainda não quitou.
   const pendingTotal = q.data?.pending_cents ?? 0;
   const sliceFigures = useMemo(() => {
-    if (!slice) return null;
+    if (!slice && who === 'all') return null;
     let total = 0;
     let paid = 0;
     let pending = 0;
@@ -449,7 +486,7 @@ export function LancamentosPage() {
       }
     }
     return { total, paid, pending };
-  }, [slice, scopedItems, scopedInvoices]);
+  }, [slice, who, scopedItems, scopedInvoices]);
 
   return (
     <main className="page lanc" {...swipe}>
@@ -505,6 +542,27 @@ export function LancamentosPage() {
               <b className="num">{brl(sliceFigures?.pending ?? pendingTotal)}</b>
             </button>
           </div>
+          {person === 'all' && people.length > 0 && (
+            <div className="who-chips" role="group" aria-label="De quem">
+              <button type="button" className={`who-chip${who === 'all' ? ' on' : ''}`} aria-pressed={who === 'all'} onClick={() => setWhoPick('all')}>
+                <span>Todos</span>
+              </button>
+              {[...people.map((p) => ({ key: p.id as WhoKey, label: p.first, color: p.color })), { key: 'house' as WhoKey, label: 'Da casa', color: HOUSE_COLOR }]
+                .filter((chip) => chip.key !== 'house' || (whoTotals.get('house') ?? 0) > 0 || who === 'house')
+                .map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    className={`who-chip${who === chip.key ? ' on' : ''}`}
+                    aria-pressed={who === chip.key}
+                    onClick={() => setWhoPick(who === chip.key ? 'all' : chip.key)}
+                  >
+                    <PersonTag color={chip.color} label={chip.label} />
+                    <b className="num">{brl(whoTotals.get(chip.key) ?? 0)}</b>
+                  </button>
+                ))}
+            </div>
+          )}
           {overdueCount > 0 && (
             <button type="button" className={`lanc-alert${situation === 'overdue' ? ' on' : ''}`} aria-pressed={situation === 'overdue'} onClick={() => setSituation(situation === 'overdue' ? 'all' : 'overdue')}>
               <Icon.alert />
@@ -578,7 +636,7 @@ export function LancamentosPage() {
               );
             })}
             {items.length === 0 && invoices.length === 0 && (
-              <p className="empty">{situation !== 'all' ? 'Nada nesta situação.' : search ? 'Nada encontrado.' : slice ? `Nenhuma despesa ${SLICE_EMPTY[slice]} em ${monthLabel(month).toLowerCase()}.` : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
+              <p className="empty">{who !== 'all' ? `Nada de ${who === 'house' ? 'Da casa' : (people.find((p) => p.id === who)?.first ?? 'quem está filtrado')} aqui.` : situation !== 'all' ? 'Nada nesta situação.' : search ? 'Nada encontrado.' : slice ? `Nenhuma despesa ${SLICE_EMPTY[slice]} em ${monthLabel(month).toLowerCase()}.` : `Nenhuma ${income ? 'receita' : 'despesa'} em ${monthLabel(month).toLowerCase()}.`}</p>
             )}
           </div>
           {sections.length > 1 && (

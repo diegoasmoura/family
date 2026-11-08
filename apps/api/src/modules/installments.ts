@@ -6,7 +6,7 @@ import { badRequest, findByUuid, idParam, insert, newUuid, nowIso, num, owned, p
 import { invoiceForCardPurchase, type Card } from './cards';
 import { assertCategory } from './categories';
 import { normalizeSplit, splitFields } from './split';
-import { assertHouseholdUser, assertPaymentTarget, decorateTransactions, TX_SELECT } from './transactions';
+import { assertHouseholdUser, assertPaymentTarget, decorateTransactions, personFilter, TX_SELECT } from './transactions';
 
 /** Tipos de contrato (a ilustração do card na aba Contratos). */
 const CONTRACT_TYPES = ['car', 'house', 'moto', 'study', 'loan', 'other'] as const;
@@ -336,10 +336,13 @@ export function installmentsRouter(): Router {
   /**
    * Aba Contratos: os parcelamentos em conta marcados como contrato, com quanto falta,
    * a próxima prestação e quando termina. As prestações em si continuam sendo despesas normais.
+   * Com `person=me` (Eu), entram só os contratos em que a pessoa tem parte, e os valores são a parte dela.
+   * Sem `person` (ou `all`, Nós), a prestação inteira.
    */
   r.get('/contracts', async (req, res) => {
     const ctx = req.ctx;
     const m = monthOf(ctx.today);
+    const personId = await personFilter(ctx, req.query.person);
     const plans = await ctx.db.all(
       `${SELECT} WHERE p.household_id = ? AND p.deleted_at IS NULL AND p.is_contract = 1 AND p.account_id IS NOT NULL ORDER BY p.purchased_on, p.id`,
       [m, m, ctx.householdId],
@@ -355,8 +358,11 @@ export function installmentsRouter(): Router {
           ids,
         )
       : [];
-    const contracts = plans.map((p) => {
-      const mine = items.filter((t) => Number(t.plan_id) === Number(p.id));
+    const contracts = plans.flatMap((p) => {
+      const all = items.filter((t) => Number(t.plan_id) === Number(p.id));
+      // No Eu, as contas usam só as linhas da pessoa; a divisão (shares) continua vindo do contrato inteiro.
+      const mine = personId == null ? all : all.filter((t) => t.for_user_id != null && Number(t.for_user_id) === personId);
+      if (personId != null && mine.length === 0) return [];
       const byNo = new Map<number, typeof mine>();
       for (const line of mine) {
         const no = num(line.installment_no);
@@ -375,9 +381,9 @@ export function installmentsRouter(): Router {
         }));
       const open = inst.filter((item) => !item.paid);
       const next = open[0];
-      const openNo = mine.find((line) => !line.paid_on)?.installment_no ?? mine.at(-1)?.installment_no;
+      const openNo = all.find((line) => !line.paid_on)?.installment_no ?? all.at(-1)?.installment_no;
       const currentCents = inst.reduce((sum, item) => sum + item.amount, 0);
-      return {
+      return [{
         id: Number(p.id),
         description: p.description,
         lender: p.lender ?? null,
@@ -390,18 +396,19 @@ export function installmentsRouter(): Router {
         monthly_rate_bp: p.monthly_rate_bp == null ? null : num(p.monthly_rate_bp),
         contract_type: p.contract_type ?? 'other',
         for_user_id: p.for_user_id == null ? null : num(p.for_user_id),
-        shares: openNo == null ? null : sharesFromGroup(mine.filter((line) => Number(line.installment_no) === Number(openNo))),
+        shares: openNo == null ? null : sharesFromGroup(all.filter((line) => Number(line.installment_no) === Number(openNo))),
         active_count: inst.length,
         paid_count: inst.length - open.length,
         months_left: open.length,
         paid_cents: inst.reduce((sum, item) => sum + item.paidAmount, 0),
         remaining_cents: inst.reduce((sum, item) => sum + item.remainingAmount, 0),
-        // Só compara com o plano inicial quando nenhuma prestação foi cancelada.
-        saved_cents: inst.length === num(p.installments) ? num(p.total_cents) - currentCents : null,
+        // Só compara com o plano inicial quando nenhuma prestação foi cancelada. No Eu não há o total
+        // da criação por pessoa, então o Poupado/A mais fica só no Nós.
+        saved_cents: personId == null && inst.length === num(p.installments) ? num(p.total_cents) - currentCents : null,
         month_cents: inst.filter((item) => item.month === m).reduce((sum, item) => sum + item.amount, 0),
         next: next ? { installment_no: next.no, due_on: next.due, amount_cents: next.amount, overdue: next.due < ctx.today } : null,
         ends_on: inst.length ? inst[inst.length - 1].due : null,
-      };
+      }];
     });
     res.json({
       month: m,

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { monthLabel, monthOf } from '@fin/domain';
 import { api, useAction, useApi, type Account } from '../api';
 import { placeLabel } from '../banks';
 import { AccountForm } from '../AccountForm';
+import { PersonFilter, personOf, withPerson, useHousePeople } from '../people';
 import { useAppState } from '../state';
 import {
   ContractIcon,
@@ -59,7 +60,7 @@ interface ContractsView {
 /** "2031-10-03" → "out". */
 const shortMonth = (iso: string) => monthLabel(monthOf(iso)).slice(0, 3).toLowerCase();
 
-function ContractForm({ contract, onClose }: { contract: Contract; onClose: () => void }) {
+function ContractForm({ contract, mine, onClose }: { contract: Contract; mine: boolean; onClose: () => void }) {
   const { toast } = useAppState();
   const users = useHouseUsers();
   const [type, setType] = useState<ContractType>(contract.contract_type);
@@ -122,7 +123,8 @@ function ContractForm({ contract, onClose }: { contract: Contract; onClose: () =
           value={who}
           onChange={setSplit}
           users={users}
-          perInstallment={contract.next?.amount_cents ?? null}
+          // No Eu, a próxima prestação vem só com a parte de quem está logado: não serve de base para a divisão.
+          perInstallment={mine ? null : (contract.next?.amount_cents ?? null)}
           accounts={accountList}
           shareAccounts={accountsByUser}
           onShareAccount={(userId, id) => {
@@ -211,13 +213,15 @@ function ContractMenu({ contract, onPick }: { contract: Contract; onPick: (actio
   );
 }
 
-function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; onMenu: (action: ContractMenuAction) => void }) {
+function ContractCard({ c, mine, onOpen, onMenu }: { c: Contract; mine: boolean; onOpen: () => void; onMenu: (action: ContractMenuAction) => void }) {
   const users = useHouseUsers();
+  const housePeople = useHousePeople();
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
   const accountList = accounts.data?.accounts ?? [];
   const ratio = c.active_count ? c.paid_count / c.active_count : 0;
   const extra = c.contracted_cents != null ? c.total_cents - c.contracted_cents : null;
-  const nextParts = c.next && c.shares
+  // No Eu os valores já são a parte de quem está logado: não há o que dividir de novo.
+  const nextParts = !mine && c.next && c.shares
     ? previewShares(c.next.amount_cents, c.shares.map((share) => share.bp))
     : null;
   const accountName = (id?: number | null) => accountList.find((account) => account.id === id)?.name ?? null;
@@ -225,6 +229,7 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
     ? c.shares.map((share, index) => ({
         id: share.user_id,
         name: (users.find((user) => user.id === share.user_id)?.name ?? 'Pessoa').split(/\s+/)[0],
+        color: personOf(housePeople, share.user_id).color,
         pct: Math.round(share.bp / 100),
         amount: nextParts[index],
         account: accountName(share.account_id),
@@ -234,6 +239,7 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
   const who = splitLabel(c.shares, c.for_user_id, users);
   const ends = c.ends_on ? `termina ${shortMonth(c.ends_on)}/${c.ends_on.slice(0, 4)}` : '';
   const source = sharedAccount ?? (!people ? c.account_name : null);
+  const split = c.shares && c.shares.length >= 2;
   return (
     <article className="card contract">
       <ContractMenu contract={c} onPick={onMenu} />
@@ -248,7 +254,7 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
           </div>
         </div>
         <div className="contract-due">
-          <small>Falta pagar</small>
+          <small>{mine && split ? 'Falta pagar da sua parte' : 'Falta pagar'}</small>
           <b className="num">{brl(c.remaining_cents)}</b>
         </div>
         <Bar ratio={ratio} />
@@ -257,7 +263,7 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
         </small>
         <div className="contract-outcome">
           <span>
-            <small>Pago até agora</small>
+            <small>{mine && split ? 'Você pagou' : 'Pago até agora'}</small>
             <b className="num">{brl(c.paid_cents)}</b>
           </span>
           {c.saved_cents != null && c.saved_cents !== 0 && (
@@ -270,20 +276,20 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
         {c.next && (
           <div className={`contract-nextcompact${c.next.overdue ? ' late' : ''}`}>
             <div className="contract-nexthead">
-              <span>{c.next.overdue ? 'Atrasada' : 'Próxima'} · {shortDate(c.next.due_on)}</span>
+              <span>{c.next.overdue ? 'Atrasada' : 'Próxima'} · {shortDate(c.next.due_on)}{mine && split ? ' · sua parte' : ''}</span>
               <b className="num">{brl(c.next.amount_cents)}</b>
             </div>
             {people ? (
               <ul className="contract-shares">
                 {people.map((person) => (
-                  <li key={person.id}>
+                  <li key={person.id} style={{ '--who': person.color } as CSSProperties}>
                     <span className="who">{person.name} <small>{person.pct}%</small></span>
                     <b className="num">{brl(person.amount)}</b>
                   </li>
                 ))}
               </ul>
             ) : (
-              <small className="contract-next-owner">{who}</small>
+              <small className="contract-next-owner">{mine && split ? `Dividido: ${who}. Em Nós, a prestação inteira.` : who}</small>
             )}
           </div>
         )}
@@ -301,13 +307,18 @@ function ContractCard({ c, onOpen, onMenu }: { c: Contract; onOpen: () => void; 
   );
 }
 
-function confirmText(contract: Contract, action: 'cancel' | 'delete') {
+function confirmText(contract: Contract, action: 'cancel' | 'delete', mine: boolean) {
   const kept = contract.paid_count === 1
     ? ' A prestação já paga continua no Extrato e no saldo.'
     : contract.paid_count > 1
       ? ` As ${prestacoes(contract.paid_count)} já pagas continuam no Extrato e no saldo.`
       : '';
-  const removedPaid = contract.paid_count === 1
+  // No Eu, paid_cents é só a parte de quem está logado: o aviso não cita valor para não parecer o total.
+  const removedPaid = mine
+    ? contract.paid_count > 0
+      ? ' As prestações já pagas deixam de contar no saldo, inclusive a parte da outra pessoa.'
+      : ''
+    : contract.paid_count === 1
     ? ` A prestação já paga (${brl(contract.paid_cents)}) deixa de contar no saldo.`
     : contract.paid_count > 1
       ? ` As ${prestacoes(contract.paid_count)} já pagas (${brl(contract.paid_cents)}) deixam de contar no saldo.`
@@ -321,8 +332,10 @@ function confirmText(contract: Contract, action: 'cancel' | 'delete') {
 
 export function ContratosPage() {
   const navigate = useNavigate();
-  const { toast } = useAppState();
-  const q = useApi<ContractsView>('/installments/contracts');
+  const { toast, person } = useAppState();
+  const mine = person !== 'all';
+  // Eu: só os contratos em que a pessoa tem parte, com a parte dela. Nós: a prestação inteira.
+  const q = useApi<ContractsView>(withPerson('/installments/contracts', person));
   const [schedule, setSchedule] = useState<Contract | null>(null);
   const [form, setForm] = useState<Contract | null>(null);
   const [pending, setPending] = useState<{ contract: Contract; action: 'cancel' | 'delete' } | null>(null);
@@ -356,18 +369,23 @@ export function ContratosPage() {
     else setPending({ contract, action });
   };
   return (
-    <main className="page">
+    <main className="page contratos">
       <div className="hd">
         <h1>Contratos</h1>
         <NewButton label="Novo contrato" onClick={add} />
       </div>
-      <p className="page-desc">Financiamentos e empréstimos. As prestações já contam nas despesas de cada mês.</p>
+      <PersonFilter />
+      <p className="page-desc">
+        {mine
+          ? 'Seus financiamentos e empréstimos. No dividido, os valores são só a sua parte.'
+          : 'Financiamentos e empréstimos da casa, com a prestação inteira e a parte de cada um.'}
+      </p>
       <ErrorText error={q.error ?? act.error} />
       {!d ? (
         <Loading />
       ) : d.contracts.length === 0 ? (
         <section className="card dashed">
-          <b>Nenhum contrato ainda</b>
+          <b>{mine ? 'Nenhum contrato seu' : 'Nenhum contrato ainda'}</b>
           <small>Lance um financiamento ou empréstimo, ou transforme em contrato um parcelamento em conta que já existe (o carro, o Fies…).</small>
           <button className="btn" onClick={add}>
             Novo contrato
@@ -377,7 +395,7 @@ export function ContratosPage() {
         <>
           <section className="card contract-sum">
             <div>
-              <small>Falta pagar</small>
+              <small>{mine ? 'Falta você pagar' : 'Falta pagar'}</small>
               <b className="num">{brl(d.remaining_cents)}</b>
             </div>
             <div>
@@ -387,7 +405,7 @@ export function ContratosPage() {
           </section>
           <div className="stack">
             {d.contracts.map((c) => (
-              <ContractCard key={c.id} c={c} onOpen={() => setSchedule(c)} onMenu={(action) => onMenu(c, action)} />
+              <ContractCard key={c.id} c={c} mine={mine} onOpen={() => setSchedule(c)} onMenu={(action) => onMenu(c, action)} />
             ))}
           </div>
         </>
@@ -399,11 +417,11 @@ export function ContratosPage() {
           onEditPlan={() => setForm(schedule)}
         />
       )}
-      {form && <ContractForm contract={form} onClose={() => setForm(null)} />}
+      {form && <ContractForm contract={form} mine={mine} onClose={() => setForm(null)} />}
       {pending && (
         <Confirm
           danger
-          text={confirmText(pending.contract, pending.action)}
+          text={confirmText(pending.contract, pending.action, mine)}
           onConfirm={() => act.mutate(pending)}
           onClose={() => setPending(null)}
         />
