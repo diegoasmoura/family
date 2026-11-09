@@ -67,3 +67,33 @@ export function forecastBalance(account: AccountOpening, movements: Movement[], 
   }
   return balance;
 }
+
+/** O que entrou e saiu de uma conta dentro de um mês, sem carregar o saldo dos meses anteriores. */
+export interface MonthFlow {
+  /** Já efetivado no mês. */
+  in_cents: Cents;
+  out_cents: Cents;
+  /** Ainda previsto no mês (a receber / a pagar, faturas em aberto). */
+  planned_in_cents: Cents;
+  planned_out_cents: Cents;
+}
+
+/**
+ * Fluxo do mês: soma só os movimentos com data dentro de `month`. Saldo inicial, correção de fim
+ * de mês e o que veio antes não entram. `skip` tira fontes da soma (ex.: transferências no total da casa).
+ */
+export function monthFlow(movements: Movement[], month: Month, skip: MovementSource[] = []): MonthFlow {
+  const flow: MonthFlow = { in_cents: 0, out_cents: 0, planned_in_cents: 0, planned_out_cents: 0 };
+  const from = `${month}-01`;
+  const to = lastDayOfMonth(month);
+  for (const m of movements) {
+    if (m.source === 'balance_adjustment' || skip.includes(m.source)) continue;
+    if (m.date < from || m.date > to) continue;
+    if (m.realized) {
+      if (m.signed_cents >= 0) flow.in_cents += m.signed_cents;
+      else flow.out_cents -= m.signed_cents;
+    } else if (m.signed_cents >= 0) flow.planned_in_cents += m.signed_cents;
+    else flow.planned_out_cents -= m.signed_cents;
+  }
+  return flow;
+}

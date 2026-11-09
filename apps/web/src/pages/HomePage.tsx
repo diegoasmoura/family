@@ -108,7 +108,6 @@ export function HomePage({ me }: { me: Me }) {
   const toggleHide = () => setHidden(!hiddenMoney);
   const ptr = usePullToRefresh();
   const [layout, setLayout] = useState(loadLayout);
-  const [showCum, setShowCum] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const d = q.data;
 
@@ -194,12 +193,27 @@ export function HomePage({ me }: { me: Me }) {
 
   const expenseTotal = d.expense.total_cents;
   const incomeTotal = d.income.total_cents;
+  // Cada mês mostra a realidade daquele mês: o que de fato entrou menos o que de fato saiu.
+  // Não há saldo carregado de um mês para o outro. O previsto (com o que ainda está a receber
+  // e a pagar) fica embaixo, menor. Mês futuro só tem previsto.
   const resultCents = incomeTotal - expenseTotal;
+  const realCents = d.income.realized_cents - d.expense.paid_cents;
   const noData = incomeTotal === 0 && expenseTotal === 0;
-  const tone: "pos" | "neg" | "idle" = noData ? "idle" : resultCents < 0 ? "neg" : "pos";
-  const toneLabel = tone === "idle" ? "Sem lançamentos" : tone === "neg" ? "No vermelho" : "No azul";
   const pastMonth = month < today.slice(0, 7);
-  const heroLabel = pastMonth ? (tone === "neg" ? "Faltou no mês" : "Sobrou no mês") : tone === "neg" ? "Falta cobrir no mês" : "Sobra prevista no mês";
+  const futureMonth = month > today.slice(0, 7);
+  const heroCents = futureMonth ? resultCents : realCents;
+  // Nada pago nem recebido ainda: o zero não é "no azul", é só um mês que não começou a andar.
+  const nothingYet = !futureMonth && !noData && d.income.realized_cents === 0 && d.expense.paid_cents === 0;
+  const tone: "pos" | "neg" | "idle" = noData || nothingYet ? "idle" : heroCents < 0 ? "neg" : "pos";
+  const toneLabel = noData ? "Sem lançamentos" : nothingYet ? "Nada pago ainda" : tone === "neg" ? "No vermelho" : "No azul";
+  const heroLabel = nothingYet
+    ? "Nada entrou nem saiu ainda"
+    : futureMonth
+    ? tone === "neg" ? "Falta cobrir no mês (previsto)" : "Sobra prevista no mês"
+    : pastMonth
+      ? tone === "neg" ? "Faltou no mês" : "Sobrou no mês"
+      : tone === "neg" ? "Faltou até hoje" : "Sobrou até hoje";
+  const showForecast = !futureMonth && resultCents !== realCents;
   const cats: { category_id: number | null; name: string; color: string | null; total_cents: number }[] = d.categories;
   const top = cats.slice(0, 5);
   const restCents = cats.slice(5).reduce((sum, item) => sum + item.total_cents, 0);
@@ -266,14 +280,14 @@ export function HomePage({ me }: { me: Me }) {
         <div className="sum-top">
           <small>{monthName(month)}</small>
           <span className={`sum-pill ${tone}`}>
-            {tone === "neg" ? <Icon.alert /> : <Icon.check />}
+            {tone === "neg" ? <Icon.alert /> : tone === "idle" ? <Icon.clock /> : <Icon.check />}
             {toneLabel}
           </span>
         </div>
         <div className="sum-hero">
           <small>{heroLabel}</small>
           <div className="sum-amt">
-            <MoneyText cents={resultCents} abs />
+            <MoneyText cents={heroCents} abs />
           </div>
         </div>
         <div className="sum-tiles">
@@ -307,8 +321,8 @@ export function HomePage({ me }: { me: Me }) {
         {person === "all" && people.length > 0 && (
           <div className="sum-people" role="table" aria-label="Receitas e despesas do mês por pessoa">
             <span className="h" role="columnheader">Por pessoa no mês</span>
-            <span className="h r" role="columnheader">Receitas</span>
-            <span className="h r" role="columnheader">Despesas</span>
+            <span className="h end" role="columnheader">Receitas</span>
+            <span className="h end" role="columnheader">Despesas</span>
             {peopleRows.map((row) => (
               <div key={row.key} role="row" style={{ display: "contents" }}>
                 <span role="cell">
@@ -324,22 +338,16 @@ export function HomePage({ me }: { me: Me }) {
             ))}
           </div>
         )}
-        <div className="sum-foot">
-          {month === today.slice(0, 7) && (
+        {showForecast && (
+          <div className="sum-foot">
             <div className="sum-foot-row">
-              <span>Saldo nas contas hoje</span>
-              <b>
-                <MoneyText cents={d.balance.current_cents} />
+              <span>{pastMonth ? "Com o que ficou em aberto" : "Previsto para fechar o mês"}</span>
+              <b className={resultCents < 0 ? "neg" : undefined}>
+                <MoneyText cents={resultCents} />
               </b>
             </div>
-          )}
-          <div className="sum-foot-row">
-            <span>{month === today.slice(0, 7) ? "Previsto no fim do mês" : month < today.slice(0, 7) ? `Saldo no fim de ${monthName(month)}` : `Previsto para o fim de ${monthName(month)}`}</span>
-            <b className={d.balance.forecast_cents < 0 ? "neg" : undefined}>
-              <MoneyText cents={d.balance.forecast_cents} />
-            </b>
           </div>
-        </div>
+        )}
       </section>
     ),
     categories: (
@@ -523,7 +531,7 @@ export function HomePage({ me }: { me: Me }) {
         )}
       </section>
     ),
-    year: <YearBlock year={year} monthIndex={sel} data={yearQ.data} showCum={showCum} onToggle={() => setShowCum((v) => !v)} onPick={(index) => setMonth(`${year}-${String(index + 1).padStart(2, "0")}`)} />,
+    year: <YearBlock year={year} monthIndex={sel} data={yearQ.data} onPick={(index) => setMonth(`${year}-${String(index + 1).padStart(2, "0")}`)} />,
   };
 
   const selectedCat = catName ? cats.find((item) => item.name === catName) : null;
@@ -766,15 +774,11 @@ function YearBlock({
   year,
   monthIndex,
   data,
-  showCum,
-  onToggle,
   onPick,
 }: {
   year: number;
   monthIndex: number;
-  data: { income: { months: number[] }; expense: { months: number[] }; balance: { months: number[] } } | undefined;
-  showCum: boolean;
-  onToggle: () => void;
+  data: { income: { months: number[] }; expense: { months: number[] } } | undefined;
   onPick: (index: number) => void;
 }) {
   if (!data) {
@@ -785,12 +789,10 @@ function YearBlock({
       </section>
     );
   }
-  const cum = data.balance.months.reduce((acc: number[], value: number) => [...acc, (acc.at(-1) ?? 0) + value], []);
   const rows: YearRow[] = data.income.months.map((income: number, index: number) => ({
     name: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][index],
     inc: income,
     exp: data.expense.months[index],
-    cum: cum[index],
   }));
   const picked = rows[monthIndex];
   const pickedMonth = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
@@ -805,12 +807,9 @@ function YearBlock({
       <div className="legend year-legend">
         <span><i className="sw inc" />Receitas</span>
         <span><i className="sw exp" />Despesas</span>
-        <button type="button" className={`cum-toggle${showCum ? " on" : ""}`} aria-pressed={showCum} onClick={onToggle}>
-          Acumulado
-        </button>
       </div>
       <div className="year-chart chart-pick">
-        <YearBarChart rows={rows} monthIndex={monthIndex} showCum={showCum} onPick={onPick} />
+        <YearBarChart rows={rows} monthIndex={monthIndex} onPick={onPick} />
       </div>
       <div className="year-sel">
         <small>{monthName(pickedMonth)}</small>
@@ -824,8 +823,8 @@ function YearBlock({
             <b className="num exp"><MoneyText cents={picked?.exp ?? 0} /></b>
           </div>
           <div>
-            <small>Acumulado</small>
-            <b className={`num ${(picked?.cum ?? 0) < 0 ? "exp" : "pos"}`}><MoneyText cents={picked?.cum ?? 0} /></b>
+            <small>Saldo do mês</small>
+            <b className={`num ${((picked?.inc ?? 0) - (picked?.exp ?? 0)) < 0 ? "exp" : "pos"}`}><MoneyText cents={(picked?.inc ?? 0) - (picked?.exp ?? 0)} /></b>
           </div>
         </div>
       </div>

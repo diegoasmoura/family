@@ -2585,17 +2585,6 @@ small.late { color: var(--neg); font-weight: 600; }
 .evo-note { margin: 0; font-size: 14px; line-height: 1.4; }
 .year-scroll { overflow-x: auto; margin: 0 -4px; }
 .year-wide { width: 640px; height: 180px; }
-.cum-toggle {
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-.cum-toggle.on { color: var(--ink); border-color: var(--chart-cum); }
 .to-top {
   position: fixed;
   right: 16px;
@@ -2850,7 +2839,6 @@ nav.tabbar button.tab:active {
 .link,
 .chip.sm,
 .who button,
-.cum-toggle,
 .ledger-row .o {
   position: relative;
 }
@@ -2865,11 +2853,6 @@ nav.tabbar button.tab:active {
   content: "";
   position: absolute;
   inset: -4px 0;
-}
-.cum-toggle::after {
-  content: "";
-  position: absolute;
-  inset: -6px -2px;
 }
 
 /* ---------- 4 · Folha de baixo: alça e entrada ---------- */
@@ -2939,7 +2922,6 @@ nav.tabbar button.tab:active {
 .year-skel { height: 220px; border-radius: 16px; background: var(--line-soft); }
 .year-card { gap: 12px; }
 .year-legend { align-items: center; gap: 12px; }
-.year-legend .cum-toggle { margin-left: auto; }
 .year-chart { margin: 0 -4px; }
 .year-chart :focus, .year-chart :focus-visible { outline: none; }
 .year-sel {
@@ -3290,13 +3272,14 @@ main.page { gap: 12px; }
 .year-chart .year-wide { width: 100%; }
 .btn.danger-text { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 45%, var(--line)); }
 
-/* ---------- Recomeçar do zero ---------- */
-.restart-acc { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; }
-.restart-left { gap: 8px; }
-.restart-left ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--ink); }
-.restart-left li { line-height: 1.35; }
-.restart-intro { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
-.restart-intro b { display: inline; color: var(--ink); }
+/* ---------- Contas: resultado do mês (sem saldo acumulado) ---------- */
+.acc-result { padding: 4px 2px; }
+.acc-result b { font-size: 17px; }
+.acc-result b.pos { color: var(--pos); }
+.acc-result b.neg { color: var(--exp); }
+.acc-result.sub b { font-size: 14px; color: var(--muted); }
+.list .v .money.pos { color: var(--pos); }
+.list .v .money.neg { color: var(--exp); }
 
 /* O Mais do cabeçalho só existe no celular; no computador ele já está na coluna da esquerda. */
 @media (min-width: 960px) {
@@ -3693,12 +3676,13 @@ main.page { gap: 12px; }
   border-top: 1px solid var(--line);
   font-size: 13px;
 }
-.sum-people > .h { color: var(--muted); font-size: 12px; font-weight: 600; }
-.sum-people > .h.r { text-align: right; }
-.sum-people > .v { text-align: right; font-weight: 600; white-space: nowrap; }
-.sum-people > .v.in { color: var(--pos); }
-.sum-people > .v.out { color: var(--exp); }
-.sum-people > .v.zero { color: var(--muted); font-weight: 400; }
+/* As células ficam dentro de linhas com display:contents, então os seletores são de descendente. */
+.sum-people .h { color: var(--muted); font-size: 12px; font-weight: 600; }
+.sum-people .h.end { text-align: right; }
+.sum-people .v { text-align: right; font-weight: 600; white-space: nowrap; }
+.sum-people .v.in { color: var(--pos); }
+.sum-people .v.out { color: var(--exp); }
+.sum-people .v.zero { color: var(--muted); font-weight: 400; }
 .sum-people .ptag { font-size: 14px; }
 
 /* Contratos: parte de cada um em destaque com a cor da pessoa. */

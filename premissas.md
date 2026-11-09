@@ -1,6 +1,6 @@
 # Premissas · Finanças do casal
 
-Este texto fixa as decisões de produto que o aplicativo segue hoje. O detalhe de cada tela, o cálculo de saldo e a largura no celular e no computador estão em `sistema.md`. O que mudou na interface depois de uma melhoria entra lá; o que não pode ser reinterpretado fica aqui.
+Este texto fixa as decisões de produto que o aplicativo segue hoje. O detalhe de cada tela, o cálculo do mês e a largura no celular e no computador estão em `sistema.md`. O que mudou na interface depois de uma melhoria entra lá; o que não pode ser reinterpretado fica aqui.
 
 ## Para quem é
 
@@ -37,7 +37,7 @@ O cartão também tem titular, no “De quem”, e só pode ser de uma pessoa: D
 
 Isto continua da casa inteira, mesmo em Eu:
 
-- saldo atual e previsto das contas;
+- o que entrou e saiu de cada conta no mês;
 - vencimento de fatura nos próximos 30 dias;
 - contas, transferências, orçamento (o teto) e metas.
 
@@ -49,7 +49,7 @@ O dinheiro é sempre um número inteiro de centavos. A tela formata em reais (`R
 
 Parcelas dividem o total em centavos inteiros. O resto de 1 centavo fica nas primeiras. R$ 100,00 em 3 vezes vira 33,34 + 33,33 + 33,33. O total parcelado precisa ter pelo menos 1 centavo por parcela.
 
-`include_in_reports` desligado deixa o lançamento na lista, esmaecido, e tira do total do mês, do ano, do orçamento e dos gráficos. Continua na fatura e no saldo da conta, porque despesa já efetivada mexe no saldo. O padrão é somar.
+`include_in_reports` desligado deixa o lançamento na lista, esmaecido, e tira do total do mês, do ano, do orçamento e dos gráficos. Continua na fatura e no que saiu da conta, porque despesa já efetivada mexe no saldo. O padrão é somar.
 
 Excluir é lógico: o registro some da tela e o histórico de exclusão fica no banco. O que foi excluído não volta a ser gerado.
 
@@ -78,6 +78,8 @@ A lista e a visão anual usam o mês de competência, não o dia em que a pessoa
 - **Realizado**, na visão anual, inclui o que já foi lançado e também a conta que ainda está a pagar. A célula fica verde e em negrito só quando o valor inteiro já foi pago ou recebido. Parte paga fica na cor normal.
 - **Previsto** acrescenta o que ainda é só previsão no cartão.
 
+**Cada mês fica sozinho; não existe saldo acumulado.** Nenhuma tela carrega sobra ou falta de um mês para o outro, nem mostra o saldo das contas somado desde o início. O número principal do mês (Início) e do ano (Ano) é a realidade: o que já foi recebido menos o que já foi pago. O que ainda está a receber e a pagar aparece embaixo, menor, como previsto. Mês ou ano futuro só tem previsto. A tela Contas mostra, para o mês escolhido, o que entrou e saiu de cada conta pela data do pagamento; transferência entre contas aparece em cada conta, mas não entra no total da casa.
+
 O estado da linha (Pago, Atrasado, Próximo, Previsto) é calculado, não gravado. Sem pagamento, vencido é atrasado. De hoje até 7 dias é próximo. Depois disso é previsto.
 
 ## O que se repete
@@ -100,11 +102,11 @@ O total gravado na criação do parcelamento não muda quando o valor de uma par
 
 ## Transferência e dinheiro que sai da casa
 
-Transferência move saldo entre duas contas do aplicativo. Não é receita nem despesa, e o total da casa não muda. Não serve para registrar um PIX para quem não usa o app.
+Transferência move dinheiro entre duas contas do aplicativo. Não é receita nem despesa, e o total da casa não muda. Não serve para registrar um PIX para quem não usa o app.
 
-Dinheiro que sai para fora da casa é uma despesa paga, na conta de quem pagou, com “Contar na soma” desligado quando esse valor não deve entrar nas despesas do mês nem no orçamento. O saldo da conta cai do mesmo jeito. Não vira dívida e não fica como “a pagar”.
+Dinheiro que sai para fora da casa é uma despesa paga, na conta de quem pagou, com “Contar na soma” desligado quando esse valor não deve entrar nas despesas do mês nem no orçamento. Ele aparece do mesmo jeito no que saiu da conta. Não vira dívida e não fica como “a pagar”.
 
-**Corrigir fim do mês** grava o saldo conferido naquela conta. Não é receita nem despesa. Os meses seguintes enxergam o ajuste.
+Não há mais **Corrigir fim do mês**, saldo inicial nem **Recomeçar do zero** na tela: sem saldo acumulado, não há saldo para conferir. Os dados antigos dessas funções ficam guardados, mas não aparecem.
 
 ## Orçamento, metas e avatar
 

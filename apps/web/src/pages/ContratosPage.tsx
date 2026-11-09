@@ -375,17 +375,17 @@ function confirmText(contract: Contract, action: 'cancel' | 'delete', mine: bool
   const kept = contract.paid_count === 1
     ? ' A prestação já paga continua no Extrato e no saldo.'
     : contract.paid_count > 1
-      ? ` As ${prestacoes(contract.paid_count)} já pagas continuam no Extrato e no saldo.`
+      ? ` As ${prestacoes(contract.paid_count)} já pagas continuam no Extrato e nas contas.`
       : '';
   // No Eu, paid_cents é só a parte de quem está logado: o aviso não cita valor para não parecer o total.
   const removedPaid = mine
     ? contract.paid_count > 0
-      ? ' As prestações já pagas deixam de contar no saldo, inclusive a parte da outra pessoa.'
+      ? ' As prestações já pagas deixam de contar nas contas, inclusive a parte da outra pessoa.'
       : ''
     : contract.paid_count === 1
-    ? ` A prestação já paga (${brl(contract.paid_cents)}) deixa de contar no saldo.`
+    ? ` A prestação já paga (${brl(contract.paid_cents)}) deixa de contar nas contas.`
     : contract.paid_count > 1
-      ? ` As ${prestacoes(contract.paid_count)} já pagas (${brl(contract.paid_cents)}) deixam de contar no saldo.`
+      ? ` As ${prestacoes(contract.paid_count)} já pagas (${brl(contract.paid_cents)}) deixam de contar nas contas.`
       : '';
   if (action === 'cancel') {
     const open = contract.active_count - contract.paid_count;

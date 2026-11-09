@@ -102,6 +102,15 @@ export interface Account {
   current_balance_cents: number;
   forecast_balance_cents: number;
   month_closing_cents?: number | null;
+  /** O que entrou e saiu desta conta no mês pedido (sem saldo acumulado). */
+  month_flow?: MonthFlow;
+}
+
+export interface MonthFlow {
+  in_cents: number;
+  out_cents: number;
+  planned_in_cents: number;
+  planned_out_cents: number;
 }
 
 export interface Invoice {

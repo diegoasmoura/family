@@ -10,6 +10,7 @@ import {
   deriveStatus,
   classifyRecurrence,
   forecastBalance,
+  monthFlow,
   formatBRL,
   invoiceForPurchase,
   inkOn,
@@ -248,6 +249,18 @@ describe('saldo', () => {
     expect(currentBalance(account, withIt, '2026-10-08')).toBe(currentBalance(account, movements, '2026-10-08'));
     const [closed] = closingAdjustments(account, movements, [{ month: '2026-10', closing_cents: 100000 }], '2026-11-01');
     expect(closed.realized).toBe(true);
+  });
+
+  it('fluxo do mês soma só o que tem data no mês, sem saldo inicial nem correção', () => {
+    const [adjustment] = closingAdjustments(account, movements, [{ month: '2026-10', closing_cents: 100000 }], '2026-11-01');
+    expect(monthFlow([...movements, adjustment], '2026-10')).toEqual({
+      in_cents: 333536,
+      out_cents: 50000 + 10000,
+      planned_in_cents: 499436,
+      planned_out_cents: 196400,
+    });
+    expect(monthFlow(movements, '2026-10', ['transfer_out', 'transfer_in']).out_cents).toBe(50000);
+    expect(monthFlow(movements, '2026-11')).toEqual({ in_cents: 0, out_cents: 0, planned_in_cents: 0, planned_out_cents: 187406 });
   });
 });
 

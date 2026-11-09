@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, useAction, type Account } from "./api";
 import { useAppState } from "./state";
 import { BankPicker } from "./banks";
-import { ErrorText, MoneyInput, Sheet } from "./ui";
+import { ErrorText, Sheet } from "./ui";
 import { useConfirm } from "./useConfirm";
 import { DeleteConfirm } from "./DeleteConfirm";
 
@@ -74,12 +74,7 @@ export function AccountForm({ account, isAdmin = false, onClose, onSaved }: { ac
             ))}
           </select>
         </label>
-        <MoneyInput label="Saldo inicial" allowNegative value={form.initial_balance_cents} onChange={(v) => setForm((f) => ({ ...f, initial_balance_cents: v }))} />
-        <label className="f">
-          <span>Data do saldo inicial</span>
-          <input type="date" value={form.initial_balance_on} onChange={(e) => setForm((f) => ({ ...f, initial_balance_on: e.target.value }))} required />
-        </label>
-        <small>O saldo é calculado a partir desta data: saldo inicial + receitas − despesas − faturas pagas ± transferências.</small>
+        <small>O app não carrega saldo de um mês para o outro: a conta mostra o que entrou e saiu dela em cada mês.</small>
         <ErrorText error={save.error ?? archive.error ?? remove.error} />
         <button className="btn block" disabled={save.isPending || !form.name.trim()}>
           Salvar

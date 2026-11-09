@@ -57,7 +57,7 @@ export function PaySheet({ card, month, onClose }: { card: Card; month: string; 
             <select value={chosenAccount ?? ''} onChange={(e) => setAccountId(Number(e.target.value))} required>
               {accounts.data?.accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name} · {brl(a.current_balance_cents)}
+                  {a.name}
                 </option>
               ))}
             </select>

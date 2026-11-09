@@ -272,19 +272,17 @@ export function EvolutionChart({ data, todayDay, formatValue }: { data: EvoPoint
   );
 }
 
-// ───────────────────────── Ano mês a mês (barras pareadas + acumulado) ─────────────────────────
+// ───────────────────────── Ano mês a mês (barras pareadas, cada mês sozinho) ─────────────────────────
 
-export type YearRow = { name: string; inc: number; exp: number; cum: number };
+export type YearRow = { name: string; inc: number; exp: number };
 
 export function YearBarChart({
   rows,
   monthIndex,
-  showCum,
   onPick,
 }: {
   rows: YearRow[];
   monthIndex: number;
-  showCum: boolean;
   onPick: (index: number) => void;
 }) {
   const height = 180;
@@ -300,9 +298,7 @@ export function YearBarChart({
           const groupScale = scaleBand({ domain: ["inc", "exp"], range: [0, xScale.bandwidth()], padding: 0.15 });
           const maxVal = Math.max(1, ...rows.flatMap((r) => [r.inc, r.exp]));
           const yScale = scaleLinear({ domain: [0, maxVal * 1.08], range: [innerH, 0], nice: true });
-          const cumVals = rows.map((r) => r.cum);
-          const cumScale = scaleLinear({ domain: [Math.min(0, ...cumVals), Math.max(1, ...cumVals)], range: [innerH, 0], nice: true });
-          const cumX = (r: YearRow) => (xScale(r.name) ?? 0) + xScale.bandwidth() / 2;
+          const midX = (r: YearRow) => (xScale(r.name) ?? 0) + xScale.bandwidth() / 2;
           return (
             <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
               <Group left={margin.left} top={margin.top}>
@@ -318,18 +314,10 @@ export function YearBarChart({
                     </Group>
                   );
                 })}
-                {showCum && (
-                  <>
-                    <LinePath data={rows} x={cumX} y={(r) => cumScale(r.cum)} curve={curveMonotoneX} stroke="var(--chart-cum)" strokeWidth={2} />
-                    {rows.map((r) => (
-                      <circle key={r.name} cx={cumX(r)} cy={cumScale(r.cum)} r={3} fill="var(--chart-cum)" />
-                    ))}
-                  </>
-                )}
                 {rows.map((row, index) => (
                   <text
                     key={row.name}
-                    x={cumX(row)}
+                    x={midX(row)}
                     y={innerH + 16}
                     textAnchor="middle"
                     fontSize={11}

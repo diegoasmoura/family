@@ -15,7 +15,7 @@ const SECTIONS: { title: string; links: [string, string, string][] }[] = [
     ['/parcelamentos', 'Parcelamentos', 'Compras parceladas em conta ou cartão'],
   ]},
   { title: 'Cadastros', links: [
-    ['/contas', 'Contas e transferências', 'Saldos, saldo inicial e transferências'],
+    ['/contas', 'Contas e transferências', 'O que entrou e saiu de cada conta no mês'],
     ['/categorias', 'Categorias', 'Categorias e subcategorias'],
   ]},
   { title: 'Casa', links: [

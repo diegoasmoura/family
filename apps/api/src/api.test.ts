@@ -153,6 +153,12 @@ describe.each(targets)('API (%s)', (dialect, url) => {
       expect(dash.income.total_cents).toBe(0);
       expect(dash.expense.total_cents).toBe(0);
       expect(dash.balance.current_cents).toBe(450000);
+      // Contas por mês: cada conta mostra o que entrou e saiu nela; o total da casa não conta a transferência.
+      const october = await ok(await agent.get('/api/accounts?month=2026-10'));
+      expect(october.accounts.find((a: any) => a.id === ids.bradesco).month_flow).toMatchObject({ in_cents: 0, out_cents: 100000 });
+      expect(october.accounts.find((a: any) => a.id === ids.nubank).month_flow).toMatchObject({ in_cents: 100000, out_cents: 0 });
+      expect(october.month_flow).toMatchObject({ in_cents: 0, out_cents: 0 });
+      expect((await ok(await agent.get('/api/accounts?month=2026-11'))).accounts.find((a: any) => a.id === ids.nubank).month_flow.in_cents).toBe(0);
       expect((await agent.post('/api/transfers').send({ from_account_id: ids.bradesco, to_account_id: ids.bradesco, amount_cents: 1 })).status).toBe(400);
     });
 

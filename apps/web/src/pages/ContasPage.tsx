@@ -1,61 +1,14 @@
 import { useState } from 'react';
-import { api, useAction, useApi, type Account, type Me } from '../api';
+import { api, useAction, useApi, type Account, type Me, type MonthFlow } from '../api';
 import { useAppState } from '../state';
 import { BankMark } from '../banks';
-import { BackButton, ErrorText, Icon, Loading, MoneyInput, MonthNav, Sheet, brl, monthName, shortDate } from '../ui';
+import { BackButton, ErrorText, Icon, Loading, MoneyInput, MonthNav, Sheet, brl, shortDate } from '../ui';
 import { useConfirm } from '../useConfirm';
 import { useSwipe } from '../useSwipe';
 import type { Transfer } from '../types';
 import { AccountForm, typeLabel } from '../AccountForm';
 import { DeleteConfirm } from '../DeleteConfirm';
-import { RestartSheet } from '../RestartSheet';
 import { addMonths, monthOf } from '@fin/domain';
-
-function ClosingForm({ account, month, onClose }: { account: Account; month: string; onClose: () => void }) {
-  const { toast } = useAppState();
-  const [value, setValue] = useState<number | null>(account.month_closing_cents ?? account.forecast_balance_cents);
-  const save = useAction(
-    () => api(`/accounts/${account.id}/closing`, { method: 'PUT', body: { month, closing_cents: value ?? 0 } }),
-    () => {
-      toast('Saldo do fim do mês corrigido');
-      onClose();
-    },
-  );
-  const clear = useAction(
-    () => api(`/accounts/${account.id}/closing?month=${month}`, { method: 'DELETE' }),
-    () => {
-      toast('Correção desfeita');
-      onClose();
-    },
-  );
-  return (
-    <Sheet title={`Fim de ${monthName(month)} · ${account.name}`} onClose={onClose}>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate(undefined);
-        }}
-      >
-        <small>Quanto esta conta fica no último dia do mês. Não entra em receitas nem despesas. Serve para dinheiro que veio de fora, como um investimento.</small>
-        <MoneyInput allowNegative big label="Saldo no fim do mês" value={value} onChange={setValue} />
-        <div className="kv">
-          <span>Previsto agora</span>
-          <b className="num">{brl(account.forecast_balance_cents)}</b>
-        </div>
-        <ErrorText error={save.error ?? clear.error} />
-        <button className="btn big" disabled={value == null || save.isPending}>
-          Corrigir
-        </button>
-        {account.month_closing_cents != null && (
-          <button type="button" className="btn ghost" disabled={clear.isPending} onClick={() => clear.mutate(undefined)}>
-            Desfazer correção
-          </button>
-        )}
-      </form>
-    </Sheet>
-  );
-}
 
 function TransferForm({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
   const { today, toast } = useAppState();
@@ -117,16 +70,69 @@ function TransferForm({ accounts, onClose }: { accounts: Account[]; onClose: () 
   );
 }
 
+const ZERO: MonthFlow = { in_cents: 0, out_cents: 0, planned_in_cents: 0, planned_out_cents: 0 };
+
+/** Resultado com sinal: "+R$ 10,00" / "−R$ 10,00". */
+function signed(cents: number) {
+  return `${cents < 0 ? '−' : '+'}${brl(Math.abs(cents))}`;
+}
+
+/**
+ * Topo da tela: só o mês escolhido. O que já entrou e saiu das contas, o resultado e, se ainda
+ * houver algo previsto, como o mês fecha. Transferência entre contas não entra (só muda o lugar).
+ */
+function MonthFlowStats({ flow = ZERO, future, past }: { flow?: MonthFlow; future: boolean; past: boolean }) {
+  const real = flow.in_cents - flow.out_cents;
+  const planned = real + flow.planned_in_cents - flow.planned_out_cents;
+  const pending = flow.planned_in_cents > 0 || flow.planned_out_cents > 0;
+  return (
+    <>
+      <div className="stats">
+        <div className="st ok">
+          <small>Entrou no mês</small>
+          <b className="num">{brl(flow.in_cents)}</b>
+        </div>
+        <div className="st">
+          <small>Saiu no mês</small>
+          <b className="num">{brl(flow.out_cents)}</b>
+        </div>
+      </div>
+      <div className="kv acc-result">
+        <span>{future ? 'Previsto para o mês' : past ? 'Resultado do mês' : 'Resultado do mês até hoje'}</span>
+        <b className={`num ${(future ? planned : real) < 0 ? 'neg' : 'pos'}`}>{signed(future ? planned : real)}</b>
+      </div>
+      {!future && pending && (
+        <div className="kv acc-result sub">
+          <span>Com o que ainda está previsto</span>
+          <b className="num">{signed(planned)}</b>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Na linha da conta: o resultado do mês e, embaixo, quanto entrou e saiu dela. */
+function AccountFlow({ flow = ZERO }: { flow?: MonthFlow }) {
+  const real = flow.in_cents - flow.out_cents;
+  const quiet = flow.in_cents === 0 && flow.out_cents === 0;
+  return (
+    <div className="v">
+      <span className={`money${quiet ? '' : real < 0 ? ' neg' : ' pos'}`}>{quiet ? '–' : signed(real)}</span>
+      <small>
+        entrou <span className="money">{brl(flow.in_cents)}</span> · saiu <span className="money">{brl(flow.out_cents)}</span>
+      </small>
+    </div>
+  );
+}
+
 export function ContasPage({ me }: { me: Me }) {
   const { month, setMonth, toast, today } = useAppState();
-  const q = useApi<{ accounts: Account[]; current_cents: number; forecast_cents: number }>(`/accounts?month=${month}`);
+  const q = useApi<{ accounts: Account[]; month_flow: MonthFlow }>(`/accounts?month=${month}`);
   const transfers = useApi<Transfer[]>(`/transfers?month=${month}`);
   const withArchived = useApi<{ accounts: Account[] }>(`/accounts?month=${month}&archived=1`);
   const archivedAccounts = (withArchived.data?.accounts ?? []).filter((a) => a.archived);
   const [editing, setEditing] = useState<Account | 'new' | null>(null);
-  const [closing, setClosing] = useState<Account | null>(null);
   const [deleting, setDeleting] = useState<Account | null>(null);
-  const [restarting, setRestarting] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const removeAccount = useAction((a: Account) => api(`/accounts/${a.id}`, { method: 'DELETE' }), () => toast('Conta excluída'));
   const reactivate = useAction((a: Account) => api(`/accounts/${a.id}`, { method: 'PATCH', body: { archived: 0 } }), () => toast('Conta reativada'));
@@ -151,16 +157,7 @@ export function ContasPage({ me }: { me: Me }) {
         <Loading />
       ) : (
         <>
-          <div className="stats">
-            <div className="st ok">
-              <small>Saldo atual</small>
-              <b className="num">{brl(q.data.current_cents)}</b>
-            </div>
-            <div className="st">
-              <small>Previsto no fim do mês</small>
-              <b className="num">{brl(q.data.forecast_cents)}</b>
-            </div>
-          </div>
+          <MonthFlowStats flow={q.data.month_flow} future={month > monthOf(today)} past={month < monthOf(today)} />
           <div className="list">
             {q.data.accounts.map((a) => (
               <div className="rw" key={a.id}>
@@ -168,22 +165,13 @@ export function ContasPage({ me }: { me: Me }) {
                   <BankMark name={a.name} size={40} fallback />
                   <div className="m">
                     <span className="t">{a.name}</span>
-                    <small>
-                      {typeLabel(a.type)} · desde {shortDate(a.initial_balance_on)}
-                      {a.month_closing_cents != null ? ' · fim do mês corrigido' : ''}
-                    </small>
+                    <small>{typeLabel(a.type)}</small>
                   </div>
-                  <div className="v">
-                    <span className="money">{brl(a.current_balance_cents)}</span>
-                    <small>previsto <span className="money">{brl(a.forecast_balance_cents)}</span></small>
-                  </div>
-                </button>
-                <button type="button" className="link" onClick={() => setClosing(a)}>
-                  Corrigir
+                  <AccountFlow flow={a.month_flow} />
                 </button>
               </div>
             ))}
-            {q.data.accounts.length === 0 && <p className="empty">Cadastre a primeira conta com o saldo de hoje.</p>}
+            {q.data.accounts.length === 0 && <p className="empty">Cadastre a primeira conta.</p>}
           </div>
           {archivedAccounts.length > 0 && (
             <section className="card">
@@ -214,11 +202,6 @@ export function ContasPage({ me }: { me: Me }) {
               Nova transferência
             </button>
           )}
-          {me.role === 'admin' && q.data.accounts.length > 0 && month <= monthOf(today) && (
-            <button className="btn ghost block" onClick={() => setRestarting(true)}>
-              Recomeçar do zero em {monthName(month)}
-            </button>
-          )}
           {transfers.data && transfers.data.length > 0 && (
             <section className="card">
               <h2>Transferências do mês</h2>
@@ -233,7 +216,7 @@ export function ContasPage({ me }: { me: Me }) {
                       className="link"
                       onClick={() =>
                         confirm(
-                          `Remover a transferência de ${brl(t.amount_cents)} (${t.from_account_name} → ${t.to_account_name})? Os saldos das duas contas voltam ao que eram.`,
+                          `Remover a transferência de ${brl(t.amount_cents)} (${t.from_account_name} → ${t.to_account_name})? As duas contas voltam ao que eram.`,
                           () => removeTransfer.mutate(t.id),
                         )
                       }
@@ -248,7 +231,6 @@ export function ContasPage({ me }: { me: Me }) {
         </>
       )}
       {editing && <AccountForm account={editing === 'new' ? undefined : editing} isAdmin={me.role === 'admin'} onClose={() => setEditing(null)} />}
-      {restarting && <RestartSheet month={month} onClose={() => setRestarting(false)} />}
       {deleting && (
         <DeleteConfirm
           kind="accounts"
@@ -261,7 +243,6 @@ export function ContasPage({ me }: { me: Me }) {
           onClose={() => setDeleting(null)}
         />
       )}
-      {closing && <ClosingForm account={closing} month={month} onClose={() => setClosing(null)} />}
       {transferring && q.data && <TransferForm accounts={q.data.accounts} onClose={() => setTransferring(false)} />}
       {dialog}
     </main>

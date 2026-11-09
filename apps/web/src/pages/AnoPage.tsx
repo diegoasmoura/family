@@ -261,8 +261,23 @@ export function AnoPage() {
     rows.map((r) => row(r, `${prefix}${r.category_id}`, 0, prefix === 'i' ? 'income' : 'expense'));
 
   const awayYear = year !== yearOf(today);
+  // O resumo mostra a realidade: o que já foi recebido menos o que já foi pago no ano. O que ainda
+  // está a receber ou a pagar fica embaixo, como previsto. Ano futuro só tem previsto.
   const balance = d?.balance.total_cents ?? 0;
-  const tone = balance < 0 ? 'neg' : 'pos';
+  const sumOf = (list?: number[]) => (list ?? []).reduce((a, v) => a + v, 0);
+  const received = sumOf(d?.income.paid_months);
+  const paid = sumOf(d?.expense.paid_months);
+  const futureYear = year > yearOf(today);
+  const pastYear = year < yearOf(today);
+  const heroCents = futureYear ? balance : received - paid;
+  const tone = heroCents < 0 ? 'neg' : 'pos';
+  const heroLabel = futureYear
+    ? tone === 'neg' ? 'Falta cobrir no ano (previsto)' : 'Sobra prevista no ano'
+    : pastYear
+      ? tone === 'neg' ? `Faltou em ${year}` : `Sobrou em ${year}`
+      : tone === 'neg' ? 'Faltou no ano até hoje' : 'Sobrou no ano até hoje';
+  const toReceive = (d?.income.total_cents ?? 0) - received;
+  const toPay = (d?.expense.total_cents ?? 0) - paid;
 
   return (
     <main className="page wide">
@@ -314,29 +329,49 @@ export function AnoPage() {
               </span>
             </div>
             <div className="sum-hero">
-              <small>{tone === 'neg' ? 'Falta cobrir no ano' : 'Sobra acumulada no ano'}</small>
+              <small>{heroLabel}</small>
               <div className="sum-amt">
-                <Amt cents={balance} abs />
+                <Amt cents={heroCents} abs />
               </div>
             </div>
             <div className="sum-tiles">
               <div className="sum-tile in">
                 <span className="sum-tile-hd">
-                  <i aria-hidden><Icon.income /></i>Receitas
+                  <i aria-hidden><Icon.income /></i>{futureYear ? 'Receitas' : 'Recebido'}
                 </span>
                 <b>
-                  <Amt cents={d.income.total_cents} />
+                  <Amt cents={futureYear ? d.income.total_cents : received} />
                 </b>
+                {!futureYear && toReceive > 0 && (
+                  <small>
+                    <Amt cents={toReceive} /> a receber
+                  </small>
+                )}
               </div>
               <div className="sum-tile out">
                 <span className="sum-tile-hd">
-                  <i aria-hidden><Icon.expense /></i>Despesas
+                  <i aria-hidden><Icon.expense /></i>{futureYear ? 'Despesas' : 'Pago'}
                 </span>
                 <b>
-                  <Amt cents={d.expense.total_cents} />
+                  <Amt cents={futureYear ? d.expense.total_cents : paid} />
                 </b>
+                {!futureYear && toPay > 0 && (
+                  <small>
+                    <Amt cents={toPay} /> a pagar
+                  </small>
+                )}
               </div>
             </div>
+            {!futureYear && balance !== heroCents && (
+              <div className="sum-foot">
+                <div className="sum-foot-row">
+                  <span>{pastYear ? 'Com o que ficou em aberto' : 'Previsto para fechar o ano'}</span>
+                  <b className={balance < 0 ? 'neg' : undefined}>
+                    <Amt cents={balance} />
+                  </b>
+                </div>
+              </div>
+            )}
           </section>
 
           <div className="year-bar">

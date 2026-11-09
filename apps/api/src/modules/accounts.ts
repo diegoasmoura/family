@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { closingAdjustments, currentBalance, forecastBalance, lastDayOfMonth, monthOf, type Movement, type MonthClosing } from '@fin/domain';
+import { closingAdjustments, currentBalance, forecastBalance, lastDayOfMonth, monthFlow, monthOf, type Movement, type MonthClosing } from '@fin/domain';
 import {
   badRequest,
   findByUuid,
@@ -105,17 +105,23 @@ export async function balances(ctx: Ctx, month = monthOf(ctx.today)) {
     const own: MonthClosing[] = closings.filter((c) => c.account_id === a.id).map((c) => ({ month: c.month, closing_cents: num(c.closing_cents) }));
     const movements = [...(byAccount.get(a.id) ?? []), ...closingAdjustments(opening, byAccount.get(a.id) ?? [], own, ctx.today)];
     const closing = own.find((c) => c.month === month);
+    const mine = byAccount.get(a.id) ?? [];
     return {
       ...a,
+      // O que entrou e saiu desta conta no mês, sem carregar o saldo dos meses anteriores.
+      month_flow: monthFlow(mine, month),
       current_balance_cents: currentBalance(opening, movements, ctx.today),
       forecast_balance_cents: forecastBalance(opening, movements, ctx.today, horizon),
       month_closing_cents: closing ? closing.closing_cents : null,
     };
   });
   const unassignedDue = unassigned.filter((m) => m.date <= horizon).reduce((acc, m) => acc + m.signed_cents, 0);
+  // Total da casa: transferência entre contas não é entrada nem saída; fatura sem conta padrão entra no previsto.
+  const all = [...[...byAccount.values()].flat(), ...unassigned];
   return {
     month,
     accounts: list,
+    month_flow: monthFlow(all, month, ['transfer_in', 'transfer_out']),
     current_cents: list.reduce((acc, a) => acc + a.current_balance_cents, 0),
     forecast_cents: list.reduce((acc, a) => acc + a.forecast_balance_cents, 0) + unassignedDue,
   };
