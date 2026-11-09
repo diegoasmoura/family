@@ -389,6 +389,7 @@ export function installmentsRouter(): Router {
         lender: p.lender ?? null,
         account_id: Number(p.account_id),
         account_name: p.account_name,
+        category_id: p.category_id == null ? null : num(p.category_id),
         category_name: p.category_name ?? null,
         installments: num(p.installments),
         total_cents: num(p.total_cents),
@@ -442,8 +443,12 @@ export function installmentsRouter(): Router {
   r.patch('/:id', async (req, res) => {
     const id = idParam(req.params.id);
     const plan = await owned<{ card_id: number | null }>(req.ctx, 'installment_plans', id, 'Parcelamento');
-    const body = parse(z.object({ ...contractFields(), for_user_id: zId.nullable().optional(), ...splitFields }), req.body);
+    const body = parse(
+      z.object({ ...contractFields(), category_id: zId.nullable().optional(), for_user_id: zId.nullable().optional(), ...splitFields }),
+      req.body,
+    );
     if (plan.card_id && body.is_contract) throw badRequest(CARD_NOT_CONTRACT);
+    if (body.category_id != null) await assertCategory(req.ctx, body.category_id, 'expense');
     const owner = body.for_user_id === undefined ? undefined : await assertHouseholdUser(req.ctx, body.for_user_id);
     const split = owner === undefined ? null : await normalizeSplit(req.ctx, owner, body.split_user_id, body.split_bp);
     const shares = body.shares === undefined ? undefined : await resolveShares(req.ctx, body.shares, !!plan.card_id);
@@ -453,10 +458,19 @@ export function installmentsRouter(): Router {
     if (body.contracted_cents !== undefined) patch.contracted_cents = body.contracted_cents;
     if (body.monthly_rate_bp !== undefined) patch.monthly_rate_bp = body.monthly_rate_bp;
     if (body.contract_type !== undefined) patch.contract_type = body.contract_type;
+    if (body.category_id !== undefined) patch.category_id = body.category_id;
     // A conta do plano é só a âncora do cadastro. O saldo usa a conta de cada linha.
     if (shares?.[0]?.account_id && !plan.card_id) patch.account_id = shares[0].account_id;
     await req.ctx.db.tx(async (db) => {
       await update(db, 'installment_plans', id, patch);
+      if (body.category_id !== undefined) {
+        // Como "de quem": a categoria nova vale para as parcelas em aberto; o que já foi pago fica como está.
+        await db.run(
+          `UPDATE transactions SET category_id = ?, updated_at = ?
+            WHERE plan_id = ? AND deleted_at IS NULL AND paid_on IS NULL AND (card_id IS NULL OR competence_month >= ?)`,
+          [body.category_id, nowIso(), id, monthOf(req.ctx.today)],
+        );
+      }
       if (shares !== undefined) {
         // `shares` reescreve as prestações em aberto: uma linha por pessoa, ou uma só quando a divisão sai.
         await rewriteOpenShares(db, id, shares, owner ?? null, req.ctx.today, req.ctx.userId);

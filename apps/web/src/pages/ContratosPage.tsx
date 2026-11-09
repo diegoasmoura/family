@@ -1,7 +1,8 @@
 import { useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { monthLabel, monthOf } from '@fin/domain';
-import { api, useAction, useApi, type Account } from '../api';
+import { api, useAction, useApi, type Account, type Category } from '../api';
+import { CategoryPicker } from '../categories';
 import { placeLabel } from '../banks';
 import { AccountForm } from '../AccountForm';
 import { PersonFilter, personOf, withPerson, useHousePeople } from '../people';
@@ -34,6 +35,8 @@ interface Contract {
   lender: string | null;
   account_name: string;
   contract_type: ContractType;
+  category_id: number | null;
+  category_name: string | null;
   shares: { user_id: number; bp: number; account_id?: number | null }[] | null;
   for_user_id: number | null;
   installments: number;
@@ -67,6 +70,9 @@ function ContractForm({ contract, mine, onClose }: { contract: Contract; mine: b
   const [lender, setLender] = useState(contract.lender ?? '');
   const [contracted, setContracted] = useState<number | null>(contract.contracted_cents);
   const [rate, setRate] = useState(rateText(contract.monthly_rate_bp));
+  const cats = useApi<Category[]>('/categories?kind=expense');
+  const [categoryId, setCategoryId] = useState<number | null>(contract.category_id);
+  const categoryChanged = categoryId !== contract.category_id;
   const accounts = useApi<{ accounts: Account[] }>('/accounts');
   const accountList = accounts.data?.accounts ?? [];
   const [split, setSplit] = useState<Split | null>(null);
@@ -87,6 +93,8 @@ function ContractForm({ contract, mine, onClose }: { contract: Contract; mine: b
           lender: lender.trim() || null,
           contracted_cents: contracted,
           monthly_rate_bp: rateBp,
+          // Só reenvia se mudou: a categoria nova vale para as prestações em aberto.
+          ...(categoryChanged ? { category_id: categoryId } : {}),
           // A divisão só é reenviada se mudou: ela refaz as linhas das prestações em aberto.
           ...(split ? splitBody(split, users, accountsByUser) : {}),
         },
@@ -118,6 +126,9 @@ function ContractForm({ contract, mine, onClose }: { contract: Contract; mine: b
           <span>Credor</span>
           <input value={lender} onChange={(e) => setLender(e.target.value)} maxLength={80} placeholder="Ex.: Bradesco, Caixa, Fies" />
         </label>
+        <small>Categoria</small>
+        <CategoryPicker categories={cats.data} value={categoryId} onChange={setCategoryId} />
+        {categoryChanged && <small>A categoria nova vale para as prestações em aberto; as já pagas ficam como estão.</small>}
         <small>De quem</small>
         <SplitPicker
           value={who}

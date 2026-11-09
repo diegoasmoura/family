@@ -749,6 +749,13 @@ describe.each(targets)('API (%s)', (dialect, url) => {
         saved_cents: 0, next: { installment_no: 2, due_on: '2026-11-05', amount_cents: 10000, overdue: false }, ends_on: '2027-03-05',
       });
       expect(view).toMatchObject({ remaining_cents: 50000, month_cents: 10000 });
+      // Trocar a categoria do contrato muda as prestações em aberto; a já paga fica como estava.
+      expect((await agent.patch(`/api/installments/${plan.id}`).send({ category_id: ids.cat['Salário'] })).status).toBe(400);
+      await ok(await agent.patch(`/api/installments/${plan.id}`).send({ category_id: ids.cat['Mercado'] }));
+      expect((await ok(await agent.get('/api/installments/contracts'))).contracts[0]).toMatchObject({ category_id: ids.cat['Mercado'], category_name: 'Mercado' });
+      const recat = await ok(await agent.get(`/api/installments/${plan.id}`));
+      expect(recat.items[0].category_id).toBeNull();
+      expect(recat.items.slice(1).every((t: any) => t.category_id === ids.cat['Mercado'])).toBe(true);
       // A prestação continua sendo uma despesa normal do mês: aparece uma vez no Extrato.
       const month = await ok(await agent.get('/api/transactions?month=2026-10&kind=expense&person=all'));
       expect(month.items.filter((t: any) => t.description === 'Carro')).toHaveLength(1);
